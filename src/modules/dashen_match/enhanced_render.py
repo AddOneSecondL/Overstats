@@ -45,6 +45,7 @@ from .render import (
     _hero_icon_url,
     _load_ow_config,
     _paste_perk_icon,
+    _resize_image,
     _resolve_player_hero,
     _text_size,
     _text_width,
@@ -70,7 +71,7 @@ HIGHLIGHT_COLORS = {
 
 def _pil_to_rendered(image: Any) -> RenderedImage:
     output = BytesIO()
-    image.convert("RGB").save(output, format="PNG")
+    image.convert("RGB").save(output, format="PNG", optimize=True)
     return RenderedImage(content=output.getvalue())
 
 
@@ -219,7 +220,7 @@ def _load_icon_rgba(url: str, *, size: tuple[int, int]) -> Any:
         return None
     try:
         with Image.open(path) as raw_icon:
-            return raw_icon.convert("RGBA").resize(size)
+            return _resize_image(raw_icon.convert("RGBA"), size)
     except Exception:
         return None
 
@@ -509,6 +510,8 @@ def render_all_players_waterfall(
     *,
     match_game_time_sec: Any = None,
 ) -> RenderedImage:
+    return _render_all_players_waterfall_readable(all_player_data, match_game_time_sec=match_game_time_sec)
+
     from PIL import Image, ImageDraw
 
     config = _load_ow_config()
@@ -766,6 +769,290 @@ def render_all_players_waterfall(
             cursor_x += player_w + col_gap
 
     _draw_legend(draw, pad, image_h - bottom_pad + 12, _font_chinese(12))
+    return _pil_to_rendered(image)
+
+
+def _render_all_players_waterfall_readable(
+    all_player_data: Sequence[dict[str, Any]],
+    *,
+    match_game_time_sec: Any = None,
+) -> RenderedImage:
+    from PIL import Image, ImageDraw
+
+    config = _load_ow_config()
+    players = [dict(item) for item in all_player_data if isinstance(item, dict) and item.get("heroList")]
+    if not players:
+        image = Image.new("RGBA", (960, 180), (18, 22, 30, 255))
+        draw = ImageDraw.Draw(image, "RGBA")
+        draw.text((32, 42), "No detailed player data available", font=_font_chinese(28), fill=(255, 255, 255, 255))
+        draw.text((32, 98), "No public hero detail data was captured for this match.", font=_font_meta(18), fill=(180, 188, 202, 255))
+        return _pil_to_rendered(image)
+
+    pad = 28
+    section_gap = 30
+    section_header_h = 48
+    player_w = 500
+    max_columns = 2
+    col_gap = 18
+    row_gap = 18
+    header_h = 90
+    title_row_h = 24
+    after_title_gap = 10
+    stat_row_h = 24
+    stat_gap = 6
+    hero_header_h = 54
+    hero_gap = 10
+    card_bottom_pad = 12
+    bottom_pad = 46
+    promoted_stat_guids = {KILL_GUID, ASSIST_GUID, DEATH_GUID, GAME_TIME_GUID}
+
+    bg_color = (24, 24, 34, 255)
+    card_color = (38, 40, 52, 255)
+    header_color = (47, 50, 64, 255)
+    section_line = (86, 94, 116, 255)
+    row_color_a = (45, 48, 60, 255)
+    row_color_b = (35, 38, 49, 255)
+    teammate_color = (78, 180, 122, 255)
+    enemy_color = (215, 78, 82, 255)
+    text_dim = (188, 192, 202, 255)
+    text_main = (245, 247, 250, 255)
+    accent_gold = (255, 212, 96, 255)
+
+    role_order = {"tank": 0, "dps": 1, "healer": 2}
+    role_badges = {
+        "tank": ("T", (83, 163, 255, 255), (23, 43, 68, 255)),
+        "dps": ("D", (255, 111, 103, 255), (71, 31, 30, 255)),
+        "healer": ("S", (85, 214, 142, 255), (25, 63, 42, 255)),
+    }
+    hero_lookup = {str(hero.get("heroGuid")): hero for hero in config.get("heroList", []) or [] if hero.get("heroGuid")}
+
+    def _player_heroes(player: dict[str, Any]) -> list[dict[str, Any]]:
+        heroes = [hero for hero in list(player.get("heroList") or []) if isinstance(hero, dict)]
+        heroes.sort(key=lambda item: float((item.get("statMap") or {}).get(GAME_TIME_GUID, 0) or 0), reverse=True)
+        return heroes
+
+    def _played_roles(player: dict[str, Any]) -> list[str]:
+        roles = set()
+        for hero in _player_heroes(player):
+            hero_info = hero_lookup.get(str(hero.get("heroGuid") or hero.get("heroId") or "")) or _find_hero(config, hero.get("heroGuid") or hero.get("heroId"))
+            role_type = str(hero_info.get("roleType") or "").lower()
+            if role_type in role_order:
+                roles.add(role_type)
+        return sorted(roles, key=lambda item: role_order.get(item, 99))
+
+    def _primary_role(player: dict[str, Any]) -> str:
+        heroes = _player_heroes(player)
+        if not heroes:
+            return ""
+        hero = heroes[0]
+        hero_info = hero_lookup.get(str(hero.get("heroGuid") or hero.get("heroId") or "")) or _find_hero(config, hero.get("heroGuid") or hero.get("heroId"))
+        return str(hero_info.get("roleType") or "").lower()
+
+    def _player_sort_key(player: dict[str, Any]) -> tuple[int, str]:
+        return (role_order.get(_primary_role(player), 99), str(player.get("name") or "").lower())
+
+    def _split_name(full_name: Any) -> tuple[str, str]:
+        text = str(full_name or "").strip()
+        if "#" in text:
+            tag, num = text.split("#", 1)
+            return tag.strip() or text, f"#{num.strip()}"
+        return text or "Unknown", ""
+
+    def _format_seconds(value: Any) -> str:
+        try:
+            seconds = int(round(float(value or 0)))
+        except (TypeError, ValueError):
+            seconds = 0
+        return f"{seconds}s"
+
+    def _format_ratio(value: Any) -> str:
+        try:
+            seconds = float(value or 0)
+            total_seconds = float(match_game_time_sec or 0)
+        except (TypeError, ValueError):
+            return "0%"
+        if total_seconds <= 0:
+            return "0%"
+        percent = max(0.0, seconds / total_seconds * 100)
+        text = f"{percent:.1f}"
+        if text.endswith(".0"):
+            text = text[:-2]
+        return f"{text}%"
+
+    def _value_fill(band: str) -> tuple[int, int, int, int]:
+        return HIGHLIGHT_COLORS.get(str(band or ""), text_main)
+
+    def _hero_block_meta(player: dict[str, Any]) -> list[tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], int]]:
+        blocks = []
+        for hero in _player_heroes(player):
+            stat_rows = _hero_stat_rows(config, hero, rank_info=player.get("rankInfo") or {})
+            stat_rows = [row for row in stat_rows if row["guid"] not in promoted_stat_guids]
+            rows_per_col = max(1, math.ceil(len(stat_rows) / 2)) if stat_rows else 0
+            block_h = hero_header_h + rows_per_col * stat_row_h + hero_gap
+            hero_guid = str(hero.get("heroGuid") or hero.get("heroId") or "")
+            hero_info = hero_lookup.get(hero_guid) or _find_hero(config, hero_guid)
+            blocks.append((hero, hero_info, stat_rows, block_h))
+        return blocks
+
+    def _player_panel_height(player: dict[str, Any]) -> int:
+        content_h = sum(block_h for _, _, _, block_h in _hero_block_meta(player))
+        return header_h + title_row_h + after_title_gap + content_h + card_bottom_pad
+
+    def _section_layout(team_players: Sequence[dict[str, Any]]) -> tuple[int, list[int], int, int]:
+        if not team_players:
+            return 0, [], 0, 0
+        cols = 1 if len(team_players) <= 1 else min(max_columns, len(team_players))
+        row_heights: list[int] = []
+        for start in range(0, len(team_players), cols):
+            row_players = team_players[start : start + cols]
+            row_heights.append(max(_player_panel_height(player) for player in row_players))
+        width = cols * player_w + max(0, cols - 1) * col_gap
+        height = section_header_h + sum(row_heights) + max(0, len(row_heights) - 1) * row_gap
+        return cols, row_heights, width, height
+
+    def _draw_role_badge(draw: Any, x0: int, y0: int, role: str) -> None:
+        short, outline, fill = role_badges.get(role, ("?", (190, 196, 210, 255), (50, 54, 66, 255)))
+        draw.rounded_rectangle((x0, y0, x0 + 22, y0 + 22), radius=6, fill=fill, outline=outline, width=1)
+        draw.text((x0 + 11, y0 + 3), short, font=_font_meta(15), fill=outline, anchor="ma")
+
+    def _draw_player_card(draw: Any, image: Any, player: dict[str, Any], x: int, y: int, row_h: int, team_color: tuple[int, int, int, int]) -> None:
+        draw.rounded_rectangle((x, y, x + player_w, y + row_h), radius=18, fill=card_color, outline=(70, 74, 92, 255), width=1)
+        draw.rounded_rectangle((x, y, x + player_w, y + header_h), radius=18, fill=header_color, outline=team_color, width=2)
+        draw.rectangle((x, y, x + 8, y + header_h), fill=team_color)
+
+        heroes = _player_heroes(player)
+        primary_hero = heroes[0] if heroes else {}
+        primary_info = hero_lookup.get(str(primary_hero.get("heroGuid") or primary_hero.get("heroId") or "")) or _find_hero(config, primary_hero.get("heroGuid") or primary_hero.get("heroId"))
+        header_icon = _load_icon_rgba(_hero_icon_url(primary_info, primary_hero), size=(52, 52)) if primary_hero else None
+        icon_x = x + 15
+        icon_y = y + 13
+        if header_icon is not None:
+            image.paste(header_icon, (icon_x, icon_y), header_icon)
+        else:
+            draw.rounded_rectangle((icon_x, icon_y, icon_x + 52, icon_y + 52), radius=10, fill=(70, 74, 90, 255), outline=team_color, width=2)
+
+        display_name, battle_num = _split_name(player.get("name"))
+        roles = _played_roles(player)
+        role_x = x + player_w - 16 - max(0, len(roles) * 22 + (len(roles) - 1) * 6)
+        cursor = role_x
+        for role in roles:
+            _draw_role_badge(draw, cursor, y + 9, role)
+            cursor += 28
+
+        info_right = role_x - 10 if roles else x + player_w - 12
+        name_x = icon_x + 62
+        info_w = max(72, info_right - name_x)
+        draw.text((name_x, y + 10), _fit_text(draw, display_name, _font_chinese(22), info_w), font=_font_chinese(22), fill=text_main)
+        if battle_num:
+            draw.text((name_x, y + 38), _fit_text(draw, battle_num, _font_meta(15), info_w), font=_font_meta(15), fill=text_dim)
+
+        title_y = y + header_h
+        title_list = _group_titles(player.get("bnet_id"))
+        if title_list:
+            _draw_title_badges(
+                draw,
+                title_list,
+                x + 10,
+                title_y + 11,
+                x + player_w - 10,
+                badge_height=20,
+                badge_gap=6,
+                max_badge_width=150,
+                min_badge_width=54,
+                padding_x=8,
+                max_font_size=12,
+                min_font_size=9,
+            )
+
+        current_y = title_y + title_row_h + after_title_gap
+        for hero, hero_info, stat_rows, _block_h in _hero_block_meta(player):
+            stat_map = hero.get("statMap", {}) or {}
+            hero_guid = str(hero.get("heroGuid") or hero.get("heroId") or "")
+            hero_name = hero_info.get("name") or hero_guid or "Unknown Hero"
+            row_map = {row["guid"]: row for row in _hero_stat_rows(config, hero, rank_info=player.get("rankInfo") or {})}
+
+            draw.rounded_rectangle((x + 10, current_y, x + player_w - 10, current_y + hero_header_h), radius=12, fill=(30, 32, 42, 255))
+            icon = _load_icon_rgba(_hero_icon_url(hero_info, hero), size=(34, 34))
+            if icon is not None:
+                image.paste(icon, (x + 18, current_y + 8), icon)
+
+            kill_row = row_map.get(KILL_GUID, {})
+            assist_row = row_map.get(ASSIST_GUID, {})
+            death_row = row_map.get(DEATH_GUID, {})
+            kad_parts = [
+                (str(kill_row.get("value_text") or "0"), _value_fill(str(kill_row.get("band") or ""))),
+                ("/", text_main),
+                (str(assist_row.get("value_text") or "0"), _value_fill(str(assist_row.get("band") or ""))),
+                ("/", text_main),
+                (str(death_row.get("value_text") or "0"), _value_fill(str(death_row.get("band") or ""))),
+            ]
+            kad_font = _font_num_display(15)
+            hero_font = _font_chinese(18)
+            kad_width = sum(_measure(draw, text, kad_font) for text, _ in kad_parts)
+            draw.text((x + 60, current_y + 8), _fit_text(draw, hero_name, hero_font, player_w - 90 - kad_width), font=hero_font, fill=accent_gold)
+            kad_x = x + player_w - 16 - kad_width
+            for text, fill in kad_parts:
+                draw.text((kad_x, current_y + 8), text, font=kad_font, fill=fill)
+                kad_x += _measure(draw, text, kad_font)
+
+            play_seconds = float(stat_map.get(GAME_TIME_GUID, 0) or 0)
+            playtime_text = f"TIME {_format_seconds(play_seconds)} | USAGE {_format_ratio(play_seconds)}"
+            draw.text((x + 18, current_y + 33), _fit_text(draw, playtime_text, _font_meta(13), player_w - 36), font=_font_meta(13), fill=text_dim)
+            current_y += hero_header_h
+
+            stat_cell_w = (player_w - 24 - stat_gap) // 2
+            for index, row in enumerate(stat_rows):
+                column = index % 2
+                row_index = index // 2
+                row_x = x + 12 + column * (stat_cell_w + stat_gap)
+                row_y = current_y + row_index * stat_row_h
+                draw.rounded_rectangle((row_x, row_y, row_x + stat_cell_w, row_y + stat_row_h - 2), radius=8, fill=row_color_a if row_index % 2 == 0 else row_color_b)
+                draw.text((row_x + 8, row_y + 4), _fit_text(draw, row["label"], _font_chinese(13), stat_cell_w - 86), font=_font_chinese(13), fill=text_dim)
+                draw.text((row_x + stat_cell_w - 8, row_y + 3), row["value_text"], font=_font_num_display(15), fill=_value_fill(str(row["band"])), anchor="ra")
+            current_y += math.ceil(len(stat_rows) / 2) * stat_row_h + hero_gap
+
+    teammates = sorted([player for player in players if player.get("team_type") == "teammate"], key=_player_sort_key)
+    enemies = sorted([player for player in players if player.get("team_type") != "teammate"], key=_player_sort_key)
+    _, _, teammate_section_w, teammate_section_h = _section_layout(teammates)
+    _, _, enemy_section_w, enemy_section_h = _section_layout(enemies)
+
+    image_w = max(860, pad * 2 + max(teammate_section_w, enemy_section_w, player_w))
+    image_h = pad + teammate_section_h + (section_gap if teammates and enemies else 0) + enemy_section_h + bottom_pad
+    image = Image.new("RGBA", (image_w, image_h), bg_color)
+    draw = ImageDraw.Draw(image, "RGBA")
+
+    def _draw_team_section(label: str, team_players: Sequence[dict[str, Any]], top: int, team_color: tuple[int, int, int, int]) -> int:
+        cols, row_heights, _section_w, section_h = _section_layout(team_players)
+        if not team_players:
+            return top
+        label_box_w = 168
+        draw.rounded_rectangle((pad, top, pad + label_box_w, top + 32), radius=12, fill=team_color)
+        draw.text((pad + 16, top + 6), label, font=_font_meta(20), fill=(255, 255, 255, 255))
+        draw.text((pad + label_box_w + 12, top + 7), f"{len(team_players)} PLAYERS", font=_font_meta(18), fill=text_dim)
+        line_y = top + 16
+        draw.line((pad + label_box_w + 150, line_y, image_w - pad, line_y), fill=section_line, width=2)
+
+        row_y = top + section_header_h
+        for row_index, row_h in enumerate(row_heights):
+            row_players = list(team_players[row_index * cols : (row_index + 1) * cols])
+            row_w = len(row_players) * player_w + max(0, len(row_players) - 1) * col_gap
+            cursor_x = pad + max(0, (image_w - pad * 2 - row_w) // 2)
+            for player in row_players:
+                _draw_player_card(draw, image, player, cursor_x, row_y, row_h, team_color)
+                cursor_x += player_w + col_gap
+            row_y += row_h + row_gap
+        return top + section_h
+
+    current_row_y = pad
+    if teammates:
+        current_row_y = _draw_team_section("TEAMMATES", teammates, current_row_y, teammate_color)
+        if enemies:
+            current_row_y += section_gap
+
+    if enemies:
+        _draw_team_section("ENEMIES", enemies, current_row_y, enemy_color)
+
+    _draw_legend(draw, pad, image_h - bottom_pad + 14, _font_chinese(13))
     return _pil_to_rendered(image)
 
 
@@ -1041,7 +1328,7 @@ def render_analysis_report(
         orig_w, orig_h = map_icon_img.size
         ratio = max(target_w / orig_w, target_h / orig_h)
         new_w, new_h = int(orig_w * ratio), int(orig_h * ratio)
-        resized = map_icon_img.resize((new_w, new_h))
+        resized = _resize_image(map_icon_img, (new_w, new_h))
         left = (new_w - target_w) // 2
         top = (new_h - target_h) // 2
         cropped = resized.crop((left, top, left + target_w, top + target_h))

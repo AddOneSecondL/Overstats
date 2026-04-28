@@ -12,7 +12,7 @@ from typing import Dict, Iterable, List, Optional, TypeVar
 try:
     from overstats.config import APIConfig
     from overstats.src.client.apiclient import dashen_api_client
-    from overstats.src.db.request_metrics import RequestMetricsRecorder
+    from overstats.src.db.request_metrics import RequestMetricsRecorder, normalize_request_metric_url
     from overstats.src.modules.errors import ModuleError
     from overstats.src.modules.dashen_profile import DashenProfileQuery, dashen_profile_module
     from overstats.src.modules.query_tool import ensure_query_tool_assets, load_query_tool
@@ -22,7 +22,7 @@ try:
 except ModuleNotFoundError:
     from config import APIConfig
     from src.client.apiclient import dashen_api_client
-    from src.db.request_metrics import RequestMetricsRecorder
+    from src.db.request_metrics import RequestMetricsRecorder, normalize_request_metric_url
     from src.modules.errors import ModuleError
     from src.modules.dashen_profile import DashenProfileQuery, dashen_profile_module
     from src.modules.query_tool import ensure_query_tool_assets, load_query_tool
@@ -809,8 +809,12 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
         protocol_version = "HTTP/1.1"
         server_version = "OverstatsCore/0.1"
 
+        def _request_path(self) -> str:
+            normalized = normalize_request_metric_url(self.path)
+            return normalized.rstrip("/") or "/"
+
         def do_GET(self) -> None:
-            path = self.path.rstrip("/")
+            path = self._request_path()
             self._set_metrics_context(path if path.startswith("/api/v2/") else None)
             if path == "/healthz":
                 self._send_json(
@@ -832,7 +836,7 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
             )
 
         def do_POST(self) -> None:
-            path = self.path.rstrip("/")
+            path = self._request_path()
             self._set_metrics_context(path if path.startswith("/api/v2/") else None)
             if path == "/api/v2/dashen-summary/week/image":
                 self._handle_dashen_summary_image_post("week")
@@ -1504,7 +1508,8 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
             return
 
         def _set_metrics_context(self, url: Optional[str]) -> None:
-            self._request_metrics_url = str(url or "").strip() or None
+            normalized = normalize_request_metric_url(str(url or "").strip())
+            self._request_metrics_url = normalized or None
             self._request_metrics_recorded = False
 
         def _record_module_metric(self, status: HTTPStatus, *, success: bool) -> None:

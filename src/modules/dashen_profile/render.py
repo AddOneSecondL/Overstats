@@ -52,6 +52,17 @@ class RenderedImage:
     media_type: str = "image/png"
 
 
+def _resampling_lanczos() -> Any:
+    from PIL import Image
+
+    resampling = getattr(Image, "Resampling", Image)
+    return getattr(resampling, "LANCZOS")
+
+
+def _resize_image(image: Any, size: tuple[int, int]) -> Any:
+    return image.resize(size, _resampling_lanczos())
+
+
 def render_profile_summary(context: ProfileRenderContext) -> RenderedImage:
     try:
         from PIL import ImageDraw
@@ -111,7 +122,7 @@ def render_profile_summary(context: ProfileRenderContext) -> RenderedImage:
     _draw_recent_match_timeline(image, config, context.recent_matches, fonts)
 
     output = BytesIO()
-    image.save(output, format="PNG")
+    image.save(output, format="PNG", optimize=True)
     return RenderedImage(content=output.getvalue())
 
 
@@ -142,7 +153,7 @@ def _draw_name_block(
     if level > 0:
         icon = _load_appreciation_icon(config, level)
         if icon is not None:
-            icon = icon.resize((64, 64))
+            icon = _resize_image(icon, (64, 64))
             image.paste(icon, (280 + text_width + 10, 80), icon)
 
     if battlenum:
@@ -561,12 +572,12 @@ def _draw_top_heroes(
             if icon is not None:
                 break
         if icon is not None:
-            icon = crop_to_circle(icon, 15, ring_color).resize((128, 128))
+            icon = _resize_image(crop_to_circle(icon, 15, ring_color), (128, 128))
             image.paste(icon, (slot_x, 448), icon)
 
         tier_icon = _load_level_tier_icon(_hero_level_tier(row.hero_level))
         if tier_icon is not None:
-            tier_icon = tier_icon.resize((80, 80))
+            tier_icon = _resize_image(tier_icon, (80, 80))
             image.paste(tier_icon, (slot_x + 25, 538), tier_icon)
 
 
@@ -600,12 +611,12 @@ def _draw_hero_usage_block(
 
         icon = _load_remote_asset_image(hero_icon_url, category="heroes")
         if icon is not None:
-            icon = icon.resize((40, 40))
+            icon = _resize_image(icon, (40, 40))
             image.paste(icon, (60, y))
 
         tier_icon = _load_level_tier_icon(_hero_level_tier(row.hero_level))
         if tier_icon is not None:
-            tier_icon = tier_icon.resize((32, 32))
+            tier_icon = _resize_image(tier_icon, (32, 32))
             image.paste(tier_icon, (110, 799 + index * 43), tier_icon)
 
         _draw_mixed_text(draw, 140, 802 + index * 43, f"{row.hero_level}{STR_LEVEL_SUFFIX}", label_font=fonts["font_cn_small"], number_font=fonts["font_cn_small"], fill="gold")
@@ -623,11 +634,11 @@ def _draw_hero_usage_block(
             rank_icon = _load_rank_pure_icon(row.rank_overlay.rank_level)
             if rank_icon is not None:
                 if row.rank_overlay.rank_level < 6:
-                    rank_icon = rank_icon.resize((32, 32))
+                    rank_icon = _resize_image(rank_icon, (32, 32))
                     image.paste(rank_icon, (score_box_x + 5, score_box_y + 1), rank_icon)
                     text_left = score_box_x + 41
                 else:
-                    rank_icon = rank_icon.resize((42, 32))
+                    rank_icon = _resize_image(rank_icon, (42, 32))
                     image.paste(rank_icon, (score_box_x, score_box_y + 1), rank_icon)
                     text_left = score_box_x + 46
             text_fill = "white" if row.rank_overlay.fill[0] < 80 else "#1c2238"
@@ -779,7 +790,7 @@ def _draw_leftover_billboard_chip(
         if icon is not None:
             break
     if icon is not None:
-        icon = crop_to_circle(icon, 2, _hero_ring_color(config, hero_name)).resize((22, 22))
+        icon = _resize_image(crop_to_circle(icon, 2, _hero_ring_color(config, hero_name)), (22, 22))
         image.paste(icon, (x + 8, y + 1), icon)
         text_x = x + 36
     else:
@@ -831,7 +842,7 @@ def _draw_recent_match_timeline(image: Any, config: Dict[str, Any], matches: Seq
 
         icon = _load_remote_asset_image(hero_icon_url, category="heroes")
         if icon is not None:
-            icon = crop_to_circle(icon, 3, _hero_ring_color(config, hero_name)).resize((30, 30))
+            icon = _resize_image(crop_to_circle(icon, 3, _hero_ring_color(config, hero_name)), (30, 30))
             bg.paste(icon, (268, 3), icon)
 
         _draw_recent_match_type(bg, bgdraw, item, match_type, fonts)
@@ -1113,7 +1124,7 @@ def _draw_avatar(image: Any, avatar_bytes: bytes | None, pos: tuple[int, int], s
     if avatar_bytes:
         try:
             avatar = Image.open(BytesIO(avatar_bytes)).convert("RGBA")
-            avatar = ImageOps.fit(avatar, size)
+            avatar = ImageOps.fit(avatar, size, method=_resampling_lanczos())
             image.paste(avatar, pos, avatar)
             return
         except Exception:

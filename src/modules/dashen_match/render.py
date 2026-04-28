@@ -26,6 +26,17 @@ class RenderedImage:
     media_type: str = "image/png"
 
 
+def _resampling_lanczos() -> Any:
+    from PIL import Image
+
+    resampling = getattr(Image, "Resampling", Image)
+    return getattr(resampling, "LANCZOS")
+
+
+def _resize_image(image: Any, size: tuple[int, int]) -> Any:
+    return image.resize(size, _resampling_lanczos())
+
+
 def render_match_list(
     matches: Sequence[Dict[str, Any]],
     *,
@@ -76,7 +87,7 @@ def render_match_list(
     draw.text((20, footer_top + 16), _fit_text(draw, hint_text, font_sm, 660), fill=(190, 198, 210), font=font_sm)
 
     output = BytesIO()
-    img.convert("RGB").save(output, format="PNG")
+    img.convert("RGB").save(output, format="PNG", optimize=True)
     return RenderedImage(content=output.getvalue())
 
 
@@ -203,7 +214,7 @@ def _render_scoreboard_match_detail(
     )
 
     output = BytesIO()
-    img.convert("RGB").save(output, format="PNG")
+    img.convert("RGB").save(output, format="PNG", optimize=True)
     return RenderedImage(content=output.getvalue())
 
 
@@ -471,7 +482,7 @@ def _render_fight_match_detail(
         y += round_h + round_gap
 
     output = BytesIO()
-    img.convert("RGB").save(output, format="PNG")
+    img.convert("RGB").save(output, format="PNG", optimize=True)
     return RenderedImage(content=output.getvalue())
 
 
@@ -907,7 +918,7 @@ def _paste_icon_from_url(
     try:
         from PIL import Image
 
-        icon = Image.open(path).convert("RGBA").resize(size)
+        icon = _resize_image(Image.open(path).convert("RGBA"), size)
         img.paste(icon, pos, icon)
         return True
     except Exception:
@@ -1051,7 +1062,7 @@ def _paste_perk_icon(img: Any, url: Any, pos: tuple[int, int], icon_width: int) 
         if icon.width <= 0 or icon.height <= 0:
             return False
         icon_height = max(1, int(icon.height * icon_width / icon.width))
-        icon = icon.resize((icon_width, icon_height)).convert("RGBA")
+        icon = _resize_image(icon, (icon_width, icon_height)).convert("RGBA")
 
         pixels = icon.load()
         for py in range(icon.height):
@@ -1082,7 +1093,7 @@ def _draw_perks(draw: Any, img: Any, config: Dict[str, Any], perks: Sequence[Dic
             try:
                 from PIL import Image
 
-                bg = Image.open(bg_path).convert("RGBA").resize((size, size))
+                bg = _resize_image(Image.open(bg_path).convert("RGBA"), (size, size))
                 img.paste(bg, (x, py), bg)
             except Exception:
                 draw.rectangle((x, py, x + size, py + size), outline=(255, 190, 60))
@@ -1195,7 +1206,7 @@ def _crop_center_to_size(img: Any, target_size: tuple[int, int]) -> Any:
     sw, sh = img.size
     scale = max(tw / sw, th / sh)
     new_w, new_h = int(sw * scale), int(sh * scale)
-    img = img.resize((new_w, new_h))
+    img = _resize_image(img, (new_w, new_h))
     left, top = (new_w - tw) / 2, (new_h - th) / 2
     return img.crop((left, top, left + tw, top + th))
 
