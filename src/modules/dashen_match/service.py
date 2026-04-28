@@ -51,12 +51,15 @@ PLAYER_TOKEN_CACHE_TTL = 600
 PLAYER_TOKEN_CACHE_MAX = 512
 PLAYER_DETAIL_CACHE_TTL = 1800
 PLAYER_DETAIL_CACHE_MAX = 512
+PLAYER_CARD_CACHE_TTL = 1800
+PLAYER_CARD_CACHE_MAX = 512
 REPLY_CONTEXT_CACHE_TTL = 1800
 REPLY_CONTEXT_CACHE_MAX = 256
 
 _CACHE_LOCK = threading.RLock()
 _PLAYER_TOKEN_CACHE: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
 _PLAYER_DETAIL_CACHE: "OrderedDict[tuple[str, str], dict[str, Any]]" = OrderedDict()
+_PLAYER_CARD_CACHE: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
 _REPLY_CONTEXT_CACHE: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
 
 
@@ -638,25 +641,39 @@ class DashenMatchModule:
         async def fetch_target(target: Dict[str, Any]) -> Dict[str, Any]:
             full_name = str(target.get("name") or "")
             if full_name.lower() == target_id.lower():
+                token = await self._resolve_player_customer_token(full_name)
+                try:
+                    card_payload = await self._fetch_cached_player_card(token) if token else {}
+                except Exception:
+                    card_payload = {}
+                card_data = card_payload.get("data") if isinstance(card_payload, dict) and isinstance(card_payload.get("data"), dict) else {}
                 return {
                     "name": full_name,
                     "heroList": detail_root.get("heroList") or [],
                     "bnet_id": target.get("bnet_id") or query_bnet_id,
                     "rankInfo": target.get("rankInfo") or {},
                     "team_type": target.get("team_type"),
+                    "icon": str(card_data.get("icon") or "").strip(),
                     "success": True,
                 }
             token = await self._resolve_player_customer_token(full_name)
             if not token:
                 return {"name": full_name, "team_type": target.get("team_type"), "success": False}
-            payload = await self._fetch_cached_player_match_detail(token, match_id)
+            detail_payload, card_payload = await asyncio.gather(
+                self._fetch_cached_player_match_detail(token, match_id),
+                self._fetch_cached_player_card(token),
+                return_exceptions=True,
+            )
+            payload = detail_payload if isinstance(detail_payload, dict) else {}
             root = _extract_match_detail_data(payload)
+            card_data = card_payload.get("data") if isinstance(card_payload, dict) and isinstance(card_payload.get("data"), dict) else {}
             return {
                 "name": full_name,
                 "heroList": root.get("heroList") or [],
                 "bnet_id": target.get("bnet_id"),
                 "rankInfo": target.get("rankInfo") or {},
                 "team_type": target.get("team_type"),
+                "icon": str(card_data.get("icon") or "").strip(),
                 "success": bool(root.get("heroList")),
             }
 
@@ -683,6 +700,7 @@ class DashenMatchModule:
                     "bnet_id": query_bnet_id,
                     "rankInfo": focus_player.get("rankInfo") or {},
                     "team_type": team_type,
+                    "icon": "",
                     "success": True,
                 },
             )
@@ -717,6 +735,24 @@ class DashenMatchModule:
             return cached
         payload = await self.requests.api_client.query_match_info(customer_token, match_id)
         _cache_put(_PLAYER_DETAIL_CACHE, cache_key, payload, ttl=PLAYER_DETAIL_CACHE_TTL, max_size=PLAYER_DETAIL_CACHE_MAX)
+        return payload
+
+    async def _fetch_cached_player_card(self, customer_token: str) -> Dict[str, Any]:
+        cache_key = str(customer_token or "").strip()
+        if not cache_key:
+            return {}
+        cached = _cache_get(_PLAYER_CARD_CACHE, cache_key)
+        if isinstance(cached, dict):
+            return cached
+        payload = await self.requests.api_client.query_card(cache_key)
+        card_data = payload.get("data") if isinstance(payload, dict) and isinstance(payload.get("data"), dict) else {}
+        icon_url = str(card_data.get("icon") or "").strip()
+        if icon_url:
+            try:
+                await self.requests.api_client.get_icon(icon_url)
+            except Exception:
+                pass
+        _cache_put(_PLAYER_CARD_CACHE, cache_key, payload, ttl=PLAYER_CARD_CACHE_TTL, max_size=PLAYER_CARD_CACHE_MAX)
         return payload
 
     async def _build_ai_analysis(

@@ -18,6 +18,11 @@ except ModuleNotFoundError:
 RESOURCE_DIR = Path(__file__).resolve().parents[4] / "overstats" / "res"
 ASSET_MANIFEST_PATH = RESOURCE_DIR / "query_tool_assets" / "assets_manifest.json"
 _ASSET_MANIFEST_CACHE: Dict[str, Any] | None = None
+ROLE_ICON_FILENAMES = {
+    "tank": "tank.png",
+    "dps": "dps.png",
+    "healer": "healer.png",
+}
 
 
 @dataclass(frozen=True)
@@ -642,13 +647,13 @@ def _draw_scoreboard_players(
         role_icon_size = max(int(32 * row_h / 82), 10)
         _draw_player_role_icon(img, hero_info, player, 4, int(y + (row_h - role_icon_size) / 2) - 3, role_icon_size)
 
-        rank_h = max(int(21 * row_h / 82), 9)
-        rank_w = max(int(63 * row_h / 82), 28)
-        _draw_rank_badge(draw, img, player.get("rankInfo"), 0, int(y + row_h - rank_h - 3), rank_w, rank_h, mode="normal")
-
         icon_url = _hero_icon_url(hero_info, player)
         hero_size = max(int(80 * row_h / 82), 20)
         _paste_icon_from_url(img, icon_url, (38, int(y + (row_h - hero_size) / 2)), (hero_size, hero_size), ("heroes", "misc"))
+
+        rank_h = max(int(21 * row_h / 82), 9)
+        rank_w = max(int(63 * row_h / 82), 28)
+        _draw_rank_badge(draw, img, player.get("rankInfo"), 0, int(y + row_h - rank_h - 3), rank_w, rank_h, mode="normal")
 
         perks = _extract_player_perks(player)
         _draw_perks(draw, img, config, perks, y, row_h)
@@ -808,11 +813,39 @@ def _draw_hero_icon(img: Any, hero_info: Dict[str, Any], x: int, y: int, size: i
     _paste_icon_from_url(img, icon_url, (x, y), (size, size), ("heroes", "misc"))
 
 
+def _normalize_role_name(role: Any) -> str:
+    normalized = str(role or "").strip().lower()
+    if normalized == "support":
+        return "healer"
+    return normalized
+
+
+def _load_role_icon_asset(role: Any, *, size: tuple[int, int]) -> Any:
+    from PIL import Image
+
+    role_type = _normalize_role_name(role)
+    filename = ROLE_ICON_FILENAMES.get(role_type)
+    if not filename:
+        return None
+    path = RESOURCE_DIR / filename
+    if not path.exists():
+        return None
+    try:
+        with Image.open(path) as raw_icon:
+            return _resize_image(raw_icon.convert("RGBA"), size)
+    except Exception:
+        return None
+
+
 def _draw_player_role_icon(img: Any, hero_info: Dict[str, Any], player: Dict[str, Any], x: int, y: int, size: int) -> None:
     from PIL import Image, ImageDraw
 
     role = _role_type(player, hero_info)
     if not role or size <= 0:
+        return
+    role_icon = _load_role_icon_asset(role, size=(size, size))
+    if role_icon is not None:
+        img.paste(role_icon, (int(x), int(y)), role_icon)
         return
     bg_fill, border_fill, text_fill, label = _role_style(role)
     icon = Image.new("RGBA", (size, size), (0, 0, 0, 0))
@@ -1555,17 +1588,14 @@ def _rank_text(rank_info: Any) -> str:
 
 
 def _role_type(player: Dict[str, Any], hero_info: Dict[str, Any]) -> str:
-    role = str(
+    return _normalize_role_name(
         player.get("roleType")
         or (player.get("rankInfo") or {}).get("roleType")
         or (player.get("rankInfo") or {}).get("role")
         or hero_info.get("roleType")
         or hero_info.get("role")
         or ""
-    ).strip().lower()
-    if role in {"support"}:
-        return "healer"
-    return role
+    )
 
 
 def _role_label(player: Dict[str, Any], hero_info: Dict[str, Any]) -> str:

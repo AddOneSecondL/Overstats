@@ -26,6 +26,11 @@ ROLE_LABELS = {
     "healer": "SUPPORT",
     "open": "OPEN",
 }
+ROLE_ICON_FILENAMES = {
+    "tank": "tank.png",
+    "dps": "dps.png",
+    "healer": "healer.png",
+}
 
 
 @dataclass(frozen=True)
@@ -51,6 +56,10 @@ def collect_missing_assets(seasons: Sequence[Dict[str, Any]]) -> List[str]:
     if not (RESOURCE_DIR / "fight.png").exists():
         if any(bool(item.get("has_stadium")) for item in seasons):
             _append("overstats/res/fight.png")
+
+    for filename in ROLE_ICON_FILENAMES.values():
+        if not (RESOURCE_DIR / filename).exists():
+            _append(f"overstats/res/{filename}")
 
     for item in seasons:
         season = int(item.get("season") or 0)
@@ -198,8 +207,13 @@ def _draw_role_row(
     mode_prefix: str,
     fonts: Dict[str, Any],
 ) -> None:
-    role_type = str(row.get("roleType") or "")
-    draw.text((30, label_y), ROLE_LABELS.get(role_type, role_type.upper()), font=fonts["font_en_small2"], fill=(255, 255, 255, 255))
+    role_type = _normalize_role_type(row.get("roleType"))
+    role_icon = _load_role_icon(role_type, size=(28, 28))
+    label_x = 30
+    if role_icon is not None:
+        rect.paste(role_icon, (28, top_y + 4), role_icon)
+        label_x = 64
+    draw.text((label_x, label_y), ROLE_LABELS.get(role_type, role_type.upper()), font=fonts["font_en_small2"], fill=(255, 255, 255, 255))
     last_rank_info = row.get("lastRankInfo") if isinstance(row.get("lastRankInfo"), dict) else {}
     max_rank_info = row.get("maxRankInfo") if isinstance(row.get("maxRankInfo"), dict) else {}
     _paste_rank_bar(rect, draw, last_rank_info, x=130, y=top_y, prefix=mode_prefix, fonts=fonts)
@@ -323,6 +337,25 @@ def _paste_mode_icon(rect: Any, filename: str, position: tuple[int, int], size: 
         return
     icon = icon.resize(size, Image.LANCZOS)
     rect.paste(icon, position, icon)
+
+
+def _normalize_role_type(role_type: Any) -> str:
+    normalized = str(role_type or "").strip().lower()
+    if normalized == "support":
+        return "healer"
+    return normalized
+
+
+def _load_role_icon(role_type: Any, *, size: tuple[int, int]) -> Any:
+    from PIL import Image
+
+    filename = ROLE_ICON_FILENAMES.get(_normalize_role_type(role_type))
+    if not filename:
+        return None
+    icon = _load_local_rgba(RESOURCE_DIR / filename)
+    if icon is None:
+        return None
+    return icon.resize(size, Image.LANCZOS)
 
 
 def _decorate_with_header(base_image: Any, *, player_name: str, subtitle: str) -> Any:

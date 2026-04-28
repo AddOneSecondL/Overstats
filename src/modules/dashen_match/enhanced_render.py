@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 try:
     from overstats.src.modules.dashen_summary.runtime.db import IDPoolDB
+    from overstats.src.client.apiclient import _find_cached_remote_image_path
     from overstats.src.modules.dashen_summary.runtime.stat_reference import (
         HERO_AVG_SKIP_VALUE_GUIDS,
         classify_hero_average_band,
@@ -19,6 +20,7 @@ try:
         normalize_hero_rank_score,
     )
 except ModuleNotFoundError:
+    from src.client.apiclient import _find_cached_remote_image_path
     from src.modules.dashen_summary.runtime.db import IDPoolDB
     from src.modules.dashen_summary.runtime.stat_reference import (
         HERO_AVG_SKIP_VALUE_GUIDS,
@@ -43,6 +45,7 @@ from .render import (
     _font_meta,
     _font_num_display,
     _hero_icon_url,
+    _load_role_icon_asset,
     _load_ow_config,
     _paste_perk_icon,
     _resize_image,
@@ -216,6 +219,8 @@ def _load_icon_rgba(url: str, *, size: tuple[int, int]) -> Any:
     from PIL import Image
 
     path = _cached_path_for_url(url, ("heroes", "misc", "maps", "perk", "hero_perks"))
+    if (not path or not path.exists()) and url:
+        path = _find_cached_remote_image_path(url)
     if not path or not path.exists():
         return None
     try:
@@ -462,9 +467,15 @@ def render_player_hero_detail(
         icon = _load_icon_rgba(_hero_icon_url(hero_info, hero), size=(54, 54))
         if icon is not None:
             image.paste(icon, (box[0] + 20, box[1] + 12), icon)
-        draw.rounded_rectangle((box[0] + 92, box[1] + 19, box[0] + 162, box[1] + 45), radius=12, fill=role_fill)
-        draw.text((box[0] + 111, box[1] + 22), (role_type[:1] or "?").upper(), font=_font_meta(16), fill=(255, 255, 255))
-        draw.text((box[0] + 178, box[1] + 14), hero_name, font=_font_chinese(26), fill=(250, 252, 255, 255))
+        role_icon = _load_role_icon_asset(role_type, size=(30, 30))
+        hero_text_x = box[0] + 178
+        if role_icon is not None:
+            image.paste(role_icon, (box[0] + 98, box[1] + 17), role_icon)
+            hero_text_x = box[0] + 144
+        else:
+            draw.rounded_rectangle((box[0] + 92, box[1] + 19, box[0] + 162, box[1] + 45), radius=12, fill=role_fill)
+            draw.text((box[0] + 111, box[1] + 22), (role_type[:1] or "?").upper(), font=_font_meta(16), fill=(255, 255, 255))
+        draw.text((hero_text_x, box[1] + 14), hero_name, font=_font_chinese(26), fill=(250, 252, 255, 255))
 
         hero_time = float((hero.get("statMap") or {}).get(GAME_TIME_GUID, 0) or 0)
         if match_game_time_sec:
@@ -475,7 +486,7 @@ def render_player_hero_detail(
             time_line = f"{int(hero_time // 60):02d}:{int(hero_time % 60):02d} | {ratio * 100:.1f}%"
         else:
             time_line = f"{int(hero_time // 60):02d}:{int(hero_time % 60):02d}"
-        draw.text((box[0] + 178, box[1] + 46), time_line, font=_font_chinese(15), fill=(186, 196, 212, 255))
+        draw.text((hero_text_x, box[1] + 46), time_line, font=_font_chinese(15), fill=(186, 196, 212, 255))
 
         perks = _extract_player_perks(hero)
         for perk_index, perk in enumerate(list(perks or [])[:2]):
@@ -639,6 +650,10 @@ def render_all_players_waterfall(
         return max(_player_panel_height(player) for player in team_players)
 
     def _draw_role_badge(x0: int, y0: int, role: str) -> None:
+        role_icon = _load_role_icon_asset(role, size=(20, 20))
+        if role_icon is not None:
+            image.paste(role_icon, (x0, y0), role_icon)
+            return
         short, outline, fill = role_badges.get(role, ("?", (190, 196, 210, 255), (50, 54, 66, 255)))
         draw.rounded_rectangle((x0, y0, x0 + 20, y0 + 20), radius=5, fill=fill, outline=outline, width=1)
         draw.text((x0 + 10, y0 + 3), short, font=_font_meta(14), fill=outline, anchor="ma")
@@ -651,7 +666,10 @@ def render_all_players_waterfall(
         heroes = _player_heroes(player)
         primary_hero = heroes[0] if heroes else {}
         primary_info = hero_lookup.get(str(primary_hero.get("heroGuid") or primary_hero.get("heroId") or "")) or _find_hero(config, primary_hero.get("heroGuid") or primary_hero.get("heroId"))
-        header_icon = _load_icon_rgba(_hero_icon_url(primary_info, primary_hero), size=(44, 44)) if primary_hero else None
+        avatar_url = str(player.get("icon") or player.get("avatar") or player.get("playerIcon") or "").strip()
+        header_icon = _load_icon_rgba(avatar_url, size=(44, 44)) if avatar_url else None
+        if header_icon is None and primary_hero:
+            header_icon = _load_icon_rgba(_hero_icon_url(primary_info, primary_hero), size=(44, 44))
         icon_x = x + 15
         icon_y = y + 12
         if header_icon is not None:
@@ -912,6 +930,10 @@ def _render_all_players_waterfall_readable(
         return cols, row_heights, width, height
 
     def _draw_role_badge(draw: Any, x0: int, y0: int, role: str) -> None:
+        role_icon = _load_role_icon_asset(role, size=(22, 22))
+        if role_icon is not None:
+            image.paste(role_icon, (x0, y0), role_icon)
+            return
         short, outline, fill = role_badges.get(role, ("?", (190, 196, 210, 255), (50, 54, 66, 255)))
         draw.rounded_rectangle((x0, y0, x0 + 22, y0 + 22), radius=6, fill=fill, outline=outline, width=1)
         draw.text((x0 + 11, y0 + 3), short, font=_font_meta(15), fill=outline, anchor="ma")
@@ -924,7 +946,10 @@ def _render_all_players_waterfall_readable(
         heroes = _player_heroes(player)
         primary_hero = heroes[0] if heroes else {}
         primary_info = hero_lookup.get(str(primary_hero.get("heroGuid") or primary_hero.get("heroId") or "")) or _find_hero(config, primary_hero.get("heroGuid") or primary_hero.get("heroId"))
-        header_icon = _load_icon_rgba(_hero_icon_url(primary_info, primary_hero), size=(52, 52)) if primary_hero else None
+        avatar_url = str(player.get("icon") or player.get("avatar") or player.get("playerIcon") or "").strip()
+        header_icon = _load_icon_rgba(avatar_url, size=(52, 52)) if avatar_url else None
+        if header_icon is None and primary_hero:
+            header_icon = _load_icon_rgba(_hero_icon_url(primary_info, primary_hero), size=(52, 52))
         icon_x = x + 15
         icon_y = y + 13
         if header_icon is not None:

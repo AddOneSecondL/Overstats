@@ -18,6 +18,11 @@ from .engine import HeroBillboardEntry, HeroUsageRow, ProfileRenderContext, Role
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 RESOURCE_DIR = PROJECT_ROOT / "overstats" / "res"
 QUERY_TOOL_ASSET_DIR = RESOURCE_DIR / "query_tool_assets"
+ROLE_ICON_FILENAMES = {
+    "tank": "tank.png",
+    "dps": "dps.png",
+    "healer": "healer.png",
+}
 
 STR_NO_TITLE = "\u65e0\u5934\u8854"
 STR_INFO_SWITCH_MODE = "[INFO] \u5728\u6307\u4ee4\u540e\u9644\u52a0*\u53f7\u53ef\u5207\u6362\u4e3a\u67e5\u8be2\u7ade\u6280\u6a21\u5f0f\u6bd4\u8d5b\u6570\u636e"
@@ -178,9 +183,6 @@ def _draw_header(draw: Any, game_time: float, fonts: Dict[str, Any]) -> None:
     draw.text((1000, 758), "CURRENT", font=fonts["font_en_small2"], fill="#1c2238")
     draw.text((1200, 758), "SEASON HIGH", font=fonts["font_en_small2"], fill="#1c2238")
     draw.text((1400, 758), "MATCH SUM", font=fonts["font_en_small2"], fill="#1c2238")
-    draw.text((837, 827), "TANK", font=fonts["font_en_small2"], fill="#1c2238")
-    draw.text((837, 901), "DAMAGE", font=fonts["font_en_small2"], fill="#1c2238")
-    draw.text((837, 974), "SUPPORT", font=fonts["font_en_small2"], fill="#1c2238")
     draw.text((70, 230), STR_INFO_SWITCH_MODE, font=fonts["font_cn_small_ex"], fill="#1c2238")
     _draw_mixed_text(
         draw,
@@ -319,8 +321,22 @@ def _draw_role_panel(image: Any, draw: Any, entries: Sequence[RolePanelEntry], f
     role_map = {entry.role_type: entry for entry in entries}
     for role_type, y_pos in (("tank", 817), ("dps", 891), ("healer", 964), ("open", 1038)):
         entry = role_map.get(role_type)
-        if role_type == "open":
-            draw.text((837, y_pos), "OPEN", font=fonts["font_en_small2"], fill="#1c2238")
+        role_label = {
+            "tank": "TANK",
+            "dps": "DAMAGE",
+            "healer": "SUPPORT",
+            "open": "OPEN",
+        }.get(role_type, "OPEN")
+        role_center_y = y_pos + 16
+        role_icon = _load_role_icon(role_type, size=(28, 28))
+        if role_icon is not None:
+            image.paste(role_icon, (800, y_pos + 2), role_icon)
+        try:
+            text_box = draw.textbbox((0, 0), role_label, font=fonts["font_en_small2"])
+            text_y = int(role_center_y - (text_box[3] - text_box[1]) / 2 - text_box[1])
+            draw.text((840, text_y), role_label, font=fonts["font_en_small2"], fill="#1c2238")
+        except Exception:
+            draw.text((840, y_pos + 2), role_label, font=fonts["font_en_small2"], fill="#1c2238")
 
         if entry is None or entry.score <= 0:
             draw.text((1000, y_pos), "UNRANKED", font=fonts["font_en_small2"], fill="#1c2238")
@@ -332,8 +348,8 @@ def _draw_role_panel(image: Any, draw: Any, entries: Sequence[RolePanelEntry], f
                 _draw_mixed_text(draw, 1430, y_pos, f"{entry.match_sum} | W {entry.win_sum}", label_font=fonts["font_en_small2"], number_font=fonts["font_en_small2"], fill="#1c2238")
             continue
 
-        current_icon = _build_rank_icon(entry.score, entry.tier, fonts["font_rank_tier"], (154, 52))
-        high_icon = _build_rank_icon(entry.max_score, entry.max_tier, fonts["font_rank_tier"], (154, 52))
+        current_icon = _build_rank_icon(entry.score, entry.tier, fonts["font_rank_tier"], (154, 52), tier_vertical_offset=14)
+        high_icon = _build_rank_icon(entry.max_score, entry.max_tier, fonts["font_rank_tier"], (154, 52), tier_vertical_offset=14)
         current_badge_y = y_pos + 6
         high_badge_y = y_pos + 6
 
@@ -904,7 +920,7 @@ def _draw_recent_match_type(bg: Any, bgdraw: Any, item: Dict[str, Any], match_ty
                 shadow_fill=(255, 255, 255, 76),
                 shadow_offset=(0, 1),
             )
-            badge = _build_rank_icon(_safe_int(rank_info.get("rankScore")), str(rank_info.get("rankSubTier") or ""), fonts["font_rank_tier_recent"], (86, 28))
+            badge = _build_rank_icon(_safe_int(rank_info.get("rankScore")), str(rank_info.get("rankSubTier") or ""), fonts["font_rank_tier_recent"], (86, 28), tier_vertical_offset=16)
             if badge is not None:
                 bg.paste(badge, (430, 4), badge)
         else:
@@ -934,7 +950,7 @@ def _draw_recent_match_type(bg: Any, bgdraw: Any, item: Dict[str, Any], match_ty
     )
     rank_info = item.get("rankInfo")
     if isinstance(rank_info, dict) and _safe_int(rank_info.get("rankScore")) > 0:
-        badge = _build_rank_icon(_safe_int(rank_info.get("rankScore")), str(rank_info.get("rankSubTier") or ""), fonts["font_rank_tier_recent"], (86, 28))
+        badge = _build_rank_icon(_safe_int(rank_info.get("rankScore")), str(rank_info.get("rankSubTier") or ""), fonts["font_rank_tier_recent"], (86, 28), tier_vertical_offset=16)
         if badge is not None:
             bg.paste(badge, (430, 4), badge)
 
@@ -1014,7 +1030,7 @@ def _recent_match_type_color(item: Dict[str, Any], match_type: str) -> tuple[int
     return hex_to_rgba(COLOR_COMPETITIVE)
 
 
-def _build_rank_icon(score: int, tier: str, tier_font: Any, size: tuple[int, int]) -> Any | None:
+def _build_rank_icon(score: int, tier: str, tier_font: Any, size: tuple[int, int], *, tier_vertical_offset: float = 0.0) -> Any | None:
     from PIL import Image, ImageDraw
 
     if score <= 0:
@@ -1033,16 +1049,16 @@ def _build_rank_icon(score: int, tier: str, tier_font: Any, size: tuple[int, int
     if tier_text:
         try:
             center_x = original_width * (332 / max(1, 460))
-            center_y = original_height * (52 / max(1, 156))
+            center_y = original_height * (52 / max(1, 156)) + float(tier_vertical_offset or 0.0)
             box = draw.textbbox((0, 0), tier_text, font=tier_font)
             draw_x = center_x - (box[2] - box[0]) / 2 - box[0]
             draw_y = center_y - (box[3] - box[1]) / 2 - box[1]
             draw.text((draw_x, draw_y), tier_text, font=tier_font, fill=(22, 25, 32, 255))
         except Exception:
             try:
-                draw.text((original_width * (332 / max(1, 460)), original_height * (52 / max(1, 156))), tier_text, font=tier_font, fill=(22, 25, 32, 255), anchor="mm")
+                draw.text((original_width * (332 / max(1, 460)), original_height * (52 / max(1, 156)) + float(tier_vertical_offset or 0.0)), tier_text, font=tier_font, fill=(22, 25, 32, 255), anchor="mm")
             except TypeError:
-                draw.text((300, 12), tier_text, font=tier_font, fill=(22, 25, 32, 255))
+                draw.text((300, 12 + int(round(float(tier_vertical_offset or 0.0)))), tier_text, font=tier_font, fill=(22, 25, 32, 255))
     return icon.resize(size, Image.LANCZOS)
 
 
@@ -1140,6 +1156,35 @@ def _load_background() -> Any:
     if path.exists():
         return Image.open(path).convert("RGBA")
     return Image.new("RGBA", (2560, 1300), (245, 247, 250, 255))
+
+
+def _normalize_role_type(role_type: Any) -> str:
+    normalized = str(role_type or "").strip().lower()
+    if normalized == "support":
+        return "healer"
+    return normalized
+
+
+def _load_local_rgba(path: Path) -> Any | None:
+    from PIL import Image
+
+    if not path.exists():
+        return None
+    try:
+        with Image.open(path) as raw_image:
+            return raw_image.convert("RGBA")
+    except Exception:
+        return None
+
+
+def _load_role_icon(role_type: Any, *, size: tuple[int, int]) -> Any | None:
+    filename = ROLE_ICON_FILENAMES.get(_normalize_role_type(role_type))
+    if not filename:
+        return None
+    icon = _load_local_rgba(RESOURCE_DIR / filename)
+    if icon is None:
+        return None
+    return _resize_image(icon, size)
 
 
 def _load_appreciation_icon(config: Dict[str, Any], level: int) -> Any | None:
@@ -1469,7 +1514,7 @@ def _load_fonts() -> Dict[str, Any]:
         "font_num_huge": _load_font("num.ttf", 72),
         "font_rank_tier": _load_font("num.ttf", 88),
         "font_rank_tier_small": _load_font("num.ttf", 52),
-        "font_rank_tier_recent": _load_font("num.ttf", 52),
+        "font_rank_tier_recent": _load_font("num.ttf", 64),
         "font_rank_overlay_num": _load_font("num.ttf", 24),
     }
 
