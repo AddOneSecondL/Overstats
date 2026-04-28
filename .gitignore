@@ -29,3 +29,4 @@ src/modules/dashen_summary/runtime/cache/
 test_*.json
 test_*.md
 test_report_*.md
+api_test_data.json
