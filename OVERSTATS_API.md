@@ -281,6 +281,107 @@ JSON response shape:
 
 The `/image` endpoint returns `image/png` rendered with the same PIL layout as quick strength, using the competitive rose-red theme.
 
+## Hero Pick Rate API
+
+Endpoints:
+
+- `POST /api/v2/ow-hero-pick-rate`
+- `POST /api/v2/ow-hero-pick-rate/image`
+
+Request body for latest ranking:
+
+```json
+{
+  "view": "ranking",
+  "game_mode": "quick",
+  "mmr": "all"
+}
+```
+
+Request body for hero history:
+
+```json
+{
+  "view": "history",
+  "game_mode": "competitive",
+  "mmr": "Master",
+  "hero": "安娜",
+  "history_limit": 20
+}
+```
+
+`view` supports `ranking` and `history`. `game_mode` supports `quick` and `competitive`. `mmr` supports `all`, `Bronze`, `Silver`, `Gold`, `Platinum`, `Diamond`, `Master`, `Grandmaster`, and `Champion`.
+
+Ranking JSON response shape:
+
+```json
+{
+  "ok": true,
+  "view": "ranking",
+  "region": "cn",
+  "game_mode": "quick",
+  "mmr": "all",
+  "snapshot": {
+    "season": 2,
+    "ds": "2026-04-29",
+    "hero_count": 43
+  },
+  "heroes": [
+    {
+      "rank": 1,
+      "hero_guid": "ana",
+      "hero_name": "安娜",
+      "hero_role": "support",
+      "selection_ratio": 7.12,
+      "ban_ratio": 0.0,
+      "win_ratio": 51.4,
+      "kda": 4.21,
+      "icon_url": "https://..."
+    }
+  ]
+}
+```
+
+History JSON response shape:
+
+```json
+{
+  "ok": true,
+  "view": "history",
+  "region": "cn",
+  "game_mode": "competitive",
+  "mmr": "Master",
+  "hero": {
+    "hero_guid": "ana",
+    "hero_name": "安娜",
+    "hero_role": "support",
+    "icon_url": "https://..."
+  },
+  "history_limit": 20,
+  "history_total": 37,
+  "latest": {
+    "season": 2,
+    "ds": "2026-04-29",
+    "selection_ratio": 6.84,
+    "ban_ratio": 0.0,
+    "win_ratio": 50.9,
+    "kda": 4.03
+  },
+  "series": [
+    {
+      "season": 1,
+      "ds": "2026-04-10",
+      "selection_ratio": 4.82,
+      "ban_ratio": 0.0,
+      "win_ratio": 49.5,
+      "kda": 3.88
+    }
+  ]
+}
+```
+
+The `/image` endpoint returns `image/png` in the same visual family as quick strength and competitive strength. `quick` uses the blue theme, while `competitive` uses the bright red theme.
+
 ## 通用约定
 
 - 除图片接口外，返回 `application/json; charset=utf-8`

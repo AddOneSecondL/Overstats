@@ -80,4 +80,14 @@ curl.exe -X POST "http://127.0.0.1:18080/api/v2/dashen-rank-history/image" ^
   -H "Content-Type: application/json; charset=utf-8" ^
   -d "{\"bnet_id\":\"oL1ama#5684\"}" ^
   --output dashen-rank-history.png
+
+curl.exe -X POST "http://127.0.0.1:18080/api/v2/ow-hero-pick-rate" ^
+  -H "Content-Type: application/json; charset=utf-8" ^
+  -d "{\"view\":\"ranking\",\"game_mode\":\"quick\",\"mmr\":\"all\"}" ^
+  --output ow-hero-pick-rate-ranking.json
+
+curl.exe -X POST "http://127.0.0.1:18080/api/v2/ow-hero-pick-rate/image" ^
+  -H "Content-Type: application/json; charset=utf-8" ^
+  -d "{\"view\":\"history\",\"game_mode\":\"competitive\",\"mmr\":\"Master\",\"hero\":\"安娜\",\"history_limit\":20}" ^
+  --output ow-hero-pick-rate-history.png
 ```

@@ -6,7 +6,7 @@ import sys
 import threading
 import time
 import unittest
-from urllib.request import Request, urlopen
+from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -32,8 +32,10 @@ class RegistryTests(unittest.TestCase):
         self.assertIn("dashen-match", module_map)
         self.assertIn("dashen-match-detail", module_map)
         self.assertIn("dashen-summary-week", module_map)
+        self.assertIn("ow-hero-pick-rate", module_map)
         self.assertIn("ow-shop", module_map)
         self.assertIn("patch-notes", module_map)
+        self.assertFalse(module_map["ow-hero-pick-rate"].requires_target)
         self.assertFalse(module_map["ow-shop"].requires_target)
         self.assertFalse(module_map["patch-notes"].requires_target)
         self.assertTrue(module_map["dashen-profile"].requires_target)
@@ -48,19 +50,25 @@ class RegistryTests(unittest.TestCase):
         dashen_profile_fields = {field.id: field for field in modules["dashen-profile"].fields}
         patch_notes_fields = {field.id: field for field in modules["patch-notes"].fields}
         match_detail_fields = {field.id: field for field in modules["dashen-match-detail"].fields}
+        hero_pick_rate_fields = {field.id: field for field in modules["ow-hero-pick-rate"].fields}
 
         self.assertEqual(dashen_profile_fields["profile_mode"].payload_key, "mode")
         self.assertEqual(patch_notes_fields["patch_kind"].payload_key, "patch_kind")
         self.assertEqual(patch_notes_fields["patch_kind"].default, "latest")
         self.assertEqual(match_detail_fields["analyze"].payload_key, "analyze")
         self.assertEqual(match_detail_fields["show_all_heroes"].payload_key, "show_all_heroes")
+        self.assertEqual(hero_pick_rate_fields["view"].payload_key, "view")
+        self.assertEqual(hero_pick_rate_fields["game_mode"].payload_key, "game_mode")
+        self.assertEqual(hero_pick_rate_fields["mmr"].payload_key, "mmr")
+        self.assertEqual(hero_pick_rate_fields["hero"].payload_key, "hero")
+        self.assertEqual(hero_pick_rate_fields["history_limit"].payload_key, "history_limit")
 
     def test_bootstrap_payload_matches_registry(self) -> None:
         payload = get_http_ui_bootstrap_payload()
 
         self.assertIn("modules", payload)
         self.assertEqual(payload["default_module_id"], "dashen-profile")
-        self.assertGreaterEqual(len(payload["modules"]), 10)
+        self.assertGreaterEqual(len(payload["modules"]), 11)
 
 
 class AssetResponseTests(unittest.TestCase):
@@ -70,15 +78,15 @@ class AssetResponseTests(unittest.TestCase):
         self.assertIsNotNone(response)
         self.assertEqual(response.content_type, "text/html; charset=utf-8")
         html = response.body.decode("utf-8")
-        self.assertIn("Overstats Control Panel", html)
+        self.assertIn("Overstats 控制面板", html)
         self.assertIn('id="moduleNav"', html)
         self.assertIn('id="requestForm"', html)
         self.assertIn('id="jsonPreview"', html)
         self.assertIn('id="imagePreview"', html)
         self.assertIn('id="replyPreview"', html)
-        self.assertIn("JSON Preview", html)
-        self.assertIn("Image Preview", html)
-        self.assertIn("Reply Preview", html)
+        self.assertIn("JSON 预览", html)
+        self.assertIn("图片预览", html)
+        self.assertIn("回复预览", html)
         self.assertIn("window.__OVERSTATS_UI_BOOTSTRAP__", html)
         self.assertIn("dashen-profile", html)
         self.assertIn("dashen-match-detail", html)
@@ -113,6 +121,7 @@ class ServerRouteIntegrationTests(unittest.TestCase):
         original_ensure_query_tool_assets = server_module.ensure_query_tool_assets
         original_request_metrics_recorder = server_module.RequestMetricsRecorder
         original_sync_service = server_module.OWHeroLeaderboardSyncService
+        original_pick_rate_module = server_module.ow_hero_pick_rate_module
         original_ow_shop_module = server_module.ow_shop_module
         original_player_identity_search_module = server_module.player_identity_search_module
         original_client_recorder = server_module.dashen_api_client.request_metrics_recorder
@@ -127,6 +136,7 @@ class ServerRouteIntegrationTests(unittest.TestCase):
         }
         server_module.RequestMetricsRecorder = _StubRequestMetricsRecorder
         server_module.OWHeroLeaderboardSyncService = _StubSyncService
+        server_module.ow_hero_pick_rate_module = _StubOWHeroPickRateModule()
         server_module.ow_shop_module = _StubOWShopModule()
         server_module.player_identity_search_module = _StubPlayerIdentitySearchModule()
 
@@ -145,30 +155,31 @@ class ServerRouteIntegrationTests(unittest.TestCase):
             time.sleep(0.1)
 
             base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            opener = build_opener(ProxyHandler({}))
 
-            with urlopen(base_url + "/", timeout=10) as response:
+            with opener.open(base_url + "/", timeout=10) as response:
                 html_text = response.read().decode("utf-8")
                 self.assertEqual(response.status, 200)
                 self.assertIn("text/html", response.headers.get("Content-Type", ""))
-                self.assertIn("Overstats Control Panel", html_text)
+                self.assertIn("Overstats 控制面板", html_text)
 
-            with urlopen(base_url + "/ui/app.js", timeout=10) as response:
+            with opener.open(base_url + "/ui/app.js", timeout=10) as response:
                 js_text = response.read().decode("utf-8")
                 self.assertEqual(response.status, 200)
                 self.assertIn("application/javascript", response.headers.get("Content-Type", ""))
                 self.assertIn("MATCH_DETAIL_MODULE_ID", js_text)
 
-            with urlopen(base_url + "/ui/app.css", timeout=10) as response:
+            with opener.open(base_url + "/ui/app.css", timeout=10) as response:
                 css_text = response.read().decode("utf-8")
                 self.assertEqual(response.status, 200)
                 self.assertIn("text/css", response.headers.get("Content-Type", ""))
                 self.assertIn(".app-shell", css_text)
 
-            with urlopen(base_url + "/ui/healthz", timeout=10) as response:
+            with opener.open(base_url + "/ui/healthz", timeout=10) as response:
                 payload = json.loads(response.read().decode("utf-8"))
                 self.assertEqual(payload["service"], "overstats-http-ui")
 
-            with urlopen(base_url + "/healthz", timeout=10) as response:
+            with opener.open(base_url + "/healthz", timeout=10) as response:
                 payload = json.loads(response.read().decode("utf-8"))
                 self.assertEqual(payload["service"], "overstats-core")
 
@@ -179,10 +190,35 @@ class ServerRouteIntegrationTests(unittest.TestCase):
                 headers={"Content-Type": "application/json; charset=utf-8"},
                 method="POST",
             )
-            with urlopen(request, timeout=10) as response:
+            with opener.open(request, timeout=10) as response:
                 payload = json.loads(response.read().decode("utf-8"))
                 self.assertTrue(payload["ok"])
                 self.assertEqual(payload["sections"][0]["title"], "Test Shop")
+
+            pick_rate_body = json.dumps({"view": "ranking", "game_mode": "quick", "mmr": "all"}).encode("utf-8")
+            pick_rate_request = Request(
+                base_url + "/api/v2/ow-hero-pick-rate",
+                data=pick_rate_body,
+                headers={"Content-Type": "application/json; charset=utf-8"},
+                method="POST",
+            )
+            with opener.open(pick_rate_request, timeout=10) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+                self.assertTrue(payload["ok"])
+                self.assertEqual(payload["view"], "ranking")
+                self.assertEqual(payload["heroes"][0]["hero_name"], "安娜")
+
+            pick_rate_image_request = Request(
+                base_url + "/api/v2/ow-hero-pick-rate/image",
+                data=pick_rate_body,
+                headers={"Content-Type": "application/json; charset=utf-8"},
+                method="POST",
+            )
+            with opener.open(pick_rate_image_request, timeout=10) as response:
+                image_body = response.read()
+                self.assertEqual(response.status, 200)
+                self.assertIn("image/png", response.headers.get("Content-Type", ""))
+                self.assertEqual(image_body, b"pick-rate-image")
 
             identity_body = json.dumps({"bnet_id": "12345"}).encode("utf-8")
             identity_request = Request(
@@ -191,7 +227,7 @@ class ServerRouteIntegrationTests(unittest.TestCase):
                 headers={"Content-Type": "application/json; charset=utf-8"},
                 method="POST",
             )
-            with urlopen(identity_request, timeout=10) as response:
+            with opener.open(identity_request, timeout=10) as response:
                 payload = json.loads(response.read().decode("utf-8"))
                 self.assertTrue(payload["ok"])
                 self.assertEqual(payload["query"]["bnet_id"], "12345")
@@ -213,6 +249,7 @@ class ServerRouteIntegrationTests(unittest.TestCase):
             server_module.ensure_query_tool_assets = original_ensure_query_tool_assets
             server_module.RequestMetricsRecorder = original_request_metrics_recorder
             server_module.OWHeroLeaderboardSyncService = original_sync_service
+            server_module.ow_hero_pick_rate_module = original_pick_rate_module
             server_module.ow_shop_module = original_ow_shop_module
             server_module.player_identity_search_module = original_player_identity_search_module
             server_module.dashen_api_client.request_metrics_recorder = original_client_recorder
@@ -265,6 +302,47 @@ class _StubOWShopModule:
             output.image = _StubOWShopImage()
             return output
         return _StubOWShopOutput()
+
+
+class _StubOWHeroPickRateOutput:
+    def __init__(self, *, with_image: bool = False) -> None:
+        self.image = _StubOWHeroPickRateImage() if with_image else None
+
+    def to_dict(self):
+        return {
+            "ok": True,
+            "view": "ranking",
+            "region": "cn",
+            "game_mode": "quick",
+            "mmr": "all",
+            "snapshot": {
+                "season": 2,
+                "ds": "2026-04-29",
+                "hero_count": 1,
+            },
+            "heroes": [
+                {
+                    "rank": 1,
+                    "hero_guid": "ana",
+                    "hero_name": "安娜",
+                    "hero_role": "support",
+                    "selection_ratio": 7.1,
+                    "ban_ratio": 0.0,
+                    "win_ratio": 51.2,
+                    "kda": 4.2,
+                    "icon_url": "",
+                }
+            ],
+        }
+
+
+class _StubOWHeroPickRateImage:
+    content = b"pick-rate-image"
+
+
+class _StubOWHeroPickRateModule:
+    async def query_pick_rate(self, query, *, render=False):  # noqa: ANN001
+        return _StubOWHeroPickRateOutput(with_image=render)
 
 
 class _StubPlayerIdentityMatch:

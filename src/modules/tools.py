@@ -78,6 +78,12 @@ register_module(
 )
 
 register_module(
+    "ow_hero_pick_rate",
+    "overstats.src.modules.ow_hero_pick_rate",
+    "Global Overwatch hero pick-rate snapshot and history data reader plus PIL renderer.",
+)
+
+register_module(
     "ow_shop",
     "overstats.src.modules.ow_shop",
     "Overwatch shop fetcher, cache manager, and PIL renderer.",

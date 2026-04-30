@@ -24,6 +24,7 @@ try:
         dashen_competitive_strength_module,
     )
     from overstats.src.modules.dashen_summary import DashenSummaryQuery, dashen_summary_module
+    from overstats.src.modules.ow_hero_pick_rate import OWHeroPickRateQuery, ow_hero_pick_rate_module
     from overstats.src.modules.ow_shop import ow_shop_module
     from overstats.src.modules.ow_hero_leaderboard import OWHeroLeaderboardSyncService
     from overstats.src.modules.patch_notes import patch_notes_module
@@ -47,6 +48,7 @@ except ModuleNotFoundError:
         dashen_competitive_strength_module,
     )
     from src.modules.dashen_summary import DashenSummaryQuery, dashen_summary_module
+    from src.modules.ow_hero_pick_rate import OWHeroPickRateQuery, ow_hero_pick_rate_module
     from src.modules.ow_shop import ow_shop_module
     from src.modules.ow_hero_leaderboard import OWHeroLeaderboardSyncService
     from src.modules.patch_notes import patch_notes_module
@@ -97,6 +99,16 @@ def _coerce_optional_int(payload: Dict[str, object], *keys: str) -> Optional[int
 
 def _is_success_status(status: HTTPStatus) -> bool:
     return 200 <= int(status) < 300
+
+
+def _build_ow_hero_pick_rate_query(payload: Dict[str, object]) -> OWHeroPickRateQuery:
+    return OWHeroPickRateQuery(
+        view=str(payload.get("view") or "").strip(),
+        game_mode=str(payload.get("game_mode") or payload.get("gameMode") or "").strip(),
+        mmr=str(payload.get("mmr") or "").strip(),
+        hero=str(payload.get("hero") or "").strip(),
+        history_limit=payload.get("history_limit", payload.get("historyLimit")),
+    )
 
 
 _T = TypeVar("_T")
@@ -364,6 +376,22 @@ class OverstatsCoreService:
             raise ModuleError(
                 error="render_failed",
                 message="Patch notes image was not generated.",
+                status_code=500,
+            )
+        return result.image.content
+
+    async def handle_ow_hero_pick_rate(self, payload: Dict[str, object]) -> Dict[str, object]:
+        query = _build_ow_hero_pick_rate_query(payload)
+        result = await ow_hero_pick_rate_module.query_pick_rate(query, render=False)
+        return result.to_dict()
+
+    async def handle_ow_hero_pick_rate_image(self, payload: Dict[str, object]) -> bytes:
+        query = _build_ow_hero_pick_rate_query(payload)
+        result = await ow_hero_pick_rate_module.query_pick_rate(query, render=True)
+        if not result.image:
+            raise ModuleError(
+                error="render_failed",
+                message="Hero pick-rate image was not generated.",
                 status_code=500,
             )
         return result.image.content
@@ -1119,6 +1147,14 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
                 self._handle_patch_notes_post()
                 return
 
+            if path == "/api/v2/ow-hero-pick-rate/image":
+                self._handle_ow_hero_pick_rate_image_post()
+                return
+
+            if path == "/api/v2/ow-hero-pick-rate":
+                self._handle_ow_hero_pick_rate_post()
+                return
+
             if path == "/api/v2/ow-shop/image":
                 self._handle_ow_shop_image_post()
                 return
@@ -1554,6 +1590,96 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
 
             try:
                 image_body = async_runner.run(service.handle_patch_notes_image(payload))
+            except ModuleError as exc:
+                self._send_json(
+                    HTTPStatus(exc.status_code),
+                    {
+                        "ok": False,
+                        "error": exc.error,
+                        "message": exc.message,
+                        "hint": exc.hint,
+                        "details": exc.details,
+                    },
+                )
+                return
+            except Exception as exc:
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {
+                        "ok": False,
+                        "error": "internal_error",
+                        "message": "Internal server error. See details.",
+                        "details": {
+                            "exception": type(exc).__name__,
+                            "message": str(exc),
+                        },
+                    },
+                )
+                return
+
+            self._send_binary(HTTPStatus.OK, image_body, "image/png")
+
+        def _handle_ow_hero_pick_rate_post(self) -> None:
+            try:
+                payload = self._read_json_body()
+            except ValueError as exc:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "ok": False,
+                        "error": "invalid_json",
+                        "message": str(exc),
+                    },
+                )
+                return
+
+            try:
+                result = async_runner.run(service.handle_ow_hero_pick_rate(payload))
+            except ModuleError as exc:
+                self._send_json(
+                    HTTPStatus(exc.status_code),
+                    {
+                        "ok": False,
+                        "error": exc.error,
+                        "message": exc.message,
+                        "hint": exc.hint,
+                        "details": exc.details,
+                    },
+                )
+                return
+            except Exception as exc:
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {
+                        "ok": False,
+                        "error": "internal_error",
+                        "message": "Internal server error. See details.",
+                        "details": {
+                            "exception": type(exc).__name__,
+                            "message": str(exc),
+                        },
+                    },
+                )
+                return
+
+            self._send_json(HTTPStatus.OK, result)
+
+        def _handle_ow_hero_pick_rate_image_post(self) -> None:
+            try:
+                payload = self._read_json_body()
+            except ValueError as exc:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "ok": False,
+                        "error": "invalid_json",
+                        "message": str(exc),
+                    },
+                )
+                return
+
+            try:
+                image_body = async_runner.run(service.handle_ow_hero_pick_rate_image(payload))
             except ModuleError as exc:
                 self._send_json(
                     HTTPStatus(exc.status_code),
