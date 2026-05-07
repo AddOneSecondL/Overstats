@@ -37,7 +37,7 @@ class BnetSearchResult:
 
 
 def normalize_bnet_id(bnet_id: str) -> str:
-    return str(bnet_id or "").replace("\uff03", "#").strip()
+    return str(bnet_id or "").replace("＃", "#").strip()
 
 
 class BnetSearchRequests:

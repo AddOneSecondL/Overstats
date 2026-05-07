@@ -40,11 +40,13 @@ class RegistryTests(unittest.TestCase):
         self.assertIn("dashen-hero-leaderboard", module_map)
         self.assertIn("dashen-summary-week", module_map)
         self.assertIn("ow-hero-pick-rate", module_map)
+        self.assertIn("ow-esports", module_map)
         self.assertIn("ow-shop", module_map)
         self.assertIn("patch-notes", module_map)
         self.assertFalse(module_map["dashen-rank-leaderboard"].requires_target)
         self.assertFalse(module_map["dashen-hero-leaderboard"].requires_target)
         self.assertFalse(module_map["ow-hero-pick-rate"].requires_target)
+        self.assertFalse(module_map["ow-esports"].requires_target)
         self.assertFalse(module_map["ow-shop"].requires_target)
         self.assertFalse(module_map["patch-notes"].requires_target)
         self.assertTrue(module_map["dashen-profile"].requires_target)
@@ -60,6 +62,8 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(module_map["dashen-rank-leaderboard"].image_endpoint, "/api/v2/dashen-rank-leaderboard/image")
         self.assertEqual(module_map["dashen-hero-leaderboard"].json_endpoint, "/api/v2/dashen-hero-leaderboard")
         self.assertEqual(module_map["dashen-hero-leaderboard"].image_endpoint, "/api/v2/dashen-hero-leaderboard/image")
+        self.assertEqual(module_map["ow-esports"].json_endpoint, "/api/v2/ow-esports")
+        self.assertEqual(module_map["ow-esports"].image_endpoint, "/api/v2/ow-esports/image")
 
     def test_module_field_specs_match_expected_payload_keys(self) -> None:
         modules = {item.id: item for item in get_http_ui_module_specs()}

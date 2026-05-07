@@ -22,7 +22,7 @@ from .requests import OWShopRequests, OWShopSection, SHOP_SECTION_SOURCES
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CACHE_ROOT = PROJECT_ROOT / "cache" / "ow_shop"
 CACHE_TTL_SECONDS = 15 * 60
-OW_SHOP_UNAVAILABLE_MESSAGE = "OW \u5546\u5e97\u6570\u636e\u6682\u65f6\u4e0d\u53ef\u7528\u3002"
+OW_SHOP_UNAVAILABLE_MESSAGE = "OW 商店数据暂时不可用。"
 
 
 @dataclass(frozen=True)

@@ -10,8 +10,8 @@ except ModuleNotFoundError:
 
 
 MODE_LABELS = {
-    "preset": "\u9884\u8bbe",
-    "open": "\u5f00\u653e",
+    "preset": "预设",
+    "open": "开放",
 }
 MODE_SOURCE_MAP = {
     "preset": "SportPreset",
@@ -19,10 +19,10 @@ MODE_SOURCE_MAP = {
 }
 MODE_ALIASES = {
     "preset": "preset",
-    "\u9884\u8bbe": "preset",
+    "预设": "preset",
     "sportpreset": "preset",
     "open": "open",
-    "\u5f00\u653e": "open",
+    "开放": "open",
     "sportopen": "open",
 }
 SUPPORTED_MODES = tuple(MODE_LABELS.keys())

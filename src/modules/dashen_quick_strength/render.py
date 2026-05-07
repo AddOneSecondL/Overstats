@@ -31,17 +31,17 @@ def _resolve_resource_dir() -> Path:
 RESOURCE_DIR = _resolve_resource_dir()
 RANK_BREAKPOINTS = [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500]
 RANK_LABELS_CN = {
-    "Bronze": "\u9752\u94dc",
-    "Silver": "\u767d\u94f6",
-    "Gold": "\u9ec4\u91d1",
-    "Platinum": "\u767d\u91d1",
-    "Diamond": "\u94bb\u77f3",
-    "Master": "\u5927\u5e08",
-    "Grandmaster": "\u5b97\u5e08",
-    "Champion": "\u82f1\u6770",
-    "Unranked": "\u672a\u5b9a\u7ea7",
+    "Bronze": "青铜",
+    "Silver": "白银",
+    "Gold": "黄金",
+    "Platinum": "白金",
+    "Diamond": "钻石",
+    "Master": "大师",
+    "Grandmaster": "宗师",
+    "Champion": "英杰",
+    "Unranked": "未定级",
 }
-RESULT_LABELS = {1: "\u80dc", -1: "\u8d1f", 0: "\u5e73"}
+RESULT_LABELS = {1: "胜", -1: "负", 0: "平"}
 DEFAULT_STRENGTH_THEME = {
     "range_color": (140, 214, 255, 188),
     "line_color": (86, 154, 255, 255),
@@ -73,9 +73,9 @@ def render_quick_strength(
     avatar_bytes: Optional[bytes] = None,
     config: Optional[Dict[str, Any]] = None,
     theme: Optional[Dict[str, Any]] = None,
-    title_text: str = "\u5feb\u901f\u5f3a\u5ea6\u6307\u6570",
-    chart_title_text: str = "\u5feb\u901f\u5f3a\u5ea6\u8d8b\u52bf",
-    match_scope_text: str = "\u5feb\u901f",
+    title_text: str = "快速强度指数",
+    chart_title_text: str = "快速强度趋势",
+    match_scope_text: str = "快速",
 ) -> RenderedImage:
     try:
         from PIL import Image
@@ -319,9 +319,9 @@ def _draw_summary_block(
     range_max = int(score_range.get("max") or 0)
     match_count = int(summary.get("match_count") or 0)
     fallback_text = (
-        "\u5df2\u542f\u7528\u4e0a\u8d5b\u5b63\u56de\u9000"
+        "已启用上赛季回退"
         if bool(summary.get("used_previous_season_fallback"))
-        else "\u4f18\u5148\u4f7f\u7528\u5f53\u524d\u8d5b\u5b63"
+        else "优先使用当前赛季"
     )
 
     rank_level = _rank_icon_level_from_score(avg_score)
@@ -334,7 +334,7 @@ def _draw_summary_block(
 
     draw.text(
         (text_x, y),
-        "\u5e73\u5747\u6bb5\u4f4d\u4f30\u8ba1",
+        "平均段位估计",
         font=fonts["font_summary_label"],
         fill=(155, 174, 198, 255),
     )
@@ -346,14 +346,14 @@ def _draw_summary_block(
     )
 
     score_text = (
-        f"\u5e73\u5747\u5f3a\u5ea6 {avg_score:.1f}"
+        f"平均强度 {avg_score:.1f}"
         if avg_score > 0
-        else "\u5e73\u5747\u5f3a\u5ea6 --"
+        else "平均强度 --"
     )
     range_text = (
-        f"\u5f3a\u5ea6\u8303\u56f4 {range_min} - {range_max}"
+        f"强度范围 {range_min} - {range_max}"
         if range_min > 0 and range_max > 0
-        else "\u5f3a\u5ea6\u8303\u56f4 --"
+        else "强度范围 --"
     )
     draw.text(
         (text_x, y + 50 * scale),
@@ -370,7 +370,7 @@ def _draw_summary_block(
     )
     draw.text(
         (text_x, y + 68 * scale),
-        f"\u6700\u8fd1 {match_count} \u573a{match_scope_text}  \u00b7  {fallback_text}",
+        f"最近 {match_count} 场{match_scope_text}  ·  {fallback_text}",
         font=fonts["font_meta"],
         fill=(132, 151, 176, 255),
     )
@@ -405,8 +405,8 @@ def _draw_chart(
     )
     draw.text(
         (x1 + 170 * scale, y1 - 24 * scale),
-        "\u7c97\u6761=\u804c\u8d23\u533a\u95f4  \u7ec6\u6761=\u5168\u804c\u8d23\u533a\u95f4  "
-        "\u6761\u5185\u6a2a\u6761=\u73a9\u5bb6\u6bb5\u4f4d\u5206\u5e03  \u539a\u5ea6=\u540c\u6bb5\u4f4d\u4eba\u6570",
+        "粗条=职责区间  细条=全职责区间  "
+        "条内横条=玩家段位分布  厚度=同段位人数",
         font=fonts["font_meta"],
         fill=(132, 151, 176, 255),
     )
@@ -414,7 +414,7 @@ def _draw_chart(
     if not matches:
         draw.text(
             (inner_left, inner_top + 80 * scale),
-            "\u6682\u65e0\u5feb\u901f\u6bd4\u8d5b\u6570\u636e",
+            "暂无快速比赛数据",
             font=fonts["font_panel_title"],
             fill=(180, 190, 205, 255),
         )
@@ -580,23 +580,23 @@ def _draw_footer(draw: Any, *, fonts: Dict[str, Any], scale: int, theme: Dict[st
     range_legend_color = tuple(theme.get("range_color") or DEFAULT_STRENGTH_THEME["range_color"])
     legend_items = [
         (
-            "\u804c\u8d23\u533a\u95f4",
+            "职责区间",
             _enhance_rgba(range_legend_color, brightness=1.46, contrast=1.28, alpha=255),
             True,
         ),
         (
-            "\u5168\u804c\u8d23\u533a\u95f4",
+            "全职责区间",
             _enhance_rgba(range_legend_color, brightness=1.18, contrast=1.14, alpha=232),
             False,
         ),
         (
-            "\u73a9\u5bb6\u6bb5\u4f4d\u5206\u5e03",
+            "玩家段位分布",
             _enhance_rgba(range_legend_color, brightness=1.36, contrast=1.2, alpha=234),
             False,
         ),
-        ("\u5e73\u5747\u5f3a\u5ea6\u7ebf", tuple(theme.get("line_color") or DEFAULT_STRENGTH_THEME["line_color"]), False),
+        ("平均强度线", tuple(theme.get("line_color") or DEFAULT_STRENGTH_THEME["line_color"]), False),
     ]
-    draw.text((x1, y1), "\u56fe\u4f8b", font=fonts["font_panel_title"], fill=(236, 243, 251, 255))
+    draw.text((x1, y1), "图例", font=fonts["font_panel_title"], fill=(236, 243, 251, 255))
     cur_x = x1 + 64 * scale
     for label, color, hollow in legend_items:
         _draw_legend_swatch(
@@ -985,7 +985,7 @@ def _format_match_label(match: Dict[str, Any], config: Dict[str, Any]) -> str:
     except (TypeError, ValueError):
         result_key = 0
     result_text = RESULT_LABELS.get(result_key, RESULT_LABELS[0])
-    return f"{map_name}\uff08{result_text}\uff09"
+    return f"{map_name}（{result_text}）"
 
 
 def _map_icon_url(config: Dict[str, Any], map_guid: Any) -> str:
@@ -996,12 +996,12 @@ def _map_icon_url(config: Dict[str, Any], map_guid: Any) -> str:
 def _map_name(config: Dict[str, Any], map_guid: Any) -> str:
     item = _map_item(config, map_guid)
     if not item:
-        return str(map_guid or "").strip() or "\u672a\u77e5\u5730\u56fe"
+        return str(map_guid or "").strip() or "未知地图"
     for key in ("name", "displayName", "ename"):
         text = _normalize_display_text(item.get(key))
         if text:
             return text
-    return str(map_guid or "").strip() or "\u672a\u77e5\u5730\u56fe"
+    return str(map_guid or "").strip() or "未知地图"
 
 
 def _map_item(config: Dict[str, Any], map_guid: Any) -> Dict[str, Any]:
@@ -1047,33 +1047,33 @@ def _repair_mojibake(text: str) -> str:
 def _text_quality(text: str) -> int:
     score = 0
     for char in text:
-        if "\u4e00" <= char <= "\u9fff":
+        if "一" <= char <= "鿿":
             score += 3
         elif char.isascii() and (char.isalnum() or char in " -_#/.()"):
             score += 1
-        elif char in ("\uff08", "\uff09", "\u00b7"):
+        elif char in ("（", "）", "·"):
             score += 1
         elif ord(char) < 32:
             score -= 2
     for token in (
-        "\u5927\u9053",
-        "\u8857",
-        "\u795e\u6bbf",
-        "\u5bfa",
-        "\u5854",
-        "\u57ce",
-        "\u6751",
-        "\u5cad",
-        "\u533a",
-        "\u7ad9",
-        "\u5c71",
-        "\u5de5\u4e1a",
-        "\u6e2f",
-        "\u4fee\u9053\u9662",
-        "\u673a\u573a",
-        "\u76d1\u6d4b\u7ad9",
-        "\u738b",
-        "\u7387",
+        "大道",
+        "街",
+        "神殿",
+        "寺",
+        "塔",
+        "城",
+        "村",
+        "岭",
+        "区",
+        "站",
+        "山",
+        "工业",
+        "港",
+        "修道院",
+        "机场",
+        "监测站",
+        "王",
+        "率",
     ):
         if token in text:
             score += 3
@@ -1083,7 +1083,7 @@ def _text_quality(text: str) -> int:
 def _cjk_ratio(text: str) -> float:
     if not text:
         return 0.0
-    cjk_count = sum(1 for char in text if "\u4e00" <= char <= "\u9fff")
+    cjk_count = sum(1 for char in text if "一" <= char <= "鿿")
     return cjk_count / max(len(text), 1)
 
 
@@ -1176,9 +1176,9 @@ def _player_name_font_key(text: str) -> str:
 def _contains_cjk(text: str) -> bool:
     for char in str(text or ""):
         if (
-            "\u3400" <= char <= "\u4dbf"
-            or "\u4e00" <= char <= "\u9fff"
-            or "\uf900" <= char <= "\ufaff"
+            "㐀" <= char <= "䶿"
+            or "一" <= char <= "鿿"
+            or "豈" <= char <= "﫿"
         ):
             return True
     return False

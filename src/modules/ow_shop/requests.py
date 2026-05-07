@@ -29,15 +29,15 @@ class OWShopSource:
 
 SHOP_SECTION_SOURCES: tuple[OWShopSource, ...] = (
     OWShopSource(
-        title="\u7cbe\u9009\u5546\u54c1",
+        title="精选商品",
         url="https://shop.battlenet.com.cn/api/itemshop/pages/blt01ee8af4f4da5e5f?userId=0&locale=zh-CN",
     ),
     OWShopSource(
-        title="\u7535\u7ade\u5546\u54c1",
+        title="电竞商品",
         url="https://shop.battlenet.com.cn/api/itemshop/pages/blt2065e08d915d3ff8?userId=0&locale=zh-CN",
     ),
     OWShopSource(
-        title="\u8d5b\u5b63\u7269\u54c1",
+        title="赛季物品",
         url=(
             "https://shop.battlenet.com.cn/api/card-collection?"
             "id=blt9f0779a1ce3674d7&id=bltf6f3754ef9ac5efe&id=bltff44f3db7e349cb3"
@@ -45,18 +45,18 @@ SHOP_SECTION_SOURCES: tuple[OWShopSource, ...] = (
         ),
     ),
     OWShopSource(
-        title="\u5149\u5b50\u6c34\u6676\u5546\u5e97",
+        title="光子水晶商店",
         url="https://shop.battlenet.com.cn/api/card-collection?id=blt96bb02f90b1c493c&id=blt41c246cabce228fe&locale=zh-cn",
     ),
     OWShopSource(
-        title="\u8d27\u5e01\u5546\u5e97",
+        title="货币商店",
         url=(
             "https://shop.battlenet.com.cn/api/card-collection?"
             "id=blt33b65689468107fd&id=blte794697a49f1ac23&id=blt965ebe71fa46b9fb&locale=zh-cn"
         ),
     ),
     OWShopSource(
-        title="PVE\u5546\u5e97",
+        title="PVE商店",
         url="https://shop.battlenet.com.cn/api/card-collection?id=blt6ba8925b6fb5d816&locale=zh-cn",
     ),
 )
@@ -171,7 +171,7 @@ class OWShopRequests:
         price_payload = payload.get("price") if isinstance(payload.get("price"), Mapping) else {}
         image_payload = payload.get("image") if isinstance(payload.get("image"), Mapping) else {}
         return OWShopItem(
-            title=clean_shop_text(str(payload.get("title") or "\u672a\u77e5\u5546\u54c1")) or "\u672a\u77e5\u5546\u54c1",
+            title=clean_shop_text(str(payload.get("title") or "未知商品")) or "未知商品",
             description=clean_shop_text(str(payload.get("description") or "")),
             product_ids=tuple(_coerce_product_ids(payload.get("productIds"))),
             price_raw=_coerce_price_raw(price_payload.get("raw")),
@@ -263,7 +263,7 @@ class OWShopRequests:
 
 
 def clean_shop_text(value: str) -> str:
-    cleaned = str(value or "").replace("\u00ae", "").replace("\u2122", "")
+    cleaned = str(value or "").replace("®", "").replace("™", "")
     return " ".join(cleaned.split()).strip()
 
 
@@ -287,10 +287,10 @@ def format_expiry_text(value: Any, *, now_ms: Optional[int] = None) -> str:
     hours, minutes = divmod(rem_minutes, 60)
     parts = []
     if days > 0:
-        parts.append(f"{days}\u5929")
+        parts.append(f"{days}天")
     if days > 0 or hours > 0:
-        parts.append(f"{hours}\u5c0f\u65f6")
-    parts.append(f"{minutes}\u5206")
+        parts.append(f"{hours}小时")
+    parts.append(f"{minutes}分")
     return "".join(parts)
 
 

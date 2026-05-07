@@ -77,16 +77,16 @@ def render_rank_leaderboard(
         outline=(95, 115, 160, 140),
         width=2,
     )
-    draw.text((padding_x, padding_y), "Dashen \u6392\u884c\u699c", font=fonts["title"], fill=TITLE_FILL)
+    draw.text((padding_x, padding_y), "Dashen 排行榜", font=fonts["title"], fill=TITLE_FILL)
     draw.text(
         (padding_x, padding_y + 44),
-        f"{province} / {role_label} / \u5171 {entry_count} \u4eba",
+        f"{province} / {role_label} / 共 {entry_count} 人",
         font=fonts["subtitle"],
         fill=SUBTITLE_FILL,
     )
     draw.text(
         (padding_x, padding_y + 78),
-        "\u6309\u6bb5\u4f4d\u5206\u7ec4\uff0c\u7ec4\u5185\u6309\u5206\u6570\u964d\u5e8f\u6392\u5217",
+        "按段位分组，组内按分数降序排列",
         font=fonts["meta"],
         fill=(154, 168, 192, 255),
     )
@@ -94,14 +94,14 @@ def render_rank_leaderboard(
     y_cursor = padding_y + header_height
     for group in groups:
         entries = list(group.get("entries") or [])
-        rank_label = str(group.get("rank_label") or "\u672a\u5b9a\u7ea7")
+        rank_label = str(group.get("rank_label") or "未定级")
         rank_icon_level = int(group.get("rank_icon_level") or 0)
         title_x = padding_x
         icon = _load_rank_icon(rank_icon_level, size=(32, 32))
         if icon is not None:
             canvas.paste(icon, (title_x, y_cursor - 2), icon)
             title_x += 40
-        draw.text((title_x, y_cursor), f"{rank_label} / {len(entries)}\u4eba", font=fonts["group"], fill=ACCENT)
+        draw.text((title_x, y_cursor), f"{rank_label} / {len(entries)}人", font=fonts["group"], fill=ACCENT)
         draw.line((padding_x, y_cursor + 30, width - padding_x, y_cursor + 30), fill=GROUP_LINE, width=2)
         y_cursor += group_title_height
 
@@ -129,7 +129,7 @@ def render_rank_leaderboard(
             )
             draw.text(
                 (left + 10, top + 30),
-                f"{int(entry.get('wins') or 0)}/{int(entry.get('match_sum') or 0)}\u573a / {float(entry.get('win_rate') or 0):.2f}%",
+                f"{int(entry.get('wins') or 0)}/{int(entry.get('match_sum') or 0)}场 / {float(entry.get('win_rate') or 0):.2f}%",
                 font=fonts["card_meta"],
                 fill=SUBTITLE_FILL,
             )

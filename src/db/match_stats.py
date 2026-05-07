@@ -388,7 +388,7 @@ class IDPoolDB:
             if not isinstance(row, dict):
                 continue
             bnetid = str(row.get("bnetid") or row.get("bnetId") or row.get("bnet_id") or "").strip()
-            battletag = str(row.get("battletag") or row.get("battleTag") or "").replace("\uff03", "#").strip()
+            battletag = str(row.get("battletag") or row.get("battleTag") or "").replace("＃", "#").strip()
             battlename = str(row.get("battlename") or row.get("battleName") or "").strip()
             battlenum = str(row.get("battlenum") or row.get("battleNum") or "").strip()
             if not battletag and battlename:

@@ -24,9 +24,9 @@ except ModuleNotFoundError:
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 MIG_ROOT = Path(__file__).resolve().parents[4]
 TITLE_BY_SCOPE = {
-    "today": "\u4eca\u65e5\u603b\u7ed3",
-    "yesterday": "\u6628\u65e5\u603b\u7ed3",
-    "week": "\u672c\u5468\u603b\u7ed3",
+    "today": "今日总结",
+    "yesterday": "昨日总结",
+    "week": "本周总结",
 }
 DEFAULT_SUMMARY_CONCURRENCY = 2
 DEFAULT_MATCH_LOOKBACK_DAYS = 8
@@ -518,20 +518,20 @@ async def render_summary_payload(query: Any) -> Dict[str, Any]:
         if not all_raw_matches:
             raise ModuleError(
                 error="summary_empty",
-                message="\u8fd1\u671f\u6ca1\u6709\u627e\u5230\u5bf9\u5c40\u8bb0\u5f55\u3002",
+                message="近期没有找到对局记录。",
                 status_code=404,
                 details={"scope": scope},
             )
 
         if scope == "today":
             period_matches = _today_period(all_raw_matches)
-            empty_message = "\u4f60\u5728\u8fc7\u53bb\u7684 24 \u5c0f\u65f6\u5185\u6ca1\u6709\u5bf9\u5c40\u8bb0\u5f55\u3002"
+            empty_message = "你在过去的 24 小时内没有对局记录。"
         elif scope == "yesterday":
             period_matches, reference_time = _yesterday_period(all_raw_matches)
-            empty_message = "\u4f60\u5728\u6628\u65e5\u6ca1\u6709\u5bf9\u5c40\u8bb0\u5f55\u3002"
+            empty_message = "你在昨日没有对局记录。"
         else:
             period_matches = _week_period(all_raw_matches)
-            empty_message = "\u4f60\u5728\u8fc7\u53bb 7 \u5929\u5185\u6ca1\u6709\u5bf9\u5c40\u8bb0\u5f55\u3002"
+            empty_message = "你在过去 7 天内没有对局记录。"
 
         timer.mark("PERIOD_FILTER_DONE", f"period_count={len(period_matches)}")
         if not period_matches:

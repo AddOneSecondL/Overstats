@@ -27,9 +27,9 @@ LOCAL_FONT_CANDIDATES = (
 BACKGROUND_RGB = (25, 30, 40)
 CARD_BG_RGB = (50, 60, 75)
 TEXT_MUTED = (190, 198, 210)
-REFRESH_LABEL = "\u5237\u65b0"
-GENERATED_AT_LABEL = "\u751f\u6210\u65f6\u95f4"
-HUGE_BUNDLE_KEYWORD = "\u8d85\u7ea7\u793c\u5305"
+REFRESH_LABEL = "刷新"
+GENERATED_AT_LABEL = "生成时间"
+HUGE_BUNDLE_KEYWORD = "超级礼包"
 
 
 @dataclass(frozen=True)
@@ -235,12 +235,12 @@ def _create_card_image(image_path: Path | None, target_w: int, target_h: int, bg
 def _price_label(price_raw: int | float, currency: str) -> tuple[str, tuple[int, int, int]]:
     currency = str(currency or "").upper()
     if currency == "XWC":
-        return f"{price_raw} \u91d1\u5e01", (230, 170, 20)
+        return f"{price_raw} 金币", (230, 170, 20)
     if currency == "CPT":
-        return f"{price_raw} \u6218\u7f51\u70b9", (180, 20, 20)
+        return f"{price_raw} 战网点", (180, 20, 20)
     if currency == "XVT":
-        return f"{price_raw} \u5149\u5b50\u6c34\u6676", (120, 200, 255)
-    return f"{price_raw} \u4ee3\u5e01", (200, 200, 200)
+        return f"{price_raw} 光子水晶", (120, 200, 255)
+    return f"{price_raw} 代币", (200, 200, 200)
 
 
 def _draw_badge(draw: Any, right_x: int, top_y: int, text: str, font: Any, bg_color: Any, text_color: Any) -> None:

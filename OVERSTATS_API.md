@@ -61,6 +61,82 @@ JSON response shape:
 
 The `/image` endpoint returns `image/png` rendered in the same overshop-style card layout used by the legacy bot module.
 
+## OW Esports API
+
+Endpoints:
+
+- `POST /api/v2/ow-esports`
+- `POST /api/v2/ow-esports/image`
+
+Request body:
+
+```json
+{}
+```
+
+Required config:
+
+- `OW_ESPORTS_API_KEY`
+
+JSON response shape:
+
+```json
+{
+  "ok": true,
+  "generated_at": "2026-05-07 12:34:56",
+  "realtime": true,
+  "rows": [
+    {
+      "league_name": "OWCS Asia",
+      "status": "正在进行",
+      "raw_status": "running",
+      "match_name": "Alpha vs Beta",
+      "start_time": "2026-05-07 18:00",
+      "start_timestamp": 1778176800,
+      "score": "2:1",
+      "score1": 2,
+      "score2": 1,
+      "team1": {
+        "id": 1,
+        "name": "Alpha",
+        "short_name": "ALP",
+        "logo": "https://example.com/a.png",
+        "region": "CN"
+      },
+      "team2": {
+        "id": 2,
+        "name": "Beta",
+        "short_name": "BET",
+        "logo": "https://example.com/b.png",
+        "region": "KR"
+      }
+    }
+  ],
+  "sections": [
+    {
+      "league_name": "OWCS Asia",
+      "status_sections": [
+        {
+          "status": "正在进行",
+          "rows": [],
+          "hidden_count": 0
+        }
+      ]
+    }
+  ]
+}
+```
+
+Behavior notes:
+
+- Match data is fetched in real time on every request.
+- Service-level snapshot caching is not used.
+- The service calls PandaScore directly with the configured API key.
+- Team logo downloads may reuse the shared remote-image cache.
+- The `/image` endpoint returns `image/png` in the same esports overview layout as the legacy overshop implementation.
+- If `OW_ESPORTS_API_KEY` is missing, the API returns `ow_esports_not_configured`.
+- If the upstream payload cannot be parsed into a match list, the API returns `ow_esports_invalid_payload`.
+
 ## Patch Notes API
 
 Endpoints:

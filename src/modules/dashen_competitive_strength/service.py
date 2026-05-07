@@ -171,9 +171,9 @@ class DashenCompetitiveStrengthModule:
                     avatar_bytes=avatar_bytes,
                     config=config,
                     theme=COMPETITIVE_STRENGTH_THEME,
-                    title_text="\u7ade\u6280\u5f3a\u5ea6\u6307\u6570",
-                    chart_title_text="\u7ade\u6280\u5f3a\u5ea6\u8d8b\u52bf",
-                    match_scope_text="\u7ade\u6280",
+                    title_text="竞技强度指数",
+                    chart_title_text="竞技强度趋势",
+                    match_scope_text="竞技",
                 )
             except RuntimeError as exc:
                 raise ModuleError(

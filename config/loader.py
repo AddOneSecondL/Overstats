@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from . import config
 
@@ -92,8 +92,7 @@ class DashenClientConfig:
     account_failure_cooldown_seconds: int
     international_proxy: str
     netease_proxies: Tuple[Optional[str], ...]
-    ow_esports_url: str
-    ow_esports_payload: Dict[str, Any]
+    ow_esports_api_key: str
 
 
 def _normalize_accounts() -> Tuple[DashenCredentialConfig, ...]:
@@ -204,6 +203,5 @@ def get_dashen_client_config() -> DashenClientConfig:
         account_failure_cooldown_seconds=cooldown_seconds,
         international_proxy=str(getattr(config, "DASHEN_INTERNATIONAL_PROXY", "") or "").strip(),
         netease_proxies=_normalize_proxy_pool(getattr(config, "DASHEN_NETEASE_PROXIES", [None])),
-        ow_esports_url=str(getattr(config, "OW_ESPORTS_URL", "") or "").strip(),
-        ow_esports_payload=dict(getattr(config, "OW_ESPORTS_PAYLOAD", {"ids": []}) or {"ids": []}),
+        ow_esports_api_key=str(getattr(config, "OW_ESPORTS_API_KEY", "") or "").strip(),
     )

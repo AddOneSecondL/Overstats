@@ -45,11 +45,9 @@ DASHEN_NETEASE_PROXIES = [
     # "http://your-netease-proxy:port",
 ]
 
-# Optional OW esports API.
-OW_ESPORTS_URL = ""
-OW_ESPORTS_PAYLOAD = {
-    "ids": [],
-}
+# OW esports PandaScore API key.
+#如何获取ow赛事的apikey:访问https://app.pandascore.co/dashboard/main，注册并生成api key，每小时1000次免费调用
+OW_ESPORTS_API_KEY = ""
 
 # ======================= OW Hero Leaderboard ====================== #
 OW_HERO_LEADERBOARD_CN_SEASON = 2

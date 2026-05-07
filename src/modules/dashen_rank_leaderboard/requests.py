@@ -10,28 +10,28 @@ except ModuleNotFoundError:
 
 
 ROLE_LABELS = {
-    "tank": "\u91cd\u88c5",
-    "dps": "\u8f93\u51fa",
-    "healer": "\u652f\u63f4",
-    "open": "\u5f00\u653e",
+    "tank": "重装",
+    "dps": "输出",
+    "healer": "支援",
+    "open": "开放",
 }
 ROLE_ALIASES = {
     "tank": "tank",
-    "\u91cd\u88c5": "tank",
-    "\u5766\u514b": "tank",
+    "重装": "tank",
+    "坦克": "tank",
     "t": "tank",
     "dps": "dps",
     "damage": "dps",
-    "\u8f93\u51fa": "dps",
+    "输出": "dps",
     "c": "dps",
     "healer": "healer",
     "support": "healer",
-    "\u652f\u63f4": "healer",
-    "\u8f85\u52a9": "healer",
-    "\u5976": "healer",
+    "支援": "healer",
+    "辅助": "healer",
+    "奶": "healer",
     "h": "healer",
     "open": "open",
-    "\u5f00\u653e": "open",
+    "开放": "open",
 }
 SUPPORTED_ROLES = tuple(ROLE_LABELS.keys())
 

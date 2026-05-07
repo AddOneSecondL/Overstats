@@ -12,17 +12,17 @@ from .render import RenderedImage, render_rank_leaderboard
 from .requests import DashenRankLeaderboardQuery, DashenRankLeaderboardRequests, ROLE_LABELS, normalize_role
 
 
-UNRANKED_LABEL = "\u672a\u5b9a\u7ea7"
+UNRANKED_LABEL = "未定级"
 RANK_LABEL_ICON_LEVELS = {
-    "\u9752\u94dc": 1,
-    "\u767d\u94f6": 2,
-    "\u9ec4\u91d1": 3,
-    "\u767d\u91d1": 4,
-    "\u94c2\u91d1": 4,
-    "\u94bb\u77f3": 5,
-    "\u5927\u5e08": 6,
-    "\u5b97\u5e08": 7,
-    "\u82f1\u6770": 8,
+    "青铜": 1,
+    "白银": 2,
+    "黄金": 3,
+    "白金": 4,
+    "铂金": 4,
+    "钻石": 5,
+    "大师": 6,
+    "宗师": 7,
+    "英杰": 8,
 }
 
 
@@ -164,14 +164,14 @@ class DashenRankLeaderboardModule:
                 error="missing_province",
                 message="province is required.",
                 status_code=400,
-                hint='Example: {"province":"\\u5317\\u4eac","role":"tank"}',
+                hint='Example: {"province":"北京","role":"tank"}',
             )
         if not raw_role:
             raise ModuleError(
                 error="missing_role",
                 message="role is required.",
                 status_code=400,
-                hint='Example: {"province":"\\u5317\\u4eac","role":"tank"}',
+                hint='Example: {"province":"北京","role":"tank"}',
             )
         try:
             role = normalize_role(raw_role)
@@ -270,28 +270,28 @@ def score_to_rank(score: int) -> str:
         return UNRANKED_LABEL
     if score < 1500:
         idx = max(0, int((score - 1000) // 100))
-        return f"\u9752\u94dc{5 - idx}"
+        return f"青铜{5 - idx}"
     if score < 2000:
         idx = int((score - 1500) // 100)
-        return f"\u767d\u94f6{5 - idx}"
+        return f"白银{5 - idx}"
     if score < 2500:
         idx = int((score - 2000) // 100)
-        return f"\u9ec4\u91d1{5 - idx}"
+        return f"黄金{5 - idx}"
     if score < 3000:
         idx = int((score - 2500) // 100)
-        return f"\u767d\u91d1{5 - idx}"
+        return f"白金{5 - idx}"
     if score < 3500:
         idx = int((score - 3000) // 100)
-        return f"\u94bb\u77f3{5 - idx}"
+        return f"钻石{5 - idx}"
     if score < 4000:
         idx = int((score - 3500) // 100)
-        return f"\u5927\u5e08{5 - idx}"
+        return f"大师{5 - idx}"
     if score < 4500:
         idx = int((score - 4000) // 100)
-        return f"\u5b97\u5e08{5 - idx}"
+        return f"宗师{5 - idx}"
     if score < 5000:
         idx = int((score - 4500) // 100)
-        return f"\u82f1\u6770{5 - idx}"
+        return f"英杰{5 - idx}"
     return UNRANKED_LABEL
 
 

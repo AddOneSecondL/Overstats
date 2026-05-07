@@ -143,7 +143,7 @@ def normalize_image_url(value: str) -> str:
 
 def _normalize_term_key(text: Any) -> str:
     normalized = re.sub(r"\s+", " ", str(text or "")).strip().lower()
-    return re.sub(r"[^0-9a-z\u4e00-\u9fff]+", "", normalized)
+    return re.sub(r"[^0-9a-z一-鿿]+", "", normalized)
 
 
 def _build_hero_name_map() -> Dict[str, str]:

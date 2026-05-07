@@ -75,12 +75,25 @@ JD_EQ_COMMUNITY_URL = (
     "community_play_staduim_recommend_mods_data"
 )
 OVERFAST_PLAYERS_URL = "https://overfast-api.tekrop.fr/players"
+PANDASCORE_OW_MATCHES_URL = "https://api.pandascore.co/ow/matches"
 REMOTE_IMAGE_CACHE_DIR = Path(__file__).resolve().parents[2] / "res" / "cache_img"
 
+
+def _build_ow_esports_headers(api_key: Optional[str]) -> Dict[str, str]:
+    headers = {"Accept": "application/json"}
+    normalized = str(api_key or "").strip()
+    if not normalized or normalized.lower().startswith("replace-with-your-"):
+        return headers
+    if normalized.lower().startswith("bearer "):
+        headers["Authorization"] = normalized
+    else:
+        headers["Authorization"] = f"Bearer {normalized}"
+    return headers
+
+
 CLIENT_CONFIG = get_dashen_client_config()
-OW_ESPORTS_URL = CLIENT_CONFIG.ow_esports_url
-OW_ESPORTS_PAYLOAD = dict(CLIENT_CONFIG.ow_esports_payload)
-OW_ESPORTS_HEADERS = {"Content-Type": "application/json"}
+OW_ESPORTS_API_KEY = CLIENT_CONFIG.ow_esports_api_key
+OW_ESPORTS_HEADERS = _build_ow_esports_headers(OW_ESPORTS_API_KEY)
 
 DASHEN_BIGDATA_DTS = int(CLIENT_CONFIG.bigdata_dts)
 DASHEN_CLIENT_TYPE = CLIENT_CONFIG.client_type
@@ -913,7 +926,7 @@ class DashenAPIClient:
             "roleId": credential.role_id,
             "dts": credential.dts,
             "server": credential.server,
-            "name": str(bnet or "").replace("\uff03", "#").strip(),
+            "name": str(bnet or "").replace("＃", "#").strip(),
         }
         return await self.request_json(
             "POST",
@@ -1114,9 +1127,8 @@ class DashenAPIClient:
 
     async def fetch_ow_esports_payload(self) -> Dict[str, Any]:
         return await self.request_json(
-            "POST",
-            OW_ESPORTS_URL,
-            json=OW_ESPORTS_PAYLOAD,
+            "GET",
+            PANDASCORE_OW_MATCHES_URL,
             headers=OW_ESPORTS_HEADERS,
             timeout=15,
         )
@@ -1130,17 +1142,17 @@ class DashenAPIClient:
             params={"name": player_name},
         )
 
-    async def get_jd_hero_official(self, rank: str = "\u5168\u90e8") -> Dict[str, Any]:
+    async def get_jd_hero_official(self, rank: str = "全部") -> Dict[str, Any]:
         return await self.request_json("GET", JD_HERO_OFFICIAL_URL, params={"rank_level": rank})
 
-    async def get_jd_eq_official(self, hero_guid: str, rank: str = "\u5168\u90e8") -> Dict[str, Any]:
+    async def get_jd_eq_official(self, hero_guid: str, rank: str = "全部") -> Dict[str, Any]:
         return await self.request_json(
             "GET",
             JD_EQ_OFFICIAL_URL,
             params={"rank_level": rank, "hero_guid": hero_guid},
         )
 
-    async def get_jd_eq_community(self, hero_guid: str, rank: str = "\u5168\u90e8") -> Dict[str, Any]:
+    async def get_jd_eq_community(self, hero_guid: str, rank: str = "全部") -> Dict[str, Any]:
         return await self.request_json(
             "GET",
             JD_EQ_COMMUNITY_URL,

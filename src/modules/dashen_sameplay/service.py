@@ -258,9 +258,9 @@ class DashenSameplayModule:
         if render:
             image = render_match_list(
                 visible_matches,
-                title=f"{player1.display_name} & {player2.display_name} \u540c\u73a9\u5bf9\u5c40",
+                title=f"{player1.display_name} & {player2.display_name} 同玩对局",
                 footer_lines=[self._build_list_footer(summary, scan_complete=bool(common_output.get("scan_complete")))],
-                hint_text="\u56de\u590d\u6b64\u56fe\u7247\u5e76 @\u673a\u5668\u4eba \u53d1\u9001 1 / 1* / 1**\uff0c\u53ef\u6309\u5e8f\u53f7\u67e5\u770b\u540c\u73a9\u5bf9\u5c40\u8be6\u60c5",
+                hint_text="回复此图片并 @机器人 发送 1 / 1* / 1**，可按序号查看同玩对局详情",
             )
         return DashenSameplayListOutput(
             player1=player1,
@@ -337,7 +337,7 @@ class DashenSameplayModule:
                 main_image,
                 player1.display_name,
                 bnet_id=player1.bnet_id,
-                subtitle="\u540c\u73a9\u5bf9\u5c40\u4e3b\u6218\u7ee9",
+                subtitle="同玩对局主战绩",
             )
 
         player_details = await asyncio.gather(
@@ -365,7 +365,7 @@ class DashenSameplayModule:
                     waterfall_image,
                     focus_player.display_name,
                     bnet_id=focus_player.bnet_id,
-                    subtitle="\u5168\u5458\u8be6\u7ec6\u6570\u636e",
+                    subtitle="全员详细数据",
                 )
                 if analyze:
                     analysis = await self.match_module._build_ai_analysis(
@@ -730,16 +730,16 @@ class DashenSameplayModule:
         scanned = int(summary.get("scanned_count") or 0)
         if scan_complete:
             return (
-                f"\u5171\u627e\u5230 {total} \u573a\u540c\u73a9\u5bf9\u5c40"
-                f" | \u5feb\u901f {quick} \u573a"
-                f" | \u7ade\u6280 {competitive} \u573a"
-                f" | \u626b\u63cf\u603b\u573a\u6b21 {scanned}"
+                f"共找到 {total} 场同玩对局"
+                f" | 快速 {quick} 场"
+                f" | 竞技 {competitive} 场"
+                f" | 扫描总场次 {scanned}"
             )
         return (
-            f"\u5df2\u627e\u5230\u81f3\u5c11 {total} \u573a\u540c\u73a9\u5bf9\u5c40"
-            f" | \u5feb\u901f {quick} \u573a"
-            f" | \u7ade\u6280 {competitive} \u573a"
-            f" | \u5df2\u626b\u63cf\u5bf9\u5c40 {scanned} \u573a"
+            f"已找到至少 {total} 场同玩对局"
+            f" | 快速 {quick} 场"
+            f" | 竞技 {competitive} 场"
+            f" | 已扫描对局 {scanned} 场"
         )
 
     def _select_source_match(self, matches: Sequence[Dict[str, Any]], *, index: Optional[int], match_id: str) -> Dict[str, Any]:
@@ -842,7 +842,7 @@ class DashenSameplayModule:
                 image,
                 player.display_name,
                 bnet_id=player.bnet_id,
-                subtitle="\u82f1\u96c4\u8be6\u7ec6\u6570\u636e",
+                subtitle="英雄详细数据",
             )
         return DashenSameplayDetailPlayerOutput(
             player=player,

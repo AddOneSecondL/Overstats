@@ -210,14 +210,14 @@ class DashenHeroLeaderboardModule:
                 error="missing_province",
                 message="province is required.",
                 status_code=400,
-                hint='Example: {"province":"\\u5317\\u4eac","hero":"\\u730e\\u7a7a","mode":"preset"}',
+                hint='Example: {"province":"北京","hero":"猎空","mode":"preset"}',
             )
         if not hero:
             raise ModuleError(
                 error="missing_hero",
                 message="hero is required.",
                 status_code=400,
-                hint='Example: {"province":"\\u5317\\u4eac","hero":"\\u730e\\u7a7a","mode":"preset"}',
+                hint='Example: {"province":"北京","hero":"猎空","mode":"preset"}',
             )
         try:
             mode = normalize_mode(query.mode)

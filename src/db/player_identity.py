@@ -35,7 +35,7 @@ def _first_non_empty(mapping: Dict[str, Any], keys: tuple[str, ...]) -> str:
 
 
 def normalize_battletag(text: Any) -> str:
-    return str(text or "").replace("\uff03", "#").strip()
+    return str(text or "").replace("＃", "#").strip()
 
 
 def split_battletag(text: Any) -> tuple[str, str]:

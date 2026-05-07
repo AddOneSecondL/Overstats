@@ -90,16 +90,16 @@ def render_hero_leaderboard(
         size=78,
         ring_color=accent,
     )
-    draw.text((122, padding_y), "Dashen \u82f1\u96c4\u6392\u884c\u699c", font=fonts["title"], fill=TITLE_FILL)
+    draw.text((122, padding_y), "Dashen 英雄排行榜", font=fonts["title"], fill=TITLE_FILL)
     draw.text(
         (122, padding_y + 44),
-        f"{province} / {hero.get('hero_name') or '-'} / {mode_label} / \u5171 {entry_count} \u4eba",
+        f"{province} / {hero.get('hero_name') or '-'} / {mode_label} / 共 {entry_count} 人",
         font=fonts["subtitle"],
         fill=SUBTITLE_FILL,
     )
     draw.text(
         (122, padding_y + 78),
-        "\u6309\u6bb5\u4f4d\u5206\u7ec4\uff0c\u7ec4\u5185\u6309\u5206\u6570\u964d\u5e8f\u6392\u5217",
+        "按段位分组，组内按分数降序排列",
         font=fonts["meta"],
         fill=(154, 168, 192, 255),
     )
@@ -108,14 +108,14 @@ def render_hero_leaderboard(
     y_cursor = padding_y + header_height
     for group in groups:
         entries = list(group.get("entries") or [])
-        rank_label = str(group.get("rank_label") or "\u672a\u5b9a\u7ea7")
+        rank_label = str(group.get("rank_label") or "未定级")
         rank_icon_level = int(group.get("rank_icon_level") or 0)
         title_x = padding_x
         icon = _load_rank_icon(rank_icon_level, size=(32, 32))
         if icon is not None:
             canvas.paste(icon, (title_x, y_cursor - 2), icon)
             title_x += 40
-        draw.text((title_x, y_cursor), f"{rank_label} / {len(entries)}\u4eba", font=fonts["group"], fill=accent)
+        draw.text((title_x, y_cursor), f"{rank_label} / {len(entries)}人", font=fonts["group"], fill=accent)
         draw.line((padding_x, y_cursor + 30, width - padding_x, y_cursor + 30), fill=(*accent[:3], 170), width=2)
         y_cursor += group_title_height
 
@@ -143,7 +143,7 @@ def render_hero_leaderboard(
             )
             draw.text(
                 (left + 10, top + 31),
-                f"{int(entry.get('ranked_level') or 0)}\u5206 / {int(entry.get('wins') or 0)}/{int(entry.get('match_sum') or 0)}\u573a",
+                f"{int(entry.get('ranked_level') or 0)}分 / {int(entry.get('wins') or 0)}/{int(entry.get('match_sum') or 0)}场",
                 font=fonts["card_meta"],
                 fill=SUBTITLE_FILL,
             )

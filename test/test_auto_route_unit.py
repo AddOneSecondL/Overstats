@@ -135,7 +135,7 @@ class AutoRouteSelectionTests(unittest.IsolatedAsyncioTestCase):
             )
         )
 
-        result = await module.select("看这个 token 的竞技资料")
+        result = await module.select("看这个token的竞技资料")
 
         self.assertEqual(result.endpoint, "/api/v2/dashen-profile/image")
         self.assertEqual(result.payload["customer_token"], "abc123")
@@ -181,6 +181,23 @@ class AutoRouteSelectionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result.endpoint, "/api/v2/patch-notes/image")
         self.assertEqual(result.payload["patch_kind"], "big")
+
+    async def test_ow_esports_routes_to_image_endpoint(self) -> None:
+        module = AutoRouteModule(
+            requests=_StubRequests(
+                AutoRouteToolCall(
+                    name="ow_esports",
+                    arguments={},
+                )
+            )
+        )
+
+        result = await module.select("看看OW赛事")
+
+        self.assertEqual(result.endpoint, "/api/v2/ow-esports/image")
+        self.assertEqual(result.endpoint_mode, "image")
+        self.assertEqual(result.module_name, "ow_esports")
+        self.assertEqual(result.payload, {})
 
     async def test_endpoint_priority_prefers_replies_then_image(self) -> None:
         module = AutoRouteModule(requests=_StubRequests(AutoRouteToolCall(name="dashen_match", arguments={"target": "Player#1"})))

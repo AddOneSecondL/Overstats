@@ -37,6 +37,8 @@ AUTO_ROUTE_SUPPORTED_COMMANDS = (
     "英雄选取率 历史 安娜 竞技 宗师 30",
     "OW商店",
     "补丁说明 大更",
+    "OW赛事",
+    "守望赛事",
 )
 AUTO_ROUTE_GAME_MODE_ALIASES = {
     "快速": "quick",
@@ -124,7 +126,7 @@ class AutoRouteSelection:
 
 
 def _normalize_target_text(raw_text: Any) -> str:
-    return str(raw_text or "").strip().replace("\uff03", "#")
+    return str(raw_text or "").strip().replace("＃", "#")
 
 
 def _normalize_tool_text(value: Any) -> str:
@@ -288,6 +290,7 @@ class AutoRouteModule:
             "quick_strength": self._build_quick_strength_selection,
             "competitive_strength": self._build_competitive_strength_selection,
             "hero_pick_rate": self._build_hero_pick_rate_selection,
+            "ow_esports": self._build_ow_esports_selection,
             "ow_shop": self._build_ow_shop_selection,
             "patch_notes": self._build_patch_notes_selection,
         }
@@ -298,7 +301,7 @@ class AutoRouteModule:
                 "type": "function",
                 "function": {
                     "name": "dashen_profile",
-                    "description": "Query player profile / 玩家资料 / 竞技资料.",
+                    "description": "Query player profile.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -313,7 +316,7 @@ class AutoRouteModule:
                 "type": "function",
                 "function": {
                     "name": "dashen_match",
-                    "description": "Query recent matches or one match detail / 近期对局 / 单局详情.",
+                    "description": "Query recent matches or one match detail.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -330,7 +333,7 @@ class AutoRouteModule:
                 "type": "function",
                 "function": {
                     "name": "dashen_sameplay",
-                    "description": "Query shared matches between two players / 同玩查询.",
+                    "description": "Query shared matches between two players.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -349,7 +352,7 @@ class AutoRouteModule:
                 "type": "function",
                 "function": {
                     "name": "summary_today",
-                    "description": "Generate today's summary / 今日总结.",
+                    "description": "Generate today's summary.",
                     "parameters": {
                         "type": "object",
                         "properties": {"target": {"type": "string"}},
@@ -361,7 +364,7 @@ class AutoRouteModule:
                 "type": "function",
                 "function": {
                     "name": "summary_yesterday",
-                    "description": "Generate yesterday's summary / 昨日总结.",
+                    "description": "Generate yesterday's summary.",
                     "parameters": {
                         "type": "object",
                         "properties": {"target": {"type": "string"}},
@@ -373,7 +376,7 @@ class AutoRouteModule:
                 "type": "function",
                 "function": {
                     "name": "summary_week",
-                    "description": "Generate weekly summary / 本周总结.",
+                    "description": "Generate weekly summary.",
                     "parameters": {
                         "type": "object",
                         "properties": {"target": {"type": "string"}},
@@ -385,7 +388,7 @@ class AutoRouteModule:
                 "type": "function",
                 "function": {
                     "name": "rank_history",
-                    "description": "Query rank history / 历史段位.",
+                    "description": "Query rank history.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -401,7 +404,7 @@ class AutoRouteModule:
                 "type": "function",
                 "function": {
                     "name": "quick_strength",
-                    "description": "Query quick-play strength / 快速强度.",
+                    "description": "Query quick-play strength.",
                     "parameters": {
                         "type": "object",
                         "properties": {"target": {"type": "string"}},
@@ -413,7 +416,7 @@ class AutoRouteModule:
                 "type": "function",
                 "function": {
                     "name": "competitive_strength",
-                    "description": "Query competitive strength / 竞技强度.",
+                    "description": "Query competitive strength.",
                     "parameters": {
                         "type": "object",
                         "properties": {"target": {"type": "string"}},
@@ -425,7 +428,7 @@ class AutoRouteModule:
                 "type": "function",
                 "function": {
                     "name": "hero_pick_rate",
-                    "description": "Query hero pick-rate ranking or history / 英雄选取率.",
+                    "description": "Query hero pick-rate ranking or history.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -455,8 +458,20 @@ class AutoRouteModule:
             {
                 "type": "function",
                 "function": {
+                    "name": "ow_esports",
+                    "description": "Query current OW esports matches.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "ow_shop",
-                    "description": "Query the current OW shop / OW商店.",
+                    "description": "Query the current OW shop.",
                     "parameters": {
                         "type": "object",
                         "properties": {},
@@ -468,7 +483,7 @@ class AutoRouteModule:
                 "type": "function",
                 "function": {
                     "name": "patch_notes",
-                    "description": "Query patch notes / 补丁说明.",
+                    "description": "Query patch notes.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -654,6 +669,15 @@ class AutoRouteModule:
             endpoint="/api/v2/ow-hero-pick-rate/image",
             endpoint_mode="image",
             payload=payload,
+        )
+
+    def _build_ow_esports_selection(self, arguments: Dict[str, Any]) -> AutoRouteSelection:
+        return AutoRouteSelection(
+            tool_name="ow_esports",
+            module_name="ow_esports",
+            endpoint="/api/v2/ow-esports/image",
+            endpoint_mode="image",
+            payload={},
         )
 
     def _build_ow_shop_selection(self, arguments: Dict[str, Any]) -> AutoRouteSelection:

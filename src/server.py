@@ -35,6 +35,7 @@ try:
     )
     from overstats.src.modules.dashen_summary import DashenSummaryQuery, dashen_summary_module
     from overstats.src.modules.ow_hero_pick_rate import OWHeroPickRateQuery, ow_hero_pick_rate_module
+    from overstats.src.modules.ow_esports import ow_esports_module
     from overstats.src.modules.ow_shop import ow_shop_module
     from overstats.src.modules.ow_hero_leaderboard import OWHeroLeaderboardSyncService
     from overstats.src.modules.patch_notes import patch_notes_module
@@ -69,6 +70,7 @@ except ModuleNotFoundError:
     )
     from src.modules.dashen_summary import DashenSummaryQuery, dashen_summary_module
     from src.modules.ow_hero_pick_rate import OWHeroPickRateQuery, ow_hero_pick_rate_module
+    from src.modules.ow_esports import ow_esports_module
     from src.modules.ow_shop import ow_shop_module
     from src.modules.ow_hero_leaderboard import OWHeroLeaderboardSyncService
     from src.modules.patch_notes import patch_notes_module
@@ -450,6 +452,7 @@ class OverstatsCoreService:
             "/api/v2/dashen-quick-strength/image": lambda: self.handle_dashen_quick_strength_image(selection.payload),
             "/api/v2/dashen-competitive-strength/image": lambda: self.handle_dashen_competitive_strength_image(selection.payload),
             "/api/v2/ow-hero-pick-rate/image": lambda: self.handle_ow_hero_pick_rate_image(selection.payload),
+            "/api/v2/ow-esports/image": lambda: self.handle_ow_esports_image(selection.payload),
             "/api/v2/ow-shop/image": lambda: self.handle_ow_shop_image(selection.payload),
             "/api/v2/patch-notes/image": lambda: self.handle_patch_notes_image(selection.payload),
             "/api/v2/dashen-profile": lambda: self.handle_dashen_profile(selection.payload),
@@ -464,6 +467,7 @@ class OverstatsCoreService:
             "/api/v2/dashen-quick-strength": lambda: self.handle_dashen_quick_strength(selection.payload),
             "/api/v2/dashen-competitive-strength": lambda: self.handle_dashen_competitive_strength(selection.payload),
             "/api/v2/ow-hero-pick-rate": lambda: self.handle_ow_hero_pick_rate(selection.payload),
+            "/api/v2/ow-esports": lambda: self.handle_ow_esports(selection.payload),
             "/api/v2/ow-shop": lambda: self.handle_ow_shop(selection.payload),
             "/api/v2/patch-notes": lambda: self.handle_patch_notes(selection.payload),
         }
@@ -551,6 +555,20 @@ class OverstatsCoreService:
             raise ModuleError(
                 error="render_failed",
                 message="OW shop image was not generated.",
+                status_code=500,
+            )
+        return result.image.content
+
+    async def handle_ow_esports(self, payload: Dict[str, object]) -> Dict[str, object]:
+        result = await ow_esports_module.query_ow_esports(render=False)
+        return result.to_dict()
+
+    async def handle_ow_esports_image(self, payload: Dict[str, object]) -> bytes:
+        result = await ow_esports_module.query_ow_esports(render=True)
+        if not result.image:
+            raise ModuleError(
+                error="render_failed",
+                message="OW esports image was not generated.",
                 status_code=500,
             )
         return result.image.content
@@ -1645,6 +1663,14 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
                 self._handle_ow_shop_post()
                 return
 
+            if path == "/api/v2/ow-esports/image":
+                self._handle_ow_esports_image_post()
+                return
+
+            if path == "/api/v2/ow-esports":
+                self._handle_ow_esports_post()
+                return
+
             if path == "/api/v2/dashen-summary/week/image":
                 self._handle_dashen_summary_image_post("week")
                 return
@@ -2186,6 +2212,96 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
 
             try:
                 image_body = async_runner.run(service.handle_ow_shop_image(payload))
+            except ModuleError as exc:
+                self._send_json(
+                    HTTPStatus(exc.status_code),
+                    {
+                        "ok": False,
+                        "error": exc.error,
+                        "message": exc.message,
+                        "hint": exc.hint,
+                        "details": exc.details,
+                    },
+                )
+                return
+            except Exception as exc:
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {
+                        "ok": False,
+                        "error": "internal_error",
+                        "message": "Internal server error. See details.",
+                        "details": {
+                            "exception": type(exc).__name__,
+                            "message": str(exc),
+                        },
+                    },
+                )
+                return
+
+            self._send_binary(HTTPStatus.OK, image_body, "image/png")
+
+        def _handle_ow_esports_post(self) -> None:
+            try:
+                payload = self._read_json_body()
+            except ValueError as exc:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "ok": False,
+                        "error": "invalid_json",
+                        "message": str(exc),
+                    },
+                )
+                return
+
+            try:
+                result = async_runner.run(service.handle_ow_esports(payload))
+            except ModuleError as exc:
+                self._send_json(
+                    HTTPStatus(exc.status_code),
+                    {
+                        "ok": False,
+                        "error": exc.error,
+                        "message": exc.message,
+                        "hint": exc.hint,
+                        "details": exc.details,
+                    },
+                )
+                return
+            except Exception as exc:
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {
+                        "ok": False,
+                        "error": "internal_error",
+                        "message": "Internal server error. See details.",
+                        "details": {
+                            "exception": type(exc).__name__,
+                            "message": str(exc),
+                        },
+                    },
+                )
+                return
+
+            self._send_json(HTTPStatus.OK, result)
+
+        def _handle_ow_esports_image_post(self) -> None:
+            try:
+                payload = self._read_json_body()
+            except ValueError as exc:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "ok": False,
+                        "error": "invalid_json",
+                        "message": str(exc),
+                    },
+                )
+                return
+
+            try:
+                image_body = async_runner.run(service.handle_ow_esports_image(payload))
             except ModuleError as exc:
                 self._send_json(
                     HTTPStatus(exc.status_code),

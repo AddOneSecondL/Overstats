@@ -433,7 +433,7 @@ def _build_background(width: int, height: int) -> Any:
 def _wrap_text(text: str, font: Any, max_width: int) -> list[str]:
     if not text:
         return []
-    token_pattern = re.compile(r"[\u4e00-\u9fff]|[A-Za-z0-9][A-Za-z0-9'’/().,+%:-]*|\s+|.", re.UNICODE)
+    token_pattern = re.compile(r"[一-鿿]|[A-Za-z0-9][A-Za-z0-9'’/().,+%:-]*|\s+|.", re.UNICODE)
     lines: list[str] = []
     for paragraph in str(text).split("\n"):
         paragraph = paragraph.rstrip()
