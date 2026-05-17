@@ -383,12 +383,16 @@
     return payload;
   }
 
+  function normalizeTargetValue(value) {
+    return String(value || "").replace(/＃/g, "#").trim();
+  }
+
   function buildBasePayload() {
     const activeModule = getActiveModule();
     const payload = collectDynamicPayload();
     if (activeModule && activeModule.requires_target) {
       const targetKey = elements.targetTypeSelect.value || activeModule.default_target_key || "bnet_id";
-      const targetValue = String(elements.targetValueInput.value || "").trim();
+      const targetValue = normalizeTargetValue(elements.targetValueInput.value);
       if (targetValue) {
         payload[targetKey] = targetValue;
       }
