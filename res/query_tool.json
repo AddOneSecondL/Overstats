@@ -1,4 +1,13 @@
 {
+  "antiCrawlerConfig": {
+    "enabled": true,
+    "searchEnabled": true,
+    "minEndorsementLevel": 1,
+    "minGameTimeMinutes": 600,
+    "recentDays": 7,
+    "minRecentMatches": 1,
+    "whitelist": []
+  },
   "whiteList": [
     "yd.bafe4ef249214ccb8@163.com",
     "17328633212",
@@ -18,26 +27,23 @@
     "yd.921245d92f5f48ca9@163.com",
     "13521910363"
   ],
-  "dynamicBanner": [
-    {
-      "img": "https://img.166.net/gameyw-misc/opd/squash/20260410/151358-zfs9lk4rey.png",
-      "url": "https://act.ds.163.com/4700263e9d28a79b/69b376c045d19f02779255ff"
-    }
-  ],
-  "isOpenCustomerFreind": false,
-  "isOpenSuperSetting": false,
+  "dynamicBanner": [],
+  "isOpenCustomerFreind": true,
+  "isOpenSuperSetting": true,
   "AIEvaluateConfig": [
     {
       "mode": "SportPreset",
       "seasonIdList": [
-        "22"
+        "22",
+        "23"
       ],
       "name": "竞技比赛"
     },
     {
       "mode": "LeisurePreset",
       "seasonIdList": [
-        "22"
+        "22",
+        "23"
       ],
       "name": "休闲比赛"
     },
@@ -73,11 +79,11 @@
       "prodUrl": "https://support.battlenet.com.cn/ld5/question/detail?template=ajfk_cht_ow_negative_ds"
     }
   ],
-  "noticeMessage": "欢迎使用大神战绩工具！",
+  "noticeMessage": "个人绑定数据已恢复正常！",
   "pcNoticeMessage": {
-    "sport": "欢迎您使用网易DD战绩工具！",
-    "leisure": "欢迎您使用网易DD战绩工具！",
-    "fight": "欢迎您使用网易DD战绩工具！"
+    "sport": "",
+    "leisure": "",
+    "fight": ""
   },
   "coreCountTips": "<span>重装：赛季场均抵挡伤害量</span><br/>输出：赛季场均伤害<br/>治疗：赛季场均治疗量",
   "fightCoreCountTips": "<span>重装：赛季场均资金</span><br/>输出：赛季场均资金<br/>治疗：赛季场均资金",
@@ -1946,6 +1952,18 @@
       "cover": "",
       "destinyHeroBanner": "",
       "ddHeroIcon": "https://img.166.net/gameyw-misc/opd/squash/20260509/142317-5vpiksb4hf.png"
+    },
+    {
+      "id": "0x02E000000000052C",
+      "heroGuid": "207165582859044140",
+      "roleGuid": "972777519512029262",
+      "roleType": "dps",
+      "name": "死怨",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20260617/103249-5seylwhsvc.png",
+      "smallIconUrl": "https://img.166.net/gameyw-misc/opd/squash/20260617/103249-y40i5fglj9.png",
+      "cover": "",
+      "destinyHeroBanner": "",
+      "ddHeroIcon": ""
     }
   ],
   "mapList": [
@@ -2860,10 +2878,10 @@
       "mode": "运载目标"
     },
     {
-      "guid": "576460752303428426",
-      "id": "0x080000000000134A",
-      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250311/163634-rn0u4hbfsc.jpg",
-      "name": "暴雪世界",
+      "guid": "576460752303427628",
+      "id": "0x080000000000102C",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20260617/181740-39ev54w1oa.png",
+      "name": "霓虹枢纽",
       "mode": "攻击/护送"
     },
     {
@@ -3087,6 +3105,288 @@
         "level": "史诗"
       }
     ],
+    "0x02E000000000028D": [
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/1314a818aab24e99d00c392a6954381d4890f218edc76242b1ce5cb68dee105e.png",
+        "id": "0x0CC8000000000920",
+        "name": "破限猛拳",
+        "desc": "在[天罚形态]下格挡时，使用[猛拳]可打出疾冲重拳\n（{0}秒冷却时间）",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/62bc7691395995bcdac3fb7739de0d283275030ffb84faa43730b0bacd35c8b3.png",
+        "id": "0x0CC80000000027C6",
+        "name": "拉玛刹佩戴禅雅塔面具",
+        "desc": "获得技能，可引爆友方禅雅塔的“乱”。爆炸会对周围敌人造成伤害，并对其施加临时的“乱”",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/32636017041b65a53481cc29c6ef2b93b784698b7ad2c2a5e859b410dfc9cbe9.png",
+        "id": "0x0CC80000000028BF",
+        "name": "虚空涌动",
+        "desc": "[虚空加速器]持续射击时，周期性额外发射一簇包含{0}枚粒子的连射",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/a8388b23f3c4bbcdc7824bbdffaf59cc68af74eb5565db204e02534aee9343dc.png",
+        "id": "0x0CC80000000028CA",
+        "name": "虚空凋零",
+        "desc": "[虚空加速器]会用纳米机器人感染敌人，对敌人造成{1}点伤害后会将其引爆，造成{0}点伤害",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/632f5168dce33d201aa6c98a46bfda56cdae8d93e7c221ed2597ae279f8dc54d.png",
+        "id": "0x0CC80000000028CB",
+        "name": "递归导能",
+        "desc": "+{0}[虚空屏障]尺寸\n[虚空加速器]子弹和[猛拳]在穿过[虚空屏障]后，伤害提高{1}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d4865fade8ab7ec0954ac56312f30cc84e1554402b0fe27b1eba870d3820adc1.png",
+        "id": "0x0CC80000000028CC",
+        "name": "重重防壁",
+        "desc": "[虚空屏障]获得一次额外充能",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/dbca93c9bda7ea35cb4b54543d33f96822796fe949e87259e92d9aa8b90c9331.png",
+        "id": "0x0CC80000000028CD",
+        "name": "第二阶段",
+        "desc": "[天罚形态]激活时，[吞噬漩涡]的冷却时间缩短{0}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8d8cc472eefeeb45c6c9b061945d1a1fba4c95f5a28a4f0ee058dbea0b837777.png",
+        "id": "0x0CC80000000028CE",
+        "name": "最终形态",
+        "desc": "[天罚形态]激活时，若你处于[吞噬漩涡]中，每秒获得{0}点治疗",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/5eb3e2861cd79449389d0b2da50cd9cbea883a43d1abba90170ae2c080e58168.png",
+        "id": "0x0CC80000000028CF",
+        "name": "反击铁臂",
+        "desc": "解除[铁臂]时，对{2}米内的敌人造成伤害，数值为抵挡伤害量的{0}，最多{1}点",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/83074c126510b55de5d11707e7176b1b5e9ac532eedc56610a172d079940fd73.png",
+        "id": "0x0CC80000000028D0",
+        "name": "转换协议",
+        "desc": "[铁臂]会在{1}秒内治疗你，数值为抵挡伤害量的{0}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/a39bd0368b5af928941a782122edea9938d83be4c0af65c8e671a04c3c02a905.png",
+        "id": "0x0CC80000000028D1",
+        "name": "无厌螺旋",
+        "desc": "+{0}[吞噬漩涡]半径\n+{1}[吞噬漩涡]伤害",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/410ca9bd41801415c92a430fee5e455a962fb0e2a7e332232d43c4e5cb381efa.png",
+        "id": "0x0CC80000000028D2",
+        "name": "毁灭漩涡",
+        "desc": "[吞噬漩涡]引爆时，造成{0}点伤害，且每命中一名敌人，获得{1}终极技能充能",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/a58a9f41476c917e662c47eba5f80f240572a8844c724431d0d7deeaba474f14.png",
+        "id": "0x0CC80000000028D3",
+        "name": "恐惧骑士",
+        "desc": "+{0}[诛]伤害\n+{1}秒[诛]持续时间",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/62c02a6519f5c025180cb4be699d359da2832e4bf1e37af848bdd629140cbf0a.png",
+        "id": "0x0CC80000000028D4",
+        "name": "聚变核心",
+        "desc": "[铁臂]抵挡伤害时，攻击速度加快{0}，持续{1}秒",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/bd9db5b2502204f33ebcc0c166e1a2db3cf666d295ddd1ae8bc6dd12ab6ede1c.png",
+        "id": "0x0CC80000000028D5",
+        "name": "香巴里防护",
+        "desc": "[铁臂]格挡时受到的治疗量提高{0}\n移除[铁臂]移动速度惩罚",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ecf6b94a575b4f680aa7c021eec91430b0504445fa536c6c066de839a3cef264.png",
+        "id": "0x0CC80000000028D6",
+        "name": "融合弹药",
+        "desc": "",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0970c707bb9a0e1f14b9566af3005f9b3fb6b98ec31321b5a90cc9a2fc59471a.png",
+        "id": "0x0CC80000000028D7",
+        "name": "R-7000电池",
+        "desc": "[虚空加速器]持续开火时，在{2}秒内获得最多{1}武器强度",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ad8825b1bc16d40a4b78bdee6697f9f7d6c6ca6d1f5450086fc4da64c3656911.png",
+        "id": "0x0CC80000000028D8",
+        "name": "渊域拓展器",
+        "desc": "",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/7ba0c72149d8c435c061d8b35751e5df8b9e5362cb2ec52e1aba684d91ddc282.png",
+        "id": "0x0CC80000000028D9",
+        "name": "纳米愈疗器",
+        "desc": "[虚空屏障]生成时，为{1}米内的所有盟友治疗{2}点生命值",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/106f25540312d0f42eb3dd84cb7263dd1f8f0f224ba4bb8e2baa8ab3931358c0.png",
+        "id": "0x0CC80000000028DD",
+        "name": "禅雅塔的灵光",
+        "desc": "退出[天罚形态]后，获得{0}点过量生命值",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0fd39ebc5f2a51a346b7ae41fc77222e6f159e74ebc26dd5460fe6097fef4417.png",
+        "id": "0x0CC80000000028DE",
+        "name": "贪念涡流",
+        "desc": "[吞噬漩涡]每命中一名敌人，[天罚形态]的冷却时间缩短{0}秒",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/977e859223a07362303b2c214eabdfa3964f8116b6ea4e1f0a9487c9007b7e75.png",
+        "id": "0x0CC80000000028E0",
+        "name": "腐蚀性外骨骼装甲",
+        "desc": "处于[天罚形态]时，生命汲取提高{0}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c24b2e6d4aa1533e7563df0e7499b75746234838ca46d98822993468cb9fe4e3.png",
+        "id": "0x0CC80000000028E1",
+        "name": "智械中枢强化体",
+        "desc": "",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8e9616cd67c4e4cb864af39e69f7747f9865dc8379907290e41b204787ca5869.png",
+        "id": "0x0CC80000000028E2",
+        "name": "阿努比斯灵气",
+        "desc": "[猛拳]伤害同时受技能强度加成",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c22a54b7427d9b490170d80c6b99ff983eb3d7a47154ebcf79fcaf2c4d49b5d4.png",
+        "id": "0x0CC80000000028E3",
+        "name": "归零矢量",
+        "desc": "",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/aa64a24cf8de750b38d05cdf230ecce291a1582fbfbc0272d4aa11d646b521c2.png",
+        "id": "0x0CC80000000028E4",
+        "name": "飞旋结界",
+        "desc": "位于[吞噬漩涡]内时，跳跃高度提高{0}\n所有位于[吞噬漩涡]内的盟友移动速度加快{1}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ec78a21b4edc6baf233decc5364729dccd1b369b32580a27fef8d9b317315dcb.png",
+        "id": "0x0CC80000000028E5",
+        "name": "巨型构装体",
+        "desc": "[诛]造成伤害时获得过量生命值，数值为伤害量的{0}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E000000000028D",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/1a6952d5d68b0c630777658f231a409631339a5b3d1754aeed75b8e4535da2ad.png",
+        "id": "0x0CC80000000028E6",
+        "name": "终极轴心",
+        "desc": "激活[诛]会拖拽{2}米内的敌人",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      }
+    ],
     "0x02E0000000000003": [
       {
         "heroId": "0x02E0000000000003",
@@ -3104,6 +3404,16 @@
         "id": "0x0CC8000000002717",
         "name": "快闪一拳",
         "desc": "使用[闪现]后的1秒内，你的下一次[快速近身攻击]会受技能强度影响，造成10点额外伤害，并能击退敌人",
+        "heroName": "猎空",
+        "category": "异能",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000003",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/5c059ae00f4f5750f5d4bf2707abcba65c1630b71cdb8a524a1de2a74c66fd94.png",
+        "id": "0x0CC8000000002975",
+        "name": "量子装填",
+        "desc": "[闪回]后获得会随时间衰减的弹药，数值为最大弹药的100%",
         "heroName": "猎空",
         "category": "异能",
         "level": ""
@@ -3319,6 +3629,206 @@
         "heroName": "源氏",
         "category": "武器",
         "level": "史诗"
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/5c710bc15138ae7e338d0f03ba96832da690f24e7c0dde6a867c20cde50e1ef6.png",
+        "id": "0x0CC800000000029E",
+        "name": "巨龙打击",
+        "desc": "[斩]的第一次挥击变为一道宽幅的[影]，能在短暂延迟后额外造成{1}暴击伤害",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/7080fe0eb7c9dc3f3ae32d3a2cf4dfe252acebe905879c83b6a6bafee240baa1.png",
+        "id": "0x0CC8000000000E78",
+        "name": "死亡之握",
+        "desc": "使用“影”造成伤害会使下一次快速近身攻击发射一道贯穿剑气，伤害量为快速近身攻击伤害的100%",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/bd7f128cd769e9cc7ee172c94abe9762ea1dfcf4d9064ac1f7e4632ed0570a33.png",
+        "id": "0x0CC8000000000E79",
+        "name": "黑暗伏击",
+        "desc": "从背后对敌人造成的伤害提高{0}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8cc81f06537d59ebbd5a3a696bba0de4bff46ec1964a504c8d6a8e6504c6284e.png",
+        "id": "0x0CC8000000000E7A",
+        "name": "恶念往复",
+        "desc": "“影”每对一名敌人造成伤害便提供{0}发弹药",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c16d9dee5f2718c66507e4142273b6b439d745212483737cfcb7a233704cb6ce.png",
+        "id": "0x0CC8000000000E7B",
+        "name": "宗师剑阵",
+        "desc": "“闪”现在可以保护所有方向。冷却时间延长{0}秒",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/296d72e309ab767c0a2bc8b93c4ba7a3b42c0a553972f84f5228c26fcb9bc100.png",
+        "id": "0x0CC8000000000E7D",
+        "name": "蜂拥忍镖",
+        "desc": "施放“影”后，主要攻击模式的手里剑会追踪{2}米内的敌人，持续{1}秒",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8abeeabdfc972e4aff094a1e77a58374085ac8f6d2b9cdcc27901511fcd0632e.png",
+        "id": "0x0CC8000000000E7E",
+        "name": "苦涩复仇",
+        "desc": "“闪”会使8秒内的下一次“影”造成额外伤害，“闪”格挡的伤害越高，“影”的额外伤害越高，最高{0}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/9c2aaa99305ea1fe84dc3c1f59ebc7a182e067f5fa64dfeb7aaed142704d7754.png",
+        "id": "0x0CC8000000000E7F",
+        "name": "恐怖神竜",
+        "desc": "“斩”的前3次命中，每次使攻击速度提高{0}，持续时间延长{2}秒",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6dffaaa699692d5ffc61dddf64e068118dc7ddad26d4b3b1cd61d2ee90e0ebc3.png",
+        "id": "0x0CC8000000000E80",
+        "name": "因果报应",
+        "desc": "“闪”反弹飞弹造成的伤害提高{0}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/fbc9c0371438ccd47b8bf37efead2f29471a3c3638147ae2f7286321d7981455.png",
+        "id": "0x0CC8000000000E81",
+        "name": "吸血之闪",
+        "desc": "“闪”每秒为你治疗最大生命值的{0}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ff1dc003880605f45fc0ed91b5902f16ee88c682182f754a31c26a0a7cd06e68.png",
+        "id": "0x0CC8000000000E82",
+        "name": "恩怨未了",
+        "desc": "使用主要攻击模式造成{0}点伤害后，下一次辅助攻击模式会额外发射{1}枚手里剑，伤害为“镖”通常伤害的{2}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/49def1f1e915b0a16786b186a40bd8994ec7de086142a2fc87eb75b1ca96f3e0.png",
+        "id": "0x0CC8000000000E83",
+        "name": "扭曲之力",
+        "desc": "“闪”激活时，按下主要攻击模式会在短时间内让反弹的任何飞弹额外造成150%伤害",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/7104871a997459150152afbf7198b6db13e80a5c667e63d0c071c17fdb84d605.png",
+        "id": "0x0CC8000000000E84",
+        "name": "腥红之影",
+        "desc": "“影”可以反弹飞弹，并创伤击中的第一名敌人，在{0}秒内造成75点伤害",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/1869e2276a84eb11edb15e14949ec6f10e00f05f22c1b7dacdb57f979570484a.png",
+        "id": "0x0CC8000000000E85",
+        "name": "恐怖疾速",
+        "desc": "“镖”造成暴击会使攻击速度提高{0}，最多叠加{2}次，持续{1}秒",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e6d2e697f2aef69d4c7f4ae4c31f9ee684d457df43a357072f0c305eee07ad02.png",
+        "id": "0x0CC8000000000E86",
+        "name": "反制咒语",
+        "desc": "“闪”的持续时间延长{0}秒",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b791473a9834589ed8e2a087cfbdf5587bc0007f4dbf3b3217708c4508a66cf2.png",
+        "id": "0x0CC8000000000E87",
+        "name": "恐怖之影",
+        "desc": "“影”额外获得{0}次充能，但冷却时间延长{1}且消灭敌人时无法重置",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/96af18b646e8e0c075c737ff0241fa1f81caa58532858d56f58cd5001a5328bf.png",
+        "id": "0x0CC8000000000E88",
+        "name": "忍镖风暴",
+        "desc": "“闪”反弹飞弹后会向攻击者发射一枚追踪手里剑，伤害量为“镖”的{1}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f8ee4fdb6a8a444c0f7f139300aef46edc544fc104e395660dc8d28c64a37b81.png",
+        "id": "0x0CC8000000000E89",
+        "name": "幽魂迷雾",
+        "desc": "受到致命伤害时，激活一枚烟雾弹，获得隐身效果并无法消灭，持续3秒。每回合只能使用{0}次",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c804e39a5bfea26f26aadc59e2072a9b554afc100bc6e2faf13ebe1ca630b213.png",
+        "id": "0x0CC8000000000E8A",
+        "name": "怪异脱身",
+        "desc": "如果“影”没有造成伤害，冷却时间缩短{0}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000029",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0ecacf167cc57040e84525b475086bc5cc737c5f0c6de098f4a64e404c416c4a.png",
+        "id": "0x0CC8000000000E8B",
+        "name": "审慎之跃",
+        "desc": "二段跳在空中时可以使用第二次。移动速度提高{0}",
+        "heroName": "",
+        "category": "",
+        "level": ""
       },
       {
         "heroId": "0x02E0000000000029",
@@ -3570,6 +4080,216 @@
         "desc": "火箭直接命中后，火箭的爆炸伤害提高50%，持续2秒",
         "heroName": "法老之鹰",
         "category": "异能",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/79c062922269a3f3453cfa8eab4195aef36a51ca1b4281e8854d5ec732552a9b.png",
+        "id": "0x0CC800000000075B",
+        "name": "稠密燃料",
+        "desc": "消耗燃料时，移动速度提高{0}。燃料上限提高{1}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b79f2447562c3d293233ab5738211c9a3611a86db7abebbe35e6a21cf38a5a1c.png",
+        "id": "0x0CC800000000075C",
+        "name": "优化护盾",
+        "desc": "将“法老之鹰”生命值的{0}转化为护盾生命值。若保持1.5秒不受伤害，护盾生命值会开始恢复",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/3e34524757ebdee54f2c0d80016efcba29cb64f3fb0319214ab5686abe581a7e.png",
+        "id": "0x0CC800000000075E",
+        "name": "备用电池",
+        "desc": "推进背包获得一次额外充能",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/de0a546fb4860715ae748033179f3c62ee91a1f75f30d4d31694d3762ed53b22.png",
+        "id": "0x0CC8000000000760",
+        "name": "先锋尖兵",
+        "desc": "使用位移技能时获得过量生命值，数值为最大生命值的{0}，持续3秒",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/cde433cad996ea0a31204fbeacf2e766204e7fb825185cf6e8ea2d93647c1286.png",
+        "id": "0x0CC8000000000764",
+        "name": "制霸天际",
+        "desc": "使用推进背包和疾冲背包后，“法老之鹰”的伤害提高{0}，持续{1}秒",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e14fbc0e62299f7464925895a7881cc41ee4618fa500c778cf9bc0a6240ec588.png",
+        "id": "0x0CC8000000000766",
+        "name": "秘制酱料",
+        "desc": "火箭的爆炸范围扩大30%",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8deff2002e100e743729f63a06a9fb36605e3dec7d5c2a2f571c722ae62e3ce5.png",
+        "id": "0x0CC8000000000768",
+        "name": "炫技时刻",
+        "desc": "直接命中会使各技能冷却时间缩短0.5秒",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ad188a364f6063c7dabdee36bf6892f29d8bdc4ceced7156acacaeebdd98af2e.png",
+        "id": "0x0CC8000000000769",
+        "name": "首要目标",
+        "desc": "迷你火箭会为敌人施加“标记！”减益效果，持续5秒。被“标记！”敌人受到的伤害提高{0}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/889c1aba13f58fd0a693179166403dc51a0f302ad7ea478b4a1a7281c532fe7b.png",
+        "id": "0x0CC8000000000784",
+        "name": "猛烈火力",
+        "desc": "“法老之鹰”的最大弹药数量提高{0}",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/fe8fd5fb4d6fca5ab6767cad21ae3aab6f63b0f0a02ed0d12fb30c067b8476ea.png",
+        "id": "0x0CC80000000007B9",
+        "name": "震撼登场",
+        "desc": "“法老之鹰”在半空蹲伏会砸向地面。在{0}米半径内造成{1}点伤害并击飞敌人。每击中一名敌人获得{2}燃料",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ca39aff210752896722f71fce0b8e669f722fd5859cabe30d0fe7a42ed6505c5.png",
+        "id": "0x0CC80000000007BB",
+        "name": "空中接力",
+        "desc": "推进背包会造成{1}点伤害并击退周围的敌人。面前的敌人会被你拉至空中。效果半径为{0}米",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e812d3f2ebc47c5697980457cda31d7bf4f1b83a564d2fdb990d6b2cea22d3ba.png",
+        "id": "0x0CC80000000007D3",
+        "name": "再添火力",
+        "desc": "额外获得{0}次震荡冲击充能",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f7f605f1b5f8e0eba287ba5d7938e24c93910ab9e1949e6ecc6c66225f70a131.png",
+        "id": "0x0CC80000000008C3",
+        "name": "一心追击",
+        "desc": "使用终极技能时，“法老之鹰”可以自由飞行",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6007d3e2a4fdddefe5377240e0a0340172cfbc645eb4c358997bd17f24446391.png",
+        "id": "0x0CC80000000008C4",
+        "name": "闪烁推进",
+        "desc": "推进背包、疾冲背包、魔影登场会朝你面向的方向部署3发迷你火箭",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4125a2c261a5f4117fc7c1501036317a62553df2d019a53776caca189fec6261.png",
+        "id": "0x0CC80000000008C7",
+        "name": "火箭漫天",
+        "desc": "火箭弹幕等技能发射的迷你火箭数量提高30%",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b336c8ac6cacf7051b979bd7567d33d78c7aa327661d8d528ce952d2fc8cc37c.png",
+        "id": "0x0CC80000000008C9",
+        "name": "激素刺激",
+        "desc": "燃料恢复速度加快一倍",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/3f37314b17dc663597cb1d06024204d82dc06aa572a85de5fa06386990ee50d3.png",
+        "id": "0x0CC8000000000BA2",
+        "name": "制空优势",
+        "desc": "在空中时，每3秒恢复1发火箭",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8c6b9fa2a94e0fcd65673300f81e41c1beceeff59178ea5a9bcf17fac8a8812c.png",
+        "id": "0x0CC8000000000BA3",
+        "name": "重型震荡",
+        "desc": "震荡冲击的击退效果提高50%",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/672ac19de0d322c046cf49e3a1682f1ab57c46270e5c77ed3f598d3612f66dd8.png",
+        "id": "0x0CC8000000000C6E",
+        "name": "震荡漩涡",
+        "desc": "震荡冲击会制造一股能击退敌人的漩涡",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/dd7b9bc9810abd5a3a1c6b2c24ba8fa23675934e0292937e10ed729aed5f0094.png",
+        "id": "0x0CC800000000297B",
+        "name": "急速俯冲",
+        "desc": "技能：在空中时，按[蹲伏]向地面疾冲并恢复{1}燃料\n（{0}秒冷却时间）",
+        "heroName": "",
+        "category": "",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000008",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/590ea91f44fe38bde14713046552cdd437ed6c1d4b2df872b08ce796d50f8cf3.png",
+        "id": "0x0CC80000000029EC",
+        "name": "火箭推进剂",
+        "desc": "使用技能或装置后，[火箭发射器]自身击退效果提高{0}，持续{1}秒",
+        "heroName": "",
+        "category": "",
         "level": ""
       },
       {
@@ -4228,6 +4948,46 @@
       },
       {
         "heroId": "0x02E0000000000004",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/015a233ca13b1f936162b925df75e36bfb0001e4545aad8a58cb22edb89ab55b.png",
+        "id": "0x0CC8000000002751",
+        "name": "疾速驰援",
+        "desc": "[快速治疗]会使目标和你的移动速度加快20%，冷却时间刷新速度加快100%，生命汲取提高20%，持续2秒",
+        "heroName": "天使",
+        "category": "异能",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000004",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/65ed56c6951072d064786526adfd042d154fda2b584681bacba20c8700a62cdb.png",
+        "id": "0x0CC8000000002753",
+        "name": "牵绊止血带",
+        "desc": "切换到[天使冲击枪]后，[天使之杖]仍会自动治疗盟友，治疗量为100%，切换前每牵线1秒，治疗效果就会多持续2秒，最多20秒",
+        "heroName": "天使",
+        "category": "异能",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000004",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/a6010584ea377ecbf228c51a2b9dd36661bc7b224387bfd0a5a4c3022ca9be61.png",
+        "id": "0x0CC8000000002972",
+        "name": "双倍剂量",
+        "desc": "[快速治疗]获得一次额外充能。[女武神]激活时，刷新[快速治疗]的所有充能",
+        "heroName": "天使",
+        "category": "异能",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000004",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/03d057fb4492f508e41c4525f0cec5be7cdcb4bf6452ea13fc338e1bac965c5c.png",
+        "id": "0x0CC80000000029D7",
+        "name": "快速回路",
+        "desc": "[快速治疗]也会以25%的治疗量对你施放",
+        "heroName": "天使",
+        "category": "生存",
+        "level": "史诗"
+      },
+      {
+        "heroId": "0x02E0000000000004",
         "desc": "[天使之杖]对满生命值盟友造成的治疗量转化为过量生命值，最多{50}点",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/97d51cb5904caafe29b062019b9b9b8d728e88dd8d73b54bb11934ad32262543.png",
         "id": "0x0CC80000000000AB",
@@ -4348,7 +5108,7 @@
       },
       {
         "heroId": "0x02E0000000000004",
-        "desc": "[天使之杖]会链接前一个目标，持续{0}秒，具有{1}的效果",
+        "desc": "[天使之杖]会链接前一个目标，持续{3}秒，具有{30%}的效果",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2e9b4bc8d5413b9e3650fccbc629e7c1096134576a2aa5375c11af87f4417ed3.png",
         "id": "0x0CC8000000000DA4",
         "name": "命运丝线",
@@ -4378,7 +5138,7 @@
       },
       {
         "heroId": "0x02E0000000000004",
-        "desc": "受[天使之杖]强化的盟友获得{20%}生命汲取",
+        "desc": "使用[快速治疗]时，为目标提供过量生命值，数值为你最大总生命值的30%，持续2秒，同时击退目标周围5米内的敌人",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/bd30e67acd74614a5987d5d3796a4058edb490c0a0cad3aef7d9855e428c1137.png",
         "id": "0x0CC8000000000DA7",
         "name": "扭曲光束",
@@ -10304,6 +11064,16 @@
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/47975611eb455550a56faa778a0808b48dd99b73fdb5031e64d6bb35b52e3e1d.png",
         "id": "0x0CC8000000000D7A",
         "name": "死亡步",
+        "heroName": "死神",
+        "category": "异能",
+        "level": ""
+      },
+      {
+        "heroId": "0x02E0000000000002",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/608bbc6dcb36493c34ba08765457cf1758d3e073e57d5dbf83f12adf2e41eb20.png",
+        "id": "0x0CC800000000293A",
+        "name": "生死之墙",
+        "desc": "[幽灵形态]下，体型增大50%，能阻挡飞弹并治疗6米内的所有其他盟友，每秒治疗量为35点",
         "heroName": "死神",
         "category": "异能",
         "level": ""
@@ -19031,33 +19801,83 @@
       "valueGuid": "603482350067647479",
       "valueText": "治疗量",
       "valueType": "通用数据"
+    },
+    {
+      "heroGuid": "207165582859044140",
+      "heroName": "死怨",
+      "valueGuid": "603482350067647671",
+      "valueText": "对英雄伤害量",
+      "valueType": "通用数据"
+    },
+    {
+      "heroGuid": "207165582859044140",
+      "heroName": "死怨",
+      "valueGuid": "603482350067646497",
+      "valueText": "累计游戏时间",
+      "valueType": "通用数据"
+    },
+    {
+      "heroGuid": "207165582859044140",
+      "heroName": "死怨",
+      "valueGuid": "603482350067650377",
+      "valueText": "纵情狂飙伤害量",
+      "valueType": "特色数据"
+    },
+    {
+      "heroGuid": "207165582859044140",
+      "heroName": "死怨",
+      "valueGuid": "603482350067650379",
+      "valueText": "杀戮狂宴消灭",
+      "valueType": "特色数据"
+    },
+    {
+      "heroGuid": "207165582859044140",
+      "heroName": "死怨",
+      "valueGuid": "603482350067650368",
+      "valueText": "交叉枪决命中率",
+      "valueType": "特色数据"
+    },
+    {
+      "heroGuid": "207165582859044140",
+      "heroName": "死怨",
+      "valueGuid": "603482350067650364",
+      "valueText": "交叉枪决消灭",
+      "valueType": "特色数据"
+    },
+    {
+      "heroGuid": "207165582859044140",
+      "heroName": "死怨",
+      "valueGuid": "603482350067650382",
+      "valueText": "纵情狂飙空中发射命中率",
+      "valueType": "特色数据"
+    },
+    {
+      "heroGuid": "207165582859044140",
+      "heroName": "死怨",
+      "valueGuid": "603482350067646495",
+      "valueText": "消灭",
+      "valueType": "通用数据"
     }
   ],
   "heroPerkList": {
     "0x02E0000000000002": [
       {
         "heroId": "0x02E0000000000002",
-        "icon": "https://img.166.net/gameyw-misc/opd/squash/20250826/103514-gu17tcn0yo.png",
-        "id": "0x0CC80000000024F1",
-        "name": "恐怖扳机<br />使用【辅助攻击模式】让两把地狱火霰弹枪打出具有远距离精准度的齐射。"
-      },
-      {
-        "heroId": "0x02E0000000000002",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/af0815d3ff6068ce36efc5eea087c1e058cb2f743a7d42bd60a5d037063c848f.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/703054950487245c1a60a25bf65e8301d6050559e5216c17f4970c1adc46fd0b.png",
         "id": "0x0CC80000000024F2",
-        "name": "灵魂收割<br />从阵亡敌人身上收集灵魂之球可以恢复50点生命值。"
+        "name": "灵魂收割<br />从阵亡敌人身上收集灵魂之球可以恢复50点生命值"
       },
       {
         "heroId": "0x02E0000000000002",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/31ff605a6b1cd72c5b066c20b2c3ce113f4558f1636724bb01cfa880edbdafda.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ad2d66c3c90bb3b92e262998d99f3ff30cc9b917205339cb59a4e13f8e23fa33.png",
         "id": "0x0CC800000000267A",
-        "name": "暗影闪现<br />暗影步的施放速度和冷却时间刷新速度加快25%，冷却时间缩短，但射程缩小25%。"
+        "name": "暗影闪现<br />暗影步的施放速度和冷却时间刷新速度加快25%，冷却时间缩短，但射程缩小25%"
       },
       {
         "heroId": "0x02E0000000000002",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6fe85e04ebeacfca484fbd776da1bf7935102577c30a5d9e9b12ad7e859cc415.png",
         "id": "0x0CC8000000002830",
-        "name": "萦绕幽灵<br />离开幽灵形态后移动速度加快40%，持续2秒"
+        "name": "萦绕幽灵<br />离开幽灵形态后移动速度加快30%，持续2秒"
       },
       {
         "heroId": "0x02E0000000000002",
@@ -19069,25 +19889,25 @@
     "0x02E0000000000003": [
       {
         "heroId": "0x02E0000000000003",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0676f6ce58fbc4d752128563d45d8e3d0342dc873cd71e01d39c8a4286ab13cc.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/de00cd532bf045c7d4e242d01944723f724f2eaa6f8df8a44769450d8f49b0d3.png",
         "id": "0x0CC800000000259B",
-        "name": "闪现急救包<br />急救包会为闪现恢复1次充能。"
+        "name": "闪现急救包<br />急救包会为闪现恢复1次充能"
       },
       {
         "heroId": "0x02E0000000000003",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6b6c30de45ba089dc8914544ca212babef56808d5ba13e19d7b281fcb74f5680.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ace0ed5106148847a2b2f4dfcee58b883ed38bb2851ccbd106528f4ddea6cf41.png",
         "id": "0x0CC800000000259D",
-        "name": "量子纠缠<br />闪回提供会持续衰减的50点过量生命值和20发弹药。"
+        "name": "量子纠缠<br />闪回提供会持续衰减的50点过量生命值和20发弹药"
       },
       {
         "heroId": "0x02E0000000000003",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8ee5f22c9d09494df81aa0765602c3954fb86ae3518f474c2e5311fde5467965.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0f73a044de1866a093ccb2e7e368a730387936eae6cb18274b4dbafed26fa0fe.png",
         "id": "0x0CC80000000026B6",
-        "name": "动能装填<br />近身攻击命中可获得20发弹药。"
+        "name": "动能装填<br />近身攻击命中会装填12发弹药"
       },
       {
         "heroId": "0x02E0000000000003",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e37cfacee495443c6d8e3e8d9284e82ebe3f0f44807fa276e8bd0ccda5d3b503.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/644e5b1f52930510c1172c5b68f9cb2769195f71a84310ff1b2824dbfa2dab18.png",
         "id": "0x0CC80000000028B8",
         "name": "时空疾冲<br />闪现距离扩大20%"
       }
@@ -19095,85 +19915,79 @@
     "0x02E0000000000004": [
       {
         "heroId": "0x02E0000000000004",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/7971a280ccb6791b351893a53e44de7717b1bf94614599e116c07adb0b5686b2.png",
-        "id": "0x0CC80000000024F9",
-        "name": "快速治疗<br />快速治疗可以对天使之杖的激活目标使用，为其恢复50点生命值，对生命值低于一半的盟友有三倍效果。"
-      },
-      {
-        "heroId": "0x02E0000000000004",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c346e61bae43198d81d3312fc9e6342e7d2727039c424c7f40c72973ec5252d1.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/48d23bc9eebad7092ef2b1895abc99ff1f4207a1ac423a88b8418b388f10f4eb.png",
         "id": "0x0CC80000000024FA",
-        "name": "连锁强化<br />天使之杖的辅助攻击模式会连接周围的第二个盟友。"
+        "name": "连锁强化<br />天使之杖的伤害强化提高5%且会连接周围的第二个盟友"
       },
       {
         "heroId": "0x02E0000000000004",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/a8ceedc5e966a2966eb31aa8468a64bd3d3287012799a8ff69cdbb7c4ddfee1e.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/39c6fcef8a4380d73f7714d7276c6559bc25547d0c090631d603d05ed4d6620e.png",
         "id": "0x0CC80000000025E5",
-        "name": "天使重生<br />使用重生后，“天使”获得100点过量生命值。"
-      },
-      {
-        "heroId": "0x02E0000000000004",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d8bc63abc35a6868f0c8f30a95082eb25097b9e7fe23d9415af6ed651f903637.png",
-        "id": "0x0CC80000000026EF",
-        "name": "神圣动能<br />取消守护天使后，“天使”的飞行速度加快15%。"
+        "name": "天使重生<br />使用重生后，“天使”获得100点过量生命值"
       },
       {
         "heroId": "0x02E0000000000004",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e0887d16a296e6419cf0e8a32ed74ceea31bd96efbd25576511516ba0339c870.png",
         "id": "0x0CC80000000028E8",
         "name": "双倍剂量<br />快速治疗获得一次额外充能，但基础治疗量降低10点"
+      },
+      {
+        "heroId": "0x02E0000000000004",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/77e68b4b2cdab6bdbb2509b8dcaf964cbbaffa14523b72d1fe512abc87f3576f.png",
+        "id": "0x0CC80000000024F7",
+        "name": "展翅飞翔<br />守护天使的范围扩大30%"
       }
     ],
     "0x02E0000000000005": [
       {
         "heroId": "0x02E0000000000005",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/1a2a3598418ebe4aa0c781923490755a99d80c199885a1532294b037e304b99a.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/87e55e35423446812982cb7bb692f2ae1f3f344b9eff67240468c3eb884bad87.png",
         "id": "0x0CC80000000024FB",
-        "name": "干扰之音<br />“音”会侵入附近的急救包，持续30秒。"
+        "name": "干扰之音<br />“音”会侵入附近的急救包，持续30秒"
       },
       {
         "heroId": "0x02E0000000000005",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f47da34127a516b2df9cdaea3d1511185a6b14b68bfbb0d1f7b8a6ce59d0db1c.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/32b18f33f63e27446cb66662a1e26ec9fff6456bbfe75e17634174ca44885c14.png",
         "id": "0x0CC800000000259F",
-        "name": "狂岚尽散<br />第一次弹射时，“岚”的箭矢会分散成5支能造成33%伤害的小箭头并额外反弹1次。"
+        "name": "狂岚尽散<br />第一次弹射时，“岚”的箭矢会分散成5支能造成33%伤害的小箭头并额外反弹1次"
       },
       {
         "heroId": "0x02E0000000000005",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/44f914f3f371f536be1d6fe3dd391ae73dc16e0a6dcb3670e13d1d841105fcf4.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/19a87e5ad2913df72cfb62ab905bd15328ef6b02a6aa4beb15fe37337f3d69ad.png",
         "id": "0x0CC80000000025B8",
-        "name": "神竜之怒<br />主要攻击模式命中敌人后，获得25%攻击速度，持续2秒。"
+        "name": "神竜之怒<br />主要攻击模式命中敌人后，获得20%攻击速度，持续1.5秒"
       },
       {
         "heroId": "0x02E0000000000005",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/73b91f4b7b4e7b5250ff1e7c1e027bb3a543fce82d607e3363d1cca2771fc83d.png",
         "id": "0x0CC800000000286D",
-        "name": "霜冻之箭<br />按下 换上一支霜冻爆炸箭，使被命中的敌人减速35%，持续2秒"
+        "name": "霜冻之箭<br />按下 {0} 换上一支霜冻爆炸箭，使被命中的敌人减速35%，持续2秒"
       }
     ],
     "0x02E0000000000006": [
       {
         "heroId": "0x02E0000000000006",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d8219dac069a27db027139faa73bd7f4438eb60026f6514cb704fed373df5038.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c6eb6f52be58ddb12bf57b744d374f00871fd0068345e61b0c962eb04c0901b5.png",
         "id": "0x0CC8000000002501",
-        "name": "过载炮台<br />热力过载会升级炮台，持续5秒，提高其生命值和伤害。"
+        "name": "过载炮台<br />热力过载会升级炮台，持续5秒，提高其生命值和伤害"
       },
       {
         "heroId": "0x02E0000000000006",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/03864365b51ff1f7e9a51375de4df5c6b404716b5f695c47e2d695d4a8d1fa44.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/5f3ae1fcd2f9a78ae44293324d53c8cd9273b42cf9be0d56ff920ee5f45c589d.png",
         "id": "0x0CC8000000002502",
-        "name": "锚固螺栓<br />部署炮台的投掷范围扩大50%且炮台可以固定在墙壁和天花板上。"
+        "name": "锚固螺栓<br />部署炮台的投掷范围扩大50%且炮台可以固定在墙壁和天花板上"
       },
       {
         "heroId": "0x02E0000000000006",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e293dacc2b5655ee23b6e687928c16e3744c210e0b494521ee30682bd11a6154.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d60050f7eff6fa99e2914cceacd5fcc2e5bec6b1c898155246743d51be4bebc4.png",
         "id": "0x0CC800000000265C",
-        "name": "铁锤快抡<br />装备锻造锤时移动速度加快20%。"
+        "name": "铁锤快抡<br />装备锻造锤时移动速度加快20%"
       },
       {
         "heroId": "0x02E0000000000006",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/510847cb9a3e297cea8bdab984e2589cc30f72dd611899b26409dbb5fe8a84fd.png",
         "id": "0x0CC80000000028BC",
-        "name": "核心预热<br />熔火核心会激活热力过载。"
+        "name": "核心预热<br />熔火核心会激活热力过载"
       }
     ],
     "0x02E0000000000007": [
@@ -19185,83 +19999,71 @@
       },
       {
         "heroId": "0x02E0000000000007",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/af91ea3bca8b54b8dd3919c1294b8605b90e88f7bc7a1d04c9badd1c3d427e1a.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f439f368062a58b9ee190afb5d4ea3ad28692d298600292f1f47e6e68151d108.png",
         "id": "0x0CC8000000002506",
-        "name": "盾牌猛击<br />屏障力场激活时，使用【主要攻击模式】可以击退敌人并对其造成伤害。"
+        "name": "盾牌猛击<br />屏障力场激活时，使用 {0} 可以击退敌人并对其造成伤害"
       },
       {
         "heroId": "0x02E0000000000007",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/816c9b8b2388b7ea83f1db1c1f921207acc0e6447f33e488c702bfe4905ead97.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c52c47ea96e1485d5eefb4b968b8ddd3c85705023f9696f4d5ea9c70887e060f.png",
         "id": "0x0CC80000000025DB",
-        "name": "十字军的烈焰<br />击晕敌人时返还一次烈焰打击充能，可过量充能至3次。"
+        "name": "十字军的烈焰<br />击晕敌人时返还一次烈焰打击充能，可过量充能至3次"
       },
       {
         "heroId": "0x02E0000000000007",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/1e5bce3e2e3f223fd278a1e082093b6f3bd794371428154e0dccd04e9d3c380e.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/543ee152a75898b667a5c0a0127326b36716df02b6e2baace4bb0d9784571c6a.png",
         "id": "0x0CC8000000002733",
-        "name": "盛燃怒火<br />用烈焰打击命中敌人会使攻击速度加快25%，命中的每名敌人都会使效果延长2秒。"
+        "name": "盛燃怒火<br />用烈焰打击命中敌人会使攻击速度加快25%，命中的每名敌人都会使效果延长2秒"
       }
     ],
     "0x02E0000000000008": [
       {
         "heroId": "0x02E0000000000008",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/cb8ee9877f9a8554a4ac9d771c0d820ae8dffe4883d60163891f5cc3fef38db4.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4136731c24d8b49678a8a9def5f5d3e5f7e3c5897cd9c151c1409dbdead93f71.png",
         "id": "0x0CC8000000002507",
-        "name": "海力士护盾<br />将125点生命值转化为护盾。火箭发射器直接命中会触发被动护盾恢复。"
+        "name": "海力士护盾<br />将125点生命值转化为护盾。火箭发射器直接命中会触发被动护盾恢复"
       },
       {
         "heroId": "0x02E0000000000008",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/de7f2fee9c558dea11092f9432473264dac9aa4b6b27bf56dc869837b49fd68a.png",
-        "id": "0x0CC8000000002508",
-        "name": "漂移推进器<br />火箭弹幕激活期间“法老之鹰”可以移动。"
-      },
-      {
-        "heroId": "0x02E0000000000008",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f153a8b2753cbef746f14de6c533cc4e73b18753a57e51c99a2639bfb7501c84.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/1b28fe153dc36c6b379ff6793420d280d5ce16bb855188cd35b6f078393cb134.png",
         "id": "0x0CC8000000002509",
-        "name": "燃油储备<br />使用疾冲背包时获得50%燃料。过量燃料上限提高100%。"
-      },
-      {
-        "heroId": "0x02E0000000000008",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c28fa346ba71812f18d35b5299e601fd1145d86acce6ac5ca995b54881475406.png",
-        "id": "0x0CC8000000002701",
-        "name": "空天鹰眼<br />震荡冲击会使目标对“法老之鹰”显示位置，持续3秒。在此期间，火箭发射器对每个目标的下一次直接命中均会造成30%额外伤害。"
+        "name": "燃油储备<br />使用疾冲背包时获得50%燃料。过量燃料上限提高100%"
       },
       {
         "heroId": "0x02E0000000000008",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/34efa97b9ef729fabe003953ca7e5e33e23d07c07c37aee8a6ffa4c5a88cf6bd.png",
         "id": "0x0CC80000000028C6",
-        "name": "火箭齐射<br />使用位移技能后，下一次主要攻击模式还会发射两发螺旋迷你火箭，每发造成40点爆炸伤害"
+        "name": "火箭齐射<br />使用位移技能后，下一次主要攻击模式还会发射两发螺旋迷你火箭，每发造成30点爆炸伤害"
       },
       {
         "heroId": "0x02E0000000000008",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f539cb6ea0b24ef0edd895d2d734d3fb2bc85345c1c5371c5987f92e784eb82e.png",
         "id": "0x0CC80000000028E7",
-        "name": "震荡爆冲<br />震荡冲击会造成最多50点爆炸伤害"
+        "name": "震荡爆冲<br />震荡冲击会造成最多30点爆炸伤害"
       }
     ],
     "0x02E0000000000009": [
       {
         "heroId": "0x02E0000000000009",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ff3c748be7421be14f0c774f55a76eb344702a7ae2693dae5c9618f5c8c9ac78.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e75d5742d239f04d14979fee4015ecd173b21786324b88739721b1b75db500fa.png",
         "id": "0x0CC800000000250C",
-        "name": "天降巨猩<br />原始暴怒期间，在空中时，喷射背包的伤害和范围最多提高75%。"
+        "name": "天降巨猩<br />原始暴怒期间，在空中时，喷射背包的伤害和范围最多提高75%"
       },
       {
         "heroId": "0x02E0000000000009",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/193324e2c1c49b73cf3c0751608234c38c7e11ce418ca2cb9367f241512bc0f9.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/07057b7cb8a72dfe55a0880562ab4afbe9a056e226e19c3c1ae6e2fa88d59c14.png",
         "id": "0x0CC800000000250D",
-        "name": "连锁闪电<br />完全充能的辅助攻击模式命中后会弹跳向最多2个额外目标。"
+        "name": "连锁闪电<br />完全充能的辅助攻击模式命中后会弹跳向最多2个额外目标"
       },
       {
         "heroId": "0x02E0000000000009",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/13358878e4f71cb21f200e9e004ba99eb00ec0702f602bf03910285b90a740b8.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/92c7620c5f92eb1eabb51b9ffeeab93e6be9e0966e7981b3cf515f3fe6ae27ae.png",
         "id": "0x0CC800000000250E",
-        "name": "复苏屏障<br />屏障发射器会为效果范围内的盟友每秒治疗30点生命值。"
+        "name": "复苏屏障<br />屏障发射器会为效果范围内的盟友每秒治疗30点生命值"
       },
       {
         "heroId": "0x02E0000000000009",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/a3648acca7eb42296c45b2d856fb1c9cc98d340c86d29f160e70469f49ca2e7c.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/cd3ce407e3817830cf930bdf156b96669a9d811f73a2ed9cd421e6b27b64cc9c.png",
         "id": "0x0CC80000000028B7",
         "name": "电能快充<br />特斯拉炮主要攻击模式每对一名敌人造成伤害，自身移动速度加快10%，最多30%"
       }
@@ -19269,27 +20071,21 @@
     "0x02E000000000000A": [
       {
         "heroId": "0x02E000000000000A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f859a2b0fc65b15de9124922ad475edb1337a5b34e45afde4cd7ec1e61f362aa.png",
-        "id": "0x0CC8000000002510",
-        "name": "撤离计划<br />开镜射击命中会使抓钩的冷却时间缩短最多4秒。"
-      },
-      {
-        "heroId": "0x02E000000000000A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/24f24800dfec0dede20393bca8f4c8723be767b215e9ae491a5416568fc635a9.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/7b4791cbfcc18876850b21a4c555d150081fa4689e9b489d6291bee40e0d8e9e.png",
         "id": "0x0CC80000000025A7",
-        "name": "高效开镜<br />开镜射击消耗的弹药从5发变为3发。"
+        "name": "高效开镜<br />开镜射击消耗的弹药从5发变为3发"
       },
       {
         "heroId": "0x02E000000000000A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/5bdfffd2c90796b9cae80634c7ee7b5b1ea36565853dbf80982927bb41d4af74.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/24e57c5145c859408f311fd13ca239da270c9258f0749e6e302a3ecdbdfb9044.png",
         "id": "0x0CC8000000002704",
-        "name": "寻敌诡雷<br />剧毒诡雷会对10米内的所有敌人发射剧毒镖，且触发后依然处于激活状态。"
+        "name": "寻敌诡雷<br />剧毒诡雷会对10米内的所有敌人发射剧毒镖，且触发后依然处于激活状态"
       },
       {
         "heroId": "0x02E000000000000A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/22f7e1d2b46a147e0e1dde2eec540cd61aa2c84818626c7bb648f8e401f5be6b.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c7788454504da63392a16b1cee6c2edc3675eb4520c0c6e08fb2543c289648b2.png",
         "id": "0x0CC8000000002736",
-        "name": "狙击手的直觉<br />使用抓钩后，开镜射击充能加快100%，持续2秒。"
+        "name": "狙击手的直觉<br />使用抓钩后，开镜射击充能加快100%，持续2秒"
       },
       {
         "heroId": "0x02E000000000000A",
@@ -19301,51 +20097,51 @@
     "0x02E0000000000015": [
       {
         "heroId": "0x02E0000000000015",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/aad754806e0b5b8ecf8187c2d5f77cc21a9fa712612078c507675b7eea35496b.png",
-        "id": "0x0CC8000000002513",
-        "name": "重甲火炮<br />火炮模式提供300点临时过量生命值。"
-      },
-      {
-        "heroId": "0x02E0000000000015",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/09d6d2b633c37bd238e22dee7341359990a43f740e6ce94ac835c4fe4f1e8296.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/18e73dc037267e2b8e315bbbc76c826360633cc67f16dedeed21a86cd4f7f97e.png",
         "id": "0x0CC8000000002514",
-        "name": "林德霍姆炸药<br />强攻模式的武器从旋转机枪变为慢速发射的爆炸火炮。"
+        "name": "林德霍姆炸药<br />强攻模式的武器从旋转机枪变为慢速发射的爆炸火炮"
       },
       {
         "heroId": "0x02E0000000000015",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ce6e945ce60a93f6c28bd844b171a9ec8e8247e17a7730e8c84e6ef316b8dd7e.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0322e5394e3b67a011c27be4d8c84c0a4f74771d557339ac680dae7edbc3aaf7.png",
         "id": "0x0CC8000000002516",
-        "name": "自我修复<br />按下【技能2】可快速自我恢复。"
+        "name": "自我修复<br />按下 {0} 可快速自我恢复"
       },
       {
         "heroId": "0x02E0000000000015",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/3e2c6e56f35ada70b87abea9d7a79056c5264cba940ff5353d32e785df70c29e.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0e3078ec09e5ad1bf131e3cfd820e6dd7fe0cf568545a7093e0b2b41e019f995.png",
         "id": "0x0CC800000000273C",
-        "name": "装弹模式<br />切换模式时刷新A-36战术榴弹的冷却时间。"
+        "name": "装弹模式<br />切换模式时A-36战术榴弹的冷却时间缩短4秒"
+      },
+      {
+        "heroId": "0x02E0000000000015",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/813550a1cb8390ac118eb81441c1b76bf40bf0ff536cfb2fdb0ed1e8ab53262f.png",
+        "id": "0x0CC8000000002515",
+        "name": "智能炸弹<br />A-36战术榴弹的自身击退效果提高25%且不再对自己造成伤害"
       }
     ],
     "0x02E0000000000016": [
       {
         "heroId": "0x02E0000000000016",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b2a9d37e66213058c58cbb65594611e656baff302235b27a98eb5edfb00c4d21.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b36193e986b8e815b07ebf01a85bc2c29a1cd34c2ee50c458f7d07d933b4a0d8.png",
         "id": "0x0CC80000000025CA",
         "name": "完美协同<br />光子发射器的主要攻击模式射程扩大20%"
       },
       {
         "heroId": "0x02E0000000000016",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/331f99b206541784b7477439d74c12ed6c6bd189b40e4bb5ac83f99c038a89b4.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4e1fb364d87d9e78b9103b2bac3b553f743fd44a1bb5170aaae128fe4d79eac5.png",
         "id": "0x0CC80000000025CC",
         "name": "哨戒容限<br />哨戒炮获得一次额外充能"
       },
       {
         "heroId": "0x02E0000000000016",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6aabf4daea0c6521d4ada4c31fe15ae64033e10157dd0e2e3753bca38cef2188.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2bec4e3cd61b5516075b478abdb34676bd458579ab1764699a1ab106a1dbaefb.png",
         "id": "0x0CC80000000025CD",
         "name": "护盾充能<br />位于自己的传送面板10米内时，“秩序之光”每秒恢复20点护盾"
       },
       {
         "heroId": "0x02E0000000000016",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0561bdc0f75e551e5c02abbfec90440cfcd060a0f566b12d23f8674f7def300e.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/674c0286e244b391dbda20695dfb4ed08c9ab7265741c91be4549f7fcbf4d3a7.png",
         "id": "0x0CC800000000273A",
         "name": "悬浮屏障<br />使用传送面板时可选择改为制造一面向前移动的屏障。再次按下 {0} 可减慢屏障的移动速度"
       }
@@ -19353,25 +20149,19 @@
     "0x02E0000000000020": [
       {
         "heroId": "0x02E0000000000020",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4067d8f76df946fca669ad7f718f997d93e57bb6ab8086df6f66fb20c929221e.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/95348852bb0e41f8e9dd66917be4d89f9536daa7afa660c9212dc3fd3ca5826e.png",
         "id": "0x0CC80000000025A9",
         "name": "凝神寂灭<br />辅助攻击模式蓄力速度提高20%并可以额外蓄力一发“灭”法球"
       },
       {
         "heroId": "0x02E0000000000020",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/3d6e886e861f6e907d239bdb67f2e98fa767b458105f2b1c416c0abaa3bb2380.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/54dffa6e3725551b4c14147386ed29351e495f2571401dbfc9e51034764025c5.png",
         "id": "0x0CC80000000025AB",
         "name": "悬空参禅<br />跳起时长按跳跃可悬浮最多3秒"
       },
       {
         "heroId": "0x02E0000000000020",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/acfb6f35484d432f5d3701d7547cab447dd2f42d87bdfb6860bae7a9011263ad.png",
-        "id": "0x0CC800000000267C",
-        "name": "以圣罚乱<br />使用“圣”时，对范围内的所有敌人施加“乱”"
-      },
-      {
-        "heroId": "0x02E0000000000020",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/12cd69d75be92cfdcbee5c4368ddd902d9a8cba997baac897be712c2b150f414.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/9898f52ec09a2846050183112728e3baa06bd46061897644db6423f357486628.png",
         "id": "0x0CC8000000002712",
         "name": "双音谐奏<br />获得第二颗“谐”法球，但两颗法球的治疗效果均为70%"
       },
@@ -19385,36 +20175,30 @@
     "0x02E0000000000029": [
       {
         "heroId": "0x02E0000000000029",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/657b3f3027fc96c1a69e028636072b8e5561ba4498c22e47f6b89e8fb2653248.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/abcef6f42d1803faa1442b14f351ba1165f93c993e8530145d165e43419dda1d.png",
         "id": "0x0CC8000000002597",
         "name": "扭转刃影<br />对生命值低于一半的敌人使用“影”可额外造成25点持续伤害"
       },
       {
         "heroId": "0x02E0000000000029",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c9315969338ff1e1a62be3db89d44aa8dbd5f6223d6d675d0d4f564a977dd8ea.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f6046ca3bc6b1dde0cece4f255b2e30eba0ef50aecff6ecfbe3858b0ee7cc4c2.png",
         "id": "0x0CC8000000002598",
-        "name": "冥思一闪<br />“闪”激活时，每秒恢复35点生命值"
+        "name": "冥思一闪<br />“闪”激活时，每秒恢复50点生命值"
       },
       {
         "heroId": "0x02E0000000000029",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/1d2ca952110403ccab5dd842f600c229094eb8a3548d1f51fc50eb690e1a90fa.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8eaca93d060776d4d3204338656e0aaad85afeeae516d21e47ccfc91aae4efde.png",
         "id": "0x0CC80000000025B0",
         "name": "神竜之渴<br />“斩”的挥击获得30%生命汲取效果"
       },
       {
         "heroId": "0x02E0000000000029",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4f79addd4d32a8551ae15f6f69d3a7515d037b4b1f5d56b24afc54d22dd611a4.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/72c205ea67dbe8dad29066f1b63b9377fe269eb134a2d58c203c16ed9e641f0c.png",
         "id": "0x0CC8000000002653",
         "name": "刃至影随<br />快速近身攻击会使“影”的冷却时间缩短3秒"
       }
     ],
     "0x02E0000000000040": [
-      {
-        "heroId": "0x02E0000000000040",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/cbcee3e898fd67feea3ff6f359cf9b889681b80ed352db29f7c988e69d02a43c.png",
-        "id": "0x0CC8000000002524",
-        "name": "活力迸发<br />呼吸器使“路霸”的移动速度快速提高30%。"
-      },
       {
         "heroId": "0x02E0000000000040",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/bbeb9d0110d04466eda5f4a845bd27685f80703264c967c0cf224f1b99d6f49d.png",
@@ -19423,47 +20207,41 @@
       },
       {
         "heroId": "0x02E0000000000040",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/72d9aaca0c491564248fa96164a1fdf3ffa7d72e2a2ab16934b014e8fac7fb5c.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2ca8a50b6b369d47a33ec5d4a3e42e12ca1aebb8144a29d959a134fb4226934a.png",
         "id": "0x0CC8000000002526",
-        "name": "废料链钩<br />链钩命中会装填2发弹药。"
+        "name": "废料链钩<br />链钩命中会装填2发弹药"
       },
       {
         "heroId": "0x02E0000000000040",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/50b6e388a6693ce31b5a1889e53037970a1b884b8265834f33dd6f7a3dedce44.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d48d0b264d765e3732abda784e986595f7a6c5ad0e56f1929c008ffc0492a39d.png",
         "id": "0x0CC80000000026F7",
-        "name": "弹片迸射枪<br />爆裂枪辅助攻击模式的射程扩大50%，炸裂扩散降低25%。"
+        "name": "弹片迸射枪<br />爆裂枪辅助攻击模式的射程扩大50%，炸裂扩散降低25%"
       },
       {
         "heroId": "0x02E0000000000040",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2ea8e3d092261588059e13c30a7d1509986bc3d0515675e04c912aa10ee37e18.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/db9a0129262448dad0c5f70558b561d77b40c9bc721c0cae1dd75a7ed647d4b7.png",
         "id": "0x0CC8000000002767",
-        "name": "来口猪肉<br />使用链钩会获得过量生命值，拖拽敌人的距离越长，获得的过量生命值越多，最多300点。"
+        "name": "来口猪肉<br />使用链钩会获得过量生命值，拖拽敌人的距离越长，获得的过量生命值越多，最多300点"
       }
     ],
     "0x02E0000000000042": [
       {
         "heroId": "0x02E0000000000042",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/bb5f5e34e90178748f49d211537d39c95d5ec0bef2f5f4353301b34b0ebcb484.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4cf99ebedab5eb72e47c1388000cb29ad521fb2faf7e7b31f526bbbe3f212632.png",
         "id": "0x0CC8000000002527",
-        "name": "双发连闪<br />卡西迪会扔出第二枚飞得更远的闪光弹，但两枚闪光弹造成的伤害都降低40%。"
+        "name": "双发连闪<br />卡西迪会扔出第二枚飞得更远的闪光弹，但两枚闪光弹造成的伤害都降低40%"
       },
       {
         "heroId": "0x02E0000000000042",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ed961021be873693052415478875a905995344f485dea81f75d9a70bc59561b0.png",
-        "id": "0x0CC8000000002528",
-        "name": "灵动神枪<br />主要攻击模式造成暴击会使战术翻滚的冷却时间缩短3秒。"
-      },
-      {
-        "heroId": "0x02E0000000000042",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/1df434f2e2329375e22a273cc4bb9e59822cfc4328c0489a052cea9933325fc4.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/dea10fbc3c905970630c2304ff19f852363cafc4a2b51bdd604c02dfad18e6ab.png",
         "id": "0x0CC80000000025E1",
-        "name": "绝处逢生<br />每有一名敌人成为神射手的目标，每秒恢复20点生命值。"
+        "name": "绝处逢生<br />每有一名敌人成为神射手的目标，每秒恢复40点生命值"
       },
       {
         "heroId": "0x02E0000000000042",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/3a020d005006f5df4dc52ff70b36d71d17cb3821912b4513eadd5e5a158e4c21.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/383425b058c7a8a60439132ecb199ea59e91be71b7e57835019c28beb7f080a2.png",
         "id": "0x0CC8000000002723",
-        "name": "银质子弹<br />维和者的辅助攻击模式变为一次能施加流血的贯穿射击。战术翻滚和神射手可重置其冷却时间。"
+        "name": "银质子弹<br />维和者的辅助攻击模式变为一次能施加流血的贯穿射击。战术翻滚和神射手可重置其冷却时间"
       },
       {
         "heroId": "0x02E0000000000042",
@@ -19475,53 +20253,47 @@
     "0x02E0000000000065": [
       {
         "heroId": "0x02E0000000000065",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/27642099a62fdabd7138efb2d978a2f02fb7f964f91c8cd3e9ad996bcb4b8161.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/150e4b3594f8ddc25eca19a90f39ca146c9dfcd5449e7538c5c131ee15b2277b.png",
         "id": "0x0CC800000000252C",
-        "name": "氮气推进<br />炸弹轮胎施放期间，使用【技能1】可在短时间内加速。加速会使炸弹轮胎的伤害降低50%。"
+        "name": "氮气推进<br />炸弹轮胎施放期间，使用 {0} 可在短时间内加速。加速会使炸弹轮胎的伤害降低50%"
       },
       {
         "heroId": "0x02E0000000000065",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d2d113942fa62817b9bb4e28c1253389ef8bdc8aacf52c881e838722f8d187c4.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/046617c7617e09bec3445e0b3059d6157f1bdabe842650ec2ed3962634a52da0.png",
         "id": "0x0CC80000000025C0",
-        "name": "榴弹火炮<br />榴弹发射器的弹道速度提高40%，但最大弹药降低1发。"
+        "name": "榴弹火炮<br />榴弹发射器的弹道速度加快25%"
       },
       {
         "heroId": "0x02E0000000000065",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/3615526cc9b0c7bf47fc48a0b0e31b34fbe791b0d54ebe03a857d55c9dd92071.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/11b40305e441dbcdfcd86232e84758683d290f13ef0d28fe9dc7e0c3aa8d3d24.png",
         "id": "0x0CC80000000026F3",
-        "name": "一炸冲天<br />使用震荡地雷炸飞自己后，“狂鼠”的攻击速度加快35%，持续3秒。"
+        "name": "一炸冲天<br />使用震荡地雷炸飞自己后，“狂鼠”的攻击速度加快35%，持续3秒"
       },
       {
         "heroId": "0x02E0000000000065",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/5709d127411bb1f0766880285082d000bba32b00a71e147b4d096845a2e02365.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/76e4650ee601f21fa966ff326d80366271d862199f7250edaafa9033aa29e236.png",
         "id": "0x0CC800000000272B",
-        "name": "地雷回收<br />使用震荡地雷造成最后一击会恢复一次充能。"
+        "name": "地雷回收<br />使用震荡地雷造成消灭会恢复一次充能"
       }
     ],
     "0x02E0000000000068": [
       {
         "heroId": "0x02E0000000000068",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2de1e3d78bdf9848bf0763d1ec8924363b6526f71376b2a44350a95d2c4f00ac.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/7592ce85cb4ce0f6bc90aeca6da706a2e73dcc42f31372553c8fa44c501931ea.png",
         "id": "0x0CC8000000002530",
-        "name": "能量长枪<br />能量高于50点时，粒子炮的光束会贯穿敌人。"
+        "name": "能量长枪<br />粒子炮的光束会贯穿敌人"
       },
       {
         "heroId": "0x02E0000000000068",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ab0a36dc23d724c5e24c56f039bef3f438e560d2726b3b50bbbf5f7e19a7efb1.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/a1c471e92b4c70a11e2ad276fcc7589f653ae06cdfb0e38967a4593653866de6.png",
         "id": "0x0CC8000000002531",
-        "name": "弹跳训练<br />辅助攻击模式的自身击退效果提高75%。"
+        "name": "弹跳训练<br />辅助攻击模式的自身击退效果提高75%"
       },
       {
         "heroId": "0x02E0000000000068",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b241ecf022d973c13480cc75a6dd5316e1422dba090ed28da1a2e446f6d180f4.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/198c67146cb8a79d7584fab1a0762bc9bba2f37e24852bf716dc9587acffecbc.png",
         "id": "0x0CC8000000002532",
-        "name": "前线哨兵<br />投射屏障会激活盟友的生命值自动恢复效果，并使其移动速度提高25%。"
-      },
-      {
-        "heroId": "0x02E0000000000068",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ec0e120563dd213cf9eaab23129b29cc9dd6100b8335897baeaa0e4906609685.png",
-        "id": "0x0CC8000000002668",
-        "name": "能量转换器<br />粒子炮的辅助攻击模式命中会产生3点能量。"
+        "name": "前线哨兵<br />投射屏障会激活盟友的生命值自动恢复效果，并使其移动速度提高20%"
       },
       {
         "heroId": "0x02E0000000000068",
@@ -19533,27 +20305,21 @@
     "0x02E000000000006E": [
       {
         "heroId": "0x02E000000000006E",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/9654ed26a57ba9bac7d25f8ace2fe143210476786748bca9ab3f667460d599cc.png",
-        "id": "0x0CC8000000002534",
-        "name": "循环脉冲弹<br />螺旋飞弹对敌人造成伤害会装填15发弹药。"
-      },
-      {
-        "heroId": "0x02E000000000006E",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e4654a5d440fd953ae6f3f72488839b14139750e10963b61d8e255fe402eff23.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/062d822ee3836054bd987c73831c74c87f9e18ce74b7ceec14e0450d582aa524.png",
         "id": "0x0CC8000000002535",
-        "name": "敏捷训练<br />疾跑的速度提高20%并可在疾跑激活时装填。"
+        "name": "全速疾奔<br />疾跑的移动速度加成在2秒内逐渐额外提高25%"
       },
       {
         "heroId": "0x02E000000000006E",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b06b83347a2f916167add26ce0a1f8cfa772b4c01d48e052d35a7e63f2037565.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/534498771c3a5a981a3d3f8c2f55df2998753e791f2fd77b51ac95fe501edafd.png",
         "id": "0x0CC8000000002536",
-        "name": "强化药剂<br />强化药剂会替代生物力场。使用后，“士兵：76”每秒治疗30点生命值，攻击速度提高20%，持续5秒。"
+        "name": "强化药剂<br />强化药剂会替代生物力场。使用后，“士兵：76”每秒治疗30点生命值，攻击速度提高20%，持续5秒"
       },
       {
         "heroId": "0x02E000000000006E",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/a582ede0663bff787b8c15b1f1fab3b5b91f4792b05084dbce6fde511e789cf8.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c2b0f0b31aa7064f89843efe9f3d4a1ed47b235e9727a925b8a268c6981ddf57.png",
         "id": "0x0CC800000000264B",
-        "name": "战术齐射<br />战术目镜持续期间，螺旋飞弹的冷却时间缩短80%。"
+        "name": "战术齐射<br />战术目镜持续期间，螺旋飞弹的冷却时间缩短80%且不会打断重型脉冲步枪射击"
       },
       {
         "heroId": "0x02E000000000006E",
@@ -19565,105 +20331,99 @@
     "0x02E0000000000079": [
       {
         "heroId": "0x02E0000000000079",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8bebe94914859566674790f59b1dcffa99d17bfe74dcc1aa3a59a27ac66220dd.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/37679a0a1cca337b61885f503002dd8698de32df504b0e8de93a627d89afb59f.png",
         "id": "0x0CC800000000253A",
-        "name": "违规噪音<br />强音激活时，切歌的范围扩大150%。"
+        "name": "违规噪音<br />强音激活时，切歌的范围扩大150%"
       },
       {
         "heroId": "0x02E0000000000079",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6c544376fdfc7d0952aac07cc3f78c81d5725eb72e5ea0e3367c05aac4d3627a.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c932c84f75d245fb1308f918d80e6a0a9ba93004e40f27e55d63016bd29fb340.png",
         "id": "0x0CC80000000025C8",
-        "name": "急速乐章<br />强音激活时，卢西奥的攻击速度提高50%。"
+        "name": "急速乐章<br />卢西奥的加速音乐激活时，攻击速度加快15%，强音激活时，此效果变为三倍"
       },
       {
         "heroId": "0x02E0000000000079",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/29d0c13069d31d3140b5612086234fedd734043a5a25858c59a56f76fc11af5e.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4639fbbde04ac4e8ca26a56ebd4ddc3f34ccf5c20add8796fe2282a2b2b739fa.png",
         "id": "0x0CC8000000002621",
-        "name": "来点节拍<br />音障持续期间激活强音。"
+        "name": "来点节拍<br />音障持续期间激活强音"
       },
       {
         "heroId": "0x02E0000000000079",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/29075e67ffcdb548275d289431d481dd319fde77ab0fe5ed5e73294f96593476.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/5ab9044637d85c3c53022189dbab7913eec2faedc95176069a754441588ac630.png",
         "id": "0x0CC800000000264C",
-        "name": "音波滑手<br />滑墙会强化下一次音波，使其击退效果提高25%，伤害提高50%。"
+        "name": "音波滑手<br />滑墙会强化下一次音波，使其击退效果提高25%，伤害提高50%"
       }
     ],
     "0x02E000000000007A": [
       {
         "heroId": "0x02E000000000007A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/abec526b5d87c12fad0e6b7a9d6363ad2f841cbe6b30c9b106e5086c49a88aa7.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/54ead00f47feb653f1f96d36df958d12a4d8134f800e6047985011ee5e636f2c.png",
         "id": "0x0CC800000000253B",
-        "name": "小兔之力<br />弹射提供75点临时过量生命值，且呼叫机甲的伤害半径扩大50%。"
+        "name": "小兔之力<br />弹射提供75点临时过量生命值，且呼叫机甲的伤害半径扩大50%"
       },
       {
         "heroId": "0x02E000000000007A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/a7e9ad2c8c8ddb88072ca4c4348eb512b85bffd1a3a9d896988c27c62df96d3e.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8c050a50706ca610e8a4500865366d993e644125f1b2a987e6c763d9cc5d7763.png",
         "id": "0x0CC800000000253E",
-        "name": "护盾系统<br />将150点生命值转化为护盾。防御矩阵会恢复护盾，恢复量为防御矩阵吸收伤害量的25%。"
+        "name": "护盾系统<br />将100点生命值转化为护盾。防御矩阵会恢复护盾，恢复量为防御矩阵吸收伤害量的25%"
       },
       {
         "heroId": "0x02E000000000007A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/a64a32e316aa4a0a918eb109c09c045c6586b683acb67cb8a68da0316caf1561.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b608a2bec9030da11e1ba0aaaa09276ab5bbd50f5c4b29b937c6fea7292145b0.png",
         "id": "0x0CC80000000025E6",
-        "name": "延时推进器<br />使用推进器撞击一名敌人会使推进器持续时间延长0.5秒。"
+        "name": "延时推进器<br />使用推进器撞击一名敌人会使造成的伤害提高40%并使推进器持续时间延长0.5秒"
       },
       {
         "heroId": "0x02E000000000007A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6e4569c6fa74b08b65beb2014555e9459bcb45ab1b2f3354788a648320726bcf.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8399d146264d0b180cf50a2e96661d7ae408a4a7eb60cad67c80812a18c35f1a.png",
         "id": "0x0CC800000000273E",
-        "name": "精准聚变<br />按下【填装弹药】可使聚变机炮的散布降低75%，持续3秒。"
+        "name": "精准聚变<br />按下 {0} 可使聚变机炮的散布降低75%，持续3秒"
       }
     ],
     "0x02E00000000000DD": [
       {
         "heroId": "0x02E00000000000DD",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ff862cc8d77241ff280b71f6d22fb1e4b9f71139e4234bf277791013c67fa4c3.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6d0f58c3d4df90c6562b381a584da6608beef0826e03d34a0bcf7b964afaff3a.png",
         "id": "0x0CC8000000002541",
-        "name": "急冻风暴<br />急冻会对附近的敌人造成每秒70点伤害并使其减速。"
+        "name": "急冻风暴<br />急冻会对附近的敌人造成每秒70点伤害并使其减速"
       },
       {
         "heroId": "0x02E00000000000DD",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4d2f212e1b1ffde5cfead3b7583d06159bf320eb875432decdbcc4ab26d6938f.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e6241c9fb1a5cfd31085dd1a5ab417a6ad29904d75989f7718aa417b390126e6.png",
         "id": "0x0CC80000000025DC",
-        "name": "深度冰冻<br />主要攻击模式持续命中敌人会使其在短时间内冰冻。"
+        "name": "深度冰冻<br />主要攻击模式持续命中敌人会使其在短时间内冰冻"
       },
       {
         "heroId": "0x02E00000000000DD",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/44a5e5e3fa8d52ed8f5cbc444a880faa13cfc5d98db67f8d026ce8853fdb7fb8.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/55f25d042e203d5c4fb858df4caadd51875b51d7344e0c7e49427eaf64c61229.png",
         "id": "0x0CC80000000026C0",
-        "name": "寒冰疾涌<br />二段跳会生成一根小型冰柱将美推至空中。"
+        "name": "寒冰疾涌<br />二段跳会生成一根小型冰柱将美推至空中"
       },
       {
         "heroId": "0x02E00000000000DD",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2d15a653f2eb882f6d5310d2b8a5470ba770084b00e1df89230b42985546aae3.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/10f6bf7a34140e74cf639ae596ccaaf4a84d2850f7b4058662a922ce45c58515.png",
         "id": "0x0CC800000000276C",
-        "name": "冰上畅滑<br />在暴雪内的盟友移动速度提高25%，且每秒治疗50点生命值。"
+        "name": "冰上畅滑<br />在暴雪内的盟友移动速度提高25%，且每秒治疗50点生命值"
       }
     ],
     "0x02E000000000012E": [
       {
         "heroId": "0x02E000000000012E",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/55372abe0eec1c94ce11fe0da56cc4972169ec42335891ff4397bf65e1791d7e.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b6d526c6b4a6dc8af1266bafb5dca4e649754e3ad4ffd8b7338601f40adb0b87.png",
         "id": "0x0CC8000000002544",
-        "name": "CTRL+ALT+ESC<br />在生命值低于一半时使用位移传动，可激活被动生命值恢复。"
+        "name": "CTRL+ALT+ESC<br />在生命值低于一半时使用位移传动，可激活被动生命值恢复"
       },
       {
         "heroId": "0x02E000000000012E",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8d395c78265f13743cb19d5027c9c4fdc9871987be79928aa07f9e6a95c421a6.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f07dadc22d6b469a372f58031769729390acbcbd3541d0d4f9f69b98153b5b25.png",
         "id": "0x0CC80000000025E2",
-        "name": "病毒复制<br />病毒侵染命中被侵入的敌人时，病毒将传播给8米内的所有敌人。"
+        "name": "病毒复制<br />病毒侵染命中被侵入的敌人时，病毒将传播给8米内的所有敌人"
       },
       {
         "heroId": "0x02E000000000012E",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c140206f39469a396e395ec7ce7a879dc0a8a460c3423c06b96a7bb3d7b08eff.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/282c6799d179564162500a2baff9dd78add8c67aab0142ae4164f7da39a95acb.png",
         "id": "0x0CC80000000025E3",
-        "name": "加密上传<br />黑客入侵可在隐身时使用，成功侵入会使隐秘潜行的持续时间延长2秒。"
-      },
-      {
-        "heroId": "0x02E000000000012E",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c3d008fa2238a00a607793999e1dcc6c7591d73d996f389d11af0c26c6b8d8d6.png",
-        "id": "0x0CC800000000274A",
-        "name": "黑包好包<br />被侵入的急救包为“黑影”提供最多50点过量生命值。"
+        "name": "加密上传<br />黑客入侵可在隐身时使用，成功侵入会使隐秘潜行的持续时间延长3秒"
       },
       {
         "heroId": "0x02E000000000012E",
@@ -19675,77 +20435,77 @@
     "0x02E000000000012F": [
       {
         "heroId": "0x02E000000000012F",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/78bbda9fc134fde8d5502ed04227e26b6641e4b7eba612f9da570d6311f07799.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0eaf218a00f6a8070c4ead8272cb00113022d89d145a94bf3cebb812b062798f.png",
         "id": "0x0CC8000000002548",
-        "name": "优胜劣汰<br />造成消灭时，最佳防守提供25点过量生命值，且最佳防守的过量生命值上限提高50点。"
+        "name": "优胜劣汰<br />造成消灭时，最佳防守提供25点过量生命值，且最佳防守的过量生命值上限提高50点"
       },
       {
         "heroId": "0x02E000000000012F",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d785dc636c5966039bd550d455dd614a5bcd6f8a93315480c8064a95162b0b64.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0b831053f68b3255806c0da470c2c8b9a8fff17f5bd04839bba0fa407618ea43.png",
         "id": "0x0CC8000000002549",
-        "name": "悍猛矩阵<br />悍猛格挡会在持续期间的第一秒内吸收飞弹。"
+        "name": "悍猛矩阵<br />悍猛格挡会在持续期间的前0.8秒内吸收飞弹"
       },
       {
         "heroId": "0x02E000000000012F",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/dcf7c99974ed616f6f861589b28c6cf8d8d0c435374197d46720a0a692e36a4c.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/cba3de1c0d4fa0f5283b1a5490952d52ba3e6de9b1e01fde4241bf3bfe453b07.png",
         "id": "0x0CC800000000259C",
-        "name": "左右开攻<br />用火箭重拳将一名敌人重击至墙面上会为手炮装填弹药并过量装填2发弹药。"
+        "name": "左右开攻<br />用火箭重拳将一名敌人重击至墙面上会为手炮装填弹药并过量装填2发弹药"
       },
       {
         "heroId": "0x02E000000000012F",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ac5a0c25fb9aa998aa65cd086e3120853375c4301d830521763b3d5c8c3093d3.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8fd3cab5cd978820e2d79bf8180d3b76bfdf22cdf622cf8671bba3924385f025.png",
         "id": "0x0CC8000000002640",
-        "name": "地震余波<br />被裂地重拳命中的敌人会被减速30%，持续1.5秒。"
+        "name": "地震余波<br />被裂地重拳命中的敌人会被减速40%，持续2秒"
       }
     ],
     "0x02E000000000013B": [
       {
         "heroId": "0x02E000000000013B",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/36670f62ebd4de1744657f74fd0c6b166528aee9cff7506ada970b43a2d22ee4.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/261f0fabdaf55159b9e13103abd465cfe3bf50a3906f97b1a47e9c2dc961905b.png",
         "id": "0x0CC800000000254C",
-        "name": "头晕目眩<br />敌人从麻醉镖效果中苏醒后的2秒内会减速并受到50点持续伤害。"
+        "name": "头晕目眩<br />敌人从麻醉镖效果中苏醒后的2秒内会减速并受到50点持续伤害"
       },
       {
         "heroId": "0x02E000000000013B",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/37168d5270e0582e4d98a99f6d433498d1aa1421bff26cd6437d8ab9cf9970cc.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/388dfc3c6fb4cb6a233350b887d1400876890a33c79e49d7fb3c6ca220eddc31.png",
         "id": "0x0CC800000000254D",
-        "name": "弹跳手雷<br />生物手雷爆炸后会反弹并再次爆炸，造成60点伤害量和治疗量。"
+        "name": "弹跳手雷<br />生物手雷爆炸后会反弹并再次爆炸，造成60点伤害量和治疗量"
       },
       {
         "heroId": "0x02E000000000013B",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0f30798161b7d14816e2425a46d6c351283fb98ee9b1484b7635640ffdc5c4c1.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/fe56a0ef536dd3f17d3c7728151ff60ef1a48071e93c2071c095f4e1712e6721.png",
         "id": "0x0CC8000000002599",
-        "name": "猎头精英<br />生物步枪可对敌人造成暴击。"
+        "name": "猎头精英<br />生物步枪可对敌人造成暴击"
       },
       {
         "heroId": "0x02E000000000013B",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/32ba9f3da872de2d2bd7eb28355e7e0c747a8126c60c8093f8d9a3b9b09e19bc.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2dc4cdf319916abf18c9972b4fb8d14e5dd92e319960b36846c270b3bd5ffa4f.png",
         "id": "0x0CC80000000026F0",
-        "name": "加速血清<br />纳米激素会为安娜和激素目标提供40%移动速度加成。"
+        "name": "加速血清<br />纳米激素会为安娜和激素目标提供30%移动速度加成"
       }
     ],
     "0x02E000000000013E": [
       {
         "heroId": "0x02E000000000013E",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/fa33047430e60bc899560a8374ad72c08a6bde9747da20defbb9516858ae334d.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/88b6e3613c49bf6c6edbd2e32fb8aaa71ba58d556ff0d6403688d1ceabc70f31.png",
         "id": "0x0CC8000000002551",
         "name": "防护屏障<br />标枪旋击变为发射一面屏障"
       },
       {
         "heroId": "0x02E000000000013E",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/55847ac88c44ffa812dac0225054f16a13582cab6b623cf3ad6cec9629cdd097.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/79fbe7ca9c3b645dd510dbf395d3741d89ea7d2c9ff9edb2c157951ba45f0852.png",
         "id": "0x0CC8000000002552",
-        "name": "充能标枪<br />长按【辅助攻击模式】可为能量标枪充能，充能使标枪击退效果提高最多25%，弹道速度加快最多100%。充满后可贯穿敌人"
+        "name": "充能标枪<br />长按 {0} 可为能量标枪充能，充能使标枪击退效果提高最多25%，弹道速度加快最多100%。充满后可贯穿敌人"
       },
       {
         "heroId": "0x02E000000000013E",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d040f9da7eebceb0e2541c653576982c2b9e571d4a859319ae2087818d7d2a83.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/319851240bac7253ea1601534c66860a126c2f6a9bd6af56bdb25265c3521fe0.png",
         "id": "0x0CC80000000026F1",
         "name": "防御协议<br />撼地猛刺蓄力时每秒恢复100点生命值"
       },
       {
         "heroId": "0x02E000000000013E",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/16bf6251a37ddb6db427083cfbdde77fc858b7f6781cf3b4f3334d656591f8e7.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/02ffaf6f362417f64e8bd50919d2d2d5d9238c2f9a7e168b3d68192c4c604004.png",
         "id": "0x0CC8000000002720",
         "name": "机动强固<br />强固防御激活时，奥丽莎的移动速度不会降低且不会产生热量"
       }
@@ -19753,51 +20513,51 @@
     "0x02E0000000000195": [
       {
         "heroId": "0x02E0000000000195",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ef7b556b0796d00f46b5a1856f8c8478e7facdf03a6d01fc0309390a265e6121.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ce74272f296ac761d22db50718ce39fe4622c0304cc2570ab9a7e2bb82ca135f.png",
         "id": "0x0CC8000000002554",
         "name": "士气高昂<br />由流星飞锤激活的鼓舞士气持续时间延长3秒"
       },
       {
         "heroId": "0x02E0000000000195",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c9da384d9c206d7f31297db9e0ffdd59e4457f9d2b8800286166b552b25840ba.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/9d6a8ce740dd9b84adc1b60a518501c66d83f4c592ae84dec4cd3c9e4f159a40.png",
         "id": "0x0CC80000000025C2",
-        "name": "流星重鞭<br />流星飞锤的击退可将敌人重击至墙面上，额外造成50点伤害"
+        "name": "流星重鞭<br />流星飞锤的击退可将敌人重击至墙面上，额外造成60点伤害"
       },
       {
         "heroId": "0x02E0000000000195",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b3edc3c793db9e329c440d1e735c77417f7e1a424d0c29058aba15bc8c1d6c34.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/a1a518ab82a42370401a2b3e4284e7efca3f2eb4bc2dd55d11755ea192afcae8.png",
         "id": "0x0CC800000000274C",
         "name": "鼓舞盾击<br />能量盾击使移动速度加快30%，持续2秒。使用能量盾击触发的鼓舞士气会立刻治疗"
       },
       {
         "heroId": "0x02E0000000000195",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/746ace00ec3933a0029f13338ed2cea239fa835b814c27aad88c303075601b62.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/653e76687c41ac4c2f6aa02bcb0277228c13a7d0ac62b8b4dc6259191bad98ff.png",
         "id": "0x0CC800000000274D",
-        "name": "战地医疗兵<br />近身攻击使恢复包的冷却时间缩短0.5秒"
+        "name": "战地医疗兵<br />对敌人近身攻击使恢复包的冷却时间缩短0.75秒"
       }
     ],
     "0x02E00000000001A2": [
       {
         "heroId": "0x02E00000000001A2",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b3baa7d8e1a10b13078985ed91017c1b12773f33389aa52a3e4c1babfec314c1.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f2da4eb4ebcd69bfc9a7f7b9be13e9b4aa80ba4828e9b6406c97b3e032de4690.png",
         "id": "0x0CC80000000025AD",
         "name": "合德滋养<br />生化之球的前30点治疗量会立即治疗其遇到的每一名盟友"
       },
       {
         "heroId": "0x02E00000000001A2",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2dd2a79d5972a641d5d2f875dd6048012127bbf54760256f643f179dfad303ff.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/5278bcb65c1456dde7bf000c52953a6f08dfff2264bff6b81e70a1879340804b.png",
         "id": "0x0CC800000000264A",
-        "name": "毁灭分界<br />聚合射线可以完全造成治疗或伤害，此时效果提高25%"
+        "name": "毁灭分界<br />聚合射线可以完全造成治疗或伤害，此时效果提高30%"
       },
       {
         "heroId": "0x02E00000000001A2",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e1a14b062f7088e843e34bebbe00b70e4f98ac89c15c6ff69fcc2ce2e4e7aa16.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/202e75ee3c419f82f8557cd12864995d583faded5f6654b043372fd42d4206a7.png",
         "id": "0x0CC8000000002669",
         "name": "魔球逆动<br />再次激活生化之球会逆转其飞行方向"
       },
       {
         "heroId": "0x02E00000000001A2",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/86396868e0bb416e73f80271d1caa35fd2e457a6d8c68bec21c4bb32a79ead00.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6d3b8b3719ce56537a1279e91318980d66752490946799643bd5226987115ed6.png",
         "id": "0x0CC8000000002676",
         "name": "幽影幻步<br />消散持续时间延长0.5秒并使跳跃高度提高50%"
       }
@@ -19805,27 +20565,21 @@
     "0x02E00000000001CA": [
       {
         "heroId": "0x02E00000000001CA",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ed4605313213ca17f0b3c46a02a57a960a28fb723bf0138f9149c75166192344.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/3647153c08c0af7933fa49fff4669ff44db4fb20aa893a047307c08da5288115.png",
         "id": "0x0CC80000000025BB",
         "name": "滞空时间<br />重力坠击滞空时间延长，可在空中控制，造成的伤害最多提高50%"
       },
       {
         "heroId": "0x02E00000000001CA",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/fd5ece678bf27d608a6904cf8d126d33d59b45d2b12c99b2e329ff94484e7b7f.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/61ba1ca38638f3d83c7feaf3370ae8040c72bc49e77bad42a311d36031363155.png",
         "id": "0x0CC80000000025BC",
         "name": "重装压路机<br />动力铁球对重装英雄造成的撞击伤害提高100%"
       },
       {
         "heroId": "0x02E00000000001CA",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/3682f7a105f86fc69855a3bf2e4196048399f9b59162dbf6edbd6eff5f8dfe0e.png",
-        "id": "0x0CC80000000025C9",
-        "name": "爱包之鼠<br />从急救包中获得的治疗量提高100点"
-      },
-      {
-        "heroId": "0x02E00000000001CA",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2954bdf3891507dcdc10a5b45fd6142de3aeb2054e44b4ea55f4405ef5fefd35.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/91c944d1e02f4bf1619b3b2f81d4af774a08c61d2974ee956e501dfc21a20f41.png",
         "id": "0x0CC800000000263F",
-        "name": "感应屏障<br />感应护盾激活时生成一道持续1.5秒的屏障，消耗50点过量生命值"
+        "name": "感应屏障<br />感应护盾激活时生成一道持续1.5秒的屏障"
       },
       {
         "heroId": "0x02E00000000001CA",
@@ -19837,25 +20591,25 @@
     "0x02E00000000001EC": [
       {
         "heroId": "0x02E00000000001EC",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b18a571fa57c046791d1f40ea8bed50cb746fcedfaa443f8c452e16342acca80.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/5e3658d0e7ce5ab2941fad17e8201fc2f658db8554d7f83c114bafcbc54740b8.png",
         "id": "0x0CC8000000002560",
         "name": "机体过载<br />机体超频激活时，电磁炮最大能量提高50点"
       },
       {
         "heroId": "0x02E00000000001EC",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b2c0d0b7e31a5d55e973aed64f7487338834302b54a7013c0bf79fc1ef9ed6ec.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/78ec26ed402e4ea8a1a2cafcbab9759f35886d3d529c7fa653527cd554f2ed9f.png",
         "id": "0x0CC8000000002562",
         "name": "双重推进器<br />机动滑铲获得一次额外充能，且跳跃高度转为横向位移"
       },
       {
         "heroId": "0x02E00000000001EC",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c40ae78faaeacbd6cd520712e7e73a86377cefe684dad3e24a53e51a6212f800.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/26003dd94835d340f1045db8be6b5342b23790e73bb13d258748d6fe86af8a8e.png",
         "id": "0x0CC8000000002642",
-        "name": "摩擦供能<br />机动滑铲行进过程中最多产生50点能量"
+        "name": "摩擦供能<br />机动滑铲最多产生75点能量"
       },
       {
         "heroId": "0x02E00000000001EC",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/10e1b8cb965fc7058963f572277aac927390a677aec402896a2307524e29f9e7.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f9a050171b880b1cba0411bfd11eb0739f3d06bf579dd5f3e9cfc9ed767d05e5.png",
         "id": "0x0CC8000000002679",
         "name": "减速力场<br />被干扰弹命中的敌人减速25%"
       }
@@ -19863,79 +20617,73 @@
     "0x02E0000000000200": [
       {
         "heroId": "0x02E0000000000200",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/482f8aee1579c537dccce35f906082844ef89eed871a1bfbadfcbad4f936b9ac.png",
-        "id": "0x0CC8000000002563",
-        "name": "响尾蛇行<br />短筒猎枪对艾什和敌人的击退距离扩大12%"
-      },
-      {
-        "heroId": "0x02E0000000000200",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d379f9d82fadfb3f395bf73475f53e8e5392a2573cde7bc0ab412417b3400d0d.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/5c01e6810c9aac8d790e97f6b1e090aef6e89970c16eb9601812332e1cdb8f8f.png",
         "id": "0x0CC8000000002565",
-        "name": "空爆雷管<br />延时雷管在空中引爆时，爆炸半径扩大40%，投出时返还3发弹药"
+        "name": "空爆雷管<br />延时雷管在空中引爆时，爆炸半径扩大40%，投出时返还6发弹药"
       },
       {
         "heroId": "0x02E0000000000200",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/7d50a7aae7488b8fcaa15aa6ce733f644a9a968bb5da0fffef3271360cba8122.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/24f39937222b86f1b15717b96ab8b344104a9b69aaca142965d6c8ebc841a5ca.png",
         "id": "0x0CC8000000002566",
-        "name": "毒蛇之刺<br />开镜射击对一名目标连续命中2次时会额外造成25点伤害并装填2发弹药"
+        "name": "毒蛇之刺<br />开镜射击对一名目标连续命中2次时会额外造成25点伤害"
       },
       {
         "heroId": "0x02E0000000000200",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/cc73638a48e21e4e12d34a229e904bdca4fc1dab27ae5fe992ae1f55b4ef2bf1.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/aa6a6fe0ff9bc45cd066c0938191f02c59b81c97c4b1d74d6de14550894fbf7c.png",
         "id": "0x0CC8000000002686",
-        "name": "远程引爆器<br />使用延时雷管后，再次按下【技能2】可使其在0.5秒延迟后引爆"
+        "name": "远程引爆器<br />使用延时雷管后，再次按下 {0} 可使其在0.5秒延迟后引爆"
       },
       {
         "heroId": "0x02E0000000000200",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/cb7352dd49a08b2b95183a0ae7ef831f711754167e84968316c72052ec0affe8.png",
         "id": "0x0CC80000000028B4",
-        "name": "双筒猎枪<br />用短筒猎枪击退敌人后的一小段时间内，可再次使用该技能，此时击退效果降低25%"
+        "name": "双筒猎枪<br />用短筒猎枪击退敌人后，可在2秒内再次使用该技能"
       }
     ],
     "0x02E0000000000206": [
       {
         "heroId": "0x02E0000000000206",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f9cd66647e6743f30f4ff64196669c65e47a568fc8f54aa5f1e31dbfe7f24d3f.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/47a96fff39ffc551e830cd5cb3f3baf424563e9fd263a2779e01eb1bd5a7d8a4.png",
         "id": "0x0CC8000000002569",
-        "name": "炸弹齐射<br />黏性炸弹发射数量提高50%"
+        "name": "炸弹齐射<br />黏性炸弹额外发射2发炸弹"
       },
       {
         "heroId": "0x02E0000000000206",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/61da8208f183fdcb87834da9b6d4d3da1e3356b9db1af19aa5509630162fcc55.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0f69d5a737cf6d1fcc7ce70c41fd29dcabcdf2815ad8fa99df136d14f4864c69.png",
         "id": "0x0CC800000000256A",
         "name": "机动远光<br />聚焦光线消灭敌人会重置飞行的冷却时间"
       },
       {
         "heroId": "0x02E0000000000206",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/63c19146c4b6fe6f273373d0ed4b2784977ee5e92a1c5d2ce85da6375f672470.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/150c696d8ec1329c43c139c68729ea408ae03216d41b5e759d5b7648d8584605.png",
         "id": "0x0CC8000000002639",
-        "name": "局部扫描<br />使用人格复制时具有50%初始终极技能充能"
+        "name": "局部扫描<br />使用人格复制时具有30%初始终极技能充能"
       },
       {
         "heroId": "0x02E0000000000206",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/1c302c6eb22e932901f0340fc54128e8b8759ca6c29721c618c9b0e7e63e708f.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/13a06093b579b9a0588d37534cf8fd8f31e3c129f67b3585b58dca171fcdca68.png",
         "id": "0x0CC80000000026BF",
-        "name": "聚焦机动<br />聚焦光线的射程扩大4米，且使用时移动速度加快10%"
+        "name": "聚焦机动<br />聚焦光线的射程扩大6米，且使用时移动速度加快20%"
       }
     ],
     "0x02E0000000000221": [
       {
         "heroId": "0x02E0000000000221",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/9eb643e2b55a3c87a39a69bfa49cfae6c5812fb46fe2f9677af53be29ac88d1e.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d2a943d5fce3bba49e1f482c0cd56973cb287fb40d2fd089f40a15047856a378.png",
         "id": "0x0CC800000000256B",
-        "name": "火箭战靴<br />用动力战靴跳到空中时，使用【跳跃】可沿水平方向疾冲"
+        "name": "火箭战靴<br />用动力战靴跳到空中时，使用 {0} 可沿水平方向疾冲"
       },
       {
         "heroId": "0x02E0000000000221",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/553710d75ac1efec10d3790d76efa142f997466f8ead48eb3a422a1493179762.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/78de19e8f754a2882980435a03ada17d1bd791bbec10bfa9a076cdf82ef9ccce.png",
         "id": "0x0CC800000000256C",
-        "name": "强攻冲击<br />愈合冲击会使巴蒂斯特的攻击速度加快30%，持续4秒，但不再为生命值低于一半的盟友提供双倍治疗量"
+        "name": "强攻冲击<br />愈合冲击会使巴蒂斯特的攻击速度加快20%，持续3秒"
       },
       {
         "heroId": "0x02E0000000000221",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/78c43360f5c0b16df7dd8618ebd2493198e6e9cc4aa8d1e2fc27657d7bfcbee3.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0ba2344d9af993c4ba4f74f7a381327f20bcf153e78d2b0269a2fa1ef5884a6a.png",
         "id": "0x0CC800000000256E",
-        "name": "自动治疗<br />使用任意技能会触发巴蒂斯特的肩负炮台，周期性对盟友发射最多3发治疗弹，每发恢复25点生命值"
+        "name": "自动治疗<br />使用任意技能会触发巴蒂斯特的肩负炮台，周期性对盟友发射最多3发治疗弹，每发恢复40点生命值"
       },
       {
         "heroId": "0x02E0000000000221",
@@ -19947,51 +20695,51 @@
     "0x02E0000000000231": [
       {
         "heroId": "0x02E0000000000231",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/1c263da5da6237b4799330774b1e44b95208849c79e14bcbaee71efdfc2fbbce.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/50a9304063fc8ea8c23b6533940563cf666fb0a1f80e6240b30344aa014d40b6.png",
         "id": "0x0CC800000000256F",
         "name": "灵利卜师<br />“锥”命中时会对面前的一名盟友贴出2张“符”"
       },
       {
         "heroId": "0x02E0000000000231",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8fc8fb861450a392d5a5e2fd3e9a89c6dc5429b8447119974bea0ad60546f61b.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d057fa16941cc466d1d934ad3270ba3e6dc6fdd30b8ae78af0d8c684a4afbd21.png",
         "id": "0x0CC8000000002570",
         "name": "救死急符<br />“符”追踪生命值低于一半的盟友时，符纸速度提高50%"
       },
       {
         "heroId": "0x02E0000000000231",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d29e22fce3ff5028f38de2de59b5b7c59c8d9fe9bf7e48cbebd6e1254abd9d62.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/cd3b70802f80c187212db9a9db342e6aa4f0cd349d1979055e52eb7539a8cc30.png",
         "id": "0x0CC8000000002572",
-        "name": "狐步漫舞<br />“铃”会使盟友的冷却时间恢复速度加快100%，移动速度加快30%，持续3秒"
+        "name": "狐步漫舞<br />“铃”会使盟友的移动速度加快30%，持续4秒"
       },
       {
         "heroId": "0x02E0000000000231",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/cf236cafe1cbb551250239ea5ae382a60f3ec4edd6bcd7b41aa6e3e4a8fc99a4.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e5443afa1c9fe57e7839befb9a986eb960fb08d66a0085f1bba898335a7eb740.png",
         "id": "0x0CC800000000267B",
-        "name": "备战瞬步<br />“瞬”会使雾子的攻击速度和装填速度加快40%，持续2秒"
+        "name": "备战瞬步<br />“瞬”会使雾子的攻击速度和装填速度加快40%，持续3秒"
       }
     ],
     "0x02E0000000000236": [
       {
         "heroId": "0x02E0000000000236",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/25f8bb699300a5e3934dd41b0843e9b62e2ce855b871913e57f4cd961f172769.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c0c7a9fabfe1e722d591074d61212cd951ca241daf4f857e16277520f66a7bf2.png",
         "id": "0x0CC8000000002573",
         "name": "战斗怒吼<br />命令怒吼会完全装填散弹枪，并使盟友的装填速度加快50%"
       },
       {
         "heroId": "0x02E0000000000236",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/18f9d92b2eb1ae5d850ad450dcc7d570c93e3dae5535fb79ed0dd7ff799194d5.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6f359a8501d72e8e4b4fcceff1dc353b68a4303bfb5e0f853d894b2478d0bce4.png",
         "id": "0x0CC8000000002576",
         "name": "凶残狂噬<br />血斩的击中伤害获得100%生命汲取"
       },
       {
         "heroId": "0x02E0000000000236",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/944d634974e688d7b7d9978f6ae513d6491ec6805b56f06fb18688d8ef0db9ae.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/69acb5b21896563bbddc2d166f1d53b31ab96257adec55ca0fb20a9d38f1e726.png",
         "id": "0x0CC800000000263E",
-        "name": "轰翻爆冲<br />使用轰翻天时获得不可阻挡并刷新各项技能冷却时间"
+        "name": "轰翻爆冲<br />使用轰翻天时获得不可阻挡并使各项技能冷却时间缩短6秒"
       },
       {
         "heroId": "0x02E0000000000236",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/3cd03c787c8c6160f5b0200b36ca195941d5ed68fd3240aff51b9077899fbba2.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/79f03361567257341b863613a591508eca0077c5b934a590f6ed34822616f005.png",
         "id": "0x0CC800000000271C",
         "name": "飞沙利刃<br />召回锯齿利刃时，其半径扩大100%并额外造成30点击中伤害"
       }
@@ -19999,27 +20747,27 @@
     "0x02E000000000023B": [
       {
         "heroId": "0x02E000000000023B",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/9a93c0197dd79cf618796ff6f94e0767fcabd0a15e5e3167c7d1232415c039c3.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/15828d0a39a88da3687e84e52a1a119fb0b5b08812e11c356bfffb8fe90d8a41.png",
         "id": "0x0CC8000000002577",
         "name": "空间漂浮<br />跳起时长按跳跃可在短时间内向上漂浮"
       },
       {
         "heroId": "0x02E000000000023B",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b2527ec272b502118dc80dd24cb9f393c1c67c391e64d8ef86631b2380393da0.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f22dbfb1aaeff73f2fea11906bf431b2063f68160ba54473337c24a8d01cc524.png",
         "id": "0x0CC8000000002578",
         "name": "动能循环<br />使用动能俘获吸收子弹还会缩短质量吸附的冷却时间"
       },
       {
         "heroId": "0x02E000000000023B",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e22ac127af453fd07cd9e5795753bfbe2cd5b02528bfe60d7bbce4b79a791a8e.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f5bbae6e666458d5d8a382c67056ea3cf0ce0781d575c540a6afb58267e92027.png",
         "id": "0x0CC80000000025AF",
         "name": "超能打击<br />超能之球每5次直接命中后，下一次成功命中的快速近身攻击会击退敌人并使其漂浮"
       },
       {
         "heroId": "0x02E000000000023B",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ef3a56119f7ee30b973dc78de70fdee44715246c45ba6908538ab248707e96c6.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/a6f10bff0408ce201f848449e2ae55ae8b2f368b42165090922b08854a90cb86.png",
         "id": "0x0CC80000000026B7",
-        "name": "超能恢复<br />超能之球会为实验屏障恢复生命值，数值为超能之球伤害量的50%"
+        "name": "超能恢复<br />超能之球会为实验屏障恢复生命值，数值为超能之球伤害量的40%"
       }
     ],
     "0x02E000000000028D": [
@@ -20031,27 +20779,21 @@
       },
       {
         "heroId": "0x02E000000000028D",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/5cecc61da1c0028bf38fb198e8a50622b43cf5c5329cb806e4a14bb462254698.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0f01814ad4c072dbbaddb1f15e72178f6bb5e7bc2c0eb3874c9f5838f98e30e7.png",
         "id": "0x0CC800000000257C",
-        "name": "纳米修复<br />拉玛刹在吞噬漩涡内每秒恢复75点生命值"
+        "name": "纳米修复<br />拉玛刹在吞噬漩涡内每秒恢复100点生命值"
       },
       {
         "heroId": "0x02E000000000028D",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e4fff1b5673bbbff74a601df7cee86af577dd5258530b04c5e1692590a31c466.png",
-        "id": "0x0CC800000000257D",
-        "name": "复仇旋涡<br />吞噬漩涡在空中时可再次使用【技能2】将其引爆，造成50点伤害并将敌人拽向地面"
-      },
-      {
-        "heroId": "0x02E000000000028D",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/7ef52c70b124eea85aa550b8bf0566009e4b462f4f7e40a1280e220dd0bc061e.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8c4ab35a42b172b78cc2124f5c6098e1da757ff31c2c73e51d45c43b0b382bb2.png",
         "id": "0x0CC800000000257E",
         "name": "虚空涌动<br />虚空加速器持续射击时，周期性额外发射一簇包含6枚粒子的连射"
       },
       {
         "heroId": "0x02E000000000028D",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ca452f1da6dfb20bcde2f1cc0bd86d8ae6b1ebc6b32edc88f34e66b8168b2eaf.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8671fcad5ba90ab73fe1c01d831801d5ecac6f9b75bf1bbabde065d2277dc4de.png",
         "id": "0x0CC80000000026F9",
-        "name": "铁血形态<br />天罚形态激活时，造成消灭会使其持续时间延长1秒，“诛”持续期间该效果减半"
+        "name": "铁血形态<br />天罚形态激活时，造成消灭会使其持续时间延长2秒。在“诛”期间延长的持续时间减半"
       }
     ],
     "0x02E0000000000291": [
@@ -20071,7 +20813,7 @@
         "heroId": "0x02E0000000000291",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/53c7d91e379667b66889bffbd535f14c62e1dbdfc10622f43c25ad9d3d973291.png",
         "id": "0x0CC800000000287A",
-        "name": "愈疗播种<br />在愈疗灵花状态下使用快速近身攻击会向前扔出一颗种子。其他盟友拾取种子会获得75点过量生命值和25%速度加成，持续5秒"
+        "name": "愈疗播种<br />在愈疗灵花状态下使用快速近身攻击会扔出一颗种子。其他盟友拾取种子会获得过量生命值和移动速度"
       },
       {
         "heroId": "0x02E0000000000291",
@@ -20083,25 +20825,25 @@
     "0x02E000000000030A": [
       {
         "heroId": "0x02E000000000030A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/008a2f3589840abff2f3ac52c311620f88fad75b2f9b06745afa26c708a357ec.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6adca5324793138777cdd09152168778785188b1d32962e42df933638ab49321.png",
         "id": "0x0CC8000000002583",
-        "name": "动力弹带<br />蛮力冲撞冲锋期间会装填最多150发弹药"
+        "name": "动力弹带<br />蛮力冲撞会在冲锋的第一秒内装填最多150发弹药"
       },
       {
         "heroId": "0x02E000000000030A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/fcfec16d12f6c6474a137eb9cf2412c2685b1cc8a4572711b3df1599e6c3bd6e.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/83b13a8976492b76d22ef89abd6815e90fcc7f3133853d86a9e898bc07db8c5a.png",
         "id": "0x0CC8000000002585",
         "name": "烈火奔踏<br />蛮力冲撞会点燃被击中的敌人"
       },
       {
         "heroId": "0x02E000000000030A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/494c76d5509d38f9f6462316ed6b036c6e5660908e615b2f8d1fa3e6cec02b82.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/69aae6d3636721510e30bc9d1578944c8e9705ab403d9e421798aceebf0f1a9b.png",
         "id": "0x0CC8000000002586",
-        "name": "战斗燃料<br />暴击会使下一次心脏过载为毛加提供2点临时过量生命值，可叠加100点过量生命值"
+        "name": "战斗燃料<br />暴击会使下一次心脏过载为毛加提供3点临时过量生命值，可叠加150点过量生命值"
       },
       {
         "heroId": "0x02E000000000030A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ed49bedb26069f9c0012cb7610703fb1acc5ea7fd720350b49a8df45dc6c1942.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/3b22a3f8c185339e203c006abf3b40ef16074f8439855dcd27ecbf3779f46792.png",
         "id": "0x0CC80000000026B9",
         "name": "纵情燃烧<br />用燃火链式机枪点燃敌人会获得50点过量生命值"
       }
@@ -20109,51 +20851,45 @@
     "0x02E000000000031C": [
       {
         "heroId": "0x02E000000000031C",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/fa09c8f4cd01a8ed58a55b545aefd9d62f520b9f89e3e94331ad0720c48ab681.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4b8c74a61160d2de10a3105ce10635be1d623c52f3dfacd633ae20c1d6a1045b.png",
         "id": "0x0CC80000000025B1",
-        "name": "快速建造<br />治疗光塔的建造速度加快300%，冷却时间缩短1.5秒"
+        "name": "快速建造<br />治疗光塔的建造速度加快300%，冷却时间缩短2秒"
       },
       {
         "heroId": "0x02E000000000031C",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/aad855a55c027e0ed21169bef4a44c9658ecd2518e9a500981e54f1879fe3869.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b31ad6c4eea05cd96084c7b87509b0c3678ac8f04678f388863f16a271e496c4.png",
         "id": "0x0CC80000000025B2",
-        "name": "夏至骄阳<br />激活桎梏灼日会使伊拉锐额外获得3秒飞行时间，飞行速度加快20%，攻击速度加快30%"
+        "name": "夏至骄阳<br />桎梏灼日会使伊拉锐的飞行速度和攻击速度加快20%，并额外获得3秒飞行时间"
       },
       {
         "heroId": "0x02E000000000031C",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/57200539c49069516cf0f29fdbe58f0126a0bcf7e85e8793b99bc3cf8c8ebc0f.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2405e6d589b8d6c7bd5e072f7788480bbcfeda6a1ce48ad67e2d8915289e8798.png",
         "id": "0x0CC80000000025B4",
-        "name": "烈日燎灼<br />烈日冲击会点燃敌人，额外造成70点伤害，持续3秒"
+        "name": "烈日燎灼<br />烈日冲击会点燃敌人，额外造成50点伤害，持续3秒"
       },
       {
         "heroId": "0x02E000000000031C",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c9edd2e923f073952419bdfd77021c1e6f41c2ad36d9de5b47a30e079fff1b8a.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/3b39d69790004174fc0367ed9c7fbce8e430ffe8e885c8e32ae1d678fd8c42e5.png",
         "id": "0x0CC80000000026F8",
-        "name": "太阳耀斑<br />使用阳焰步枪的治疗光束时，按下【主要攻击模式】会消耗所有能量，并为伊拉锐面前的盟友治疗最多120点生命值"
+        "name": "太阳耀斑<br />使用阳焰步枪的治疗光束时，按下 {0} 会为伊拉锐面前的盟友治疗100点生命值"
       }
     ],
     "0x02E000000000032A": [
       {
         "heroId": "0x02E000000000032A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/5e920586995cdaf18e103cf3da080958f2414f9d260483870fe748c3022723ce.png",
-        "id": "0x0CC80000000025CE",
-        "name": "寻踪直觉<br />瞄准射击直接命中会将敌人的位置显示给弗蕾娅，持续3秒"
-      },
-      {
-        "heroId": "0x02E000000000032A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/49ef04e20146cd22b3412fc6880c07faf83760989fef90d77776e383248571b6.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b4716c0312754221a259f0d7dd2bf04eb3671b8f2bb70692854217403137d0d4.png",
         "id": "0x0CC80000000025D1",
-        "name": "无情弹幕<br />瞄准射击直接命中返还4发自动弩箭弹药"
+        "name": "无情弹幕<br />瞄准射击直接命中返还8发自动弩箭弹药"
       },
       {
         "heroId": "0x02E000000000032A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/cf4b7ee49a5744775bae84f7cf1c2a38baced74a60003893ba2b042240e1aeaa.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2444e973875857e2425dfcc64f3aa5de3aba82fe12887134e6cfb38172a074f6.png",
         "id": "0x0CC800000000267D",
         "name": "疾奔之势<br />疾冲距离扩大20%"
       },
       {
         "heroId": "0x02E000000000032A",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/3cda3f6aa49b31c78ba8ab915e0542edac5c89823124fa678ee8638454033cc7.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e374851a1c97f54461526905d9e97b3466ea7ef0c7c592994eb098e404a7ef2a.png",
         "id": "0x0CC80000000026C1",
         "name": "飞空愈疗<br />使用上升气流后，在落地前每秒为弗蕾娅治疗30点生命值"
       },
@@ -20161,31 +20897,31 @@
         "heroId": "0x02E000000000032A",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4ac4daca1df0efba3715a3406834bf8efb379dc636682e7d771377dc5139c3f9.png",
         "id": "0x0CC8000000002860",
-        "name": "劲风再起<br />上升气流获得一次额外充能，但高度降低20%"
+        "name": "劲风再起<br />上升气流获得一次额外充能"
       }
     ],
     "0x02E000000000032B": [
       {
         "heroId": "0x02E000000000032B",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/011bc1ed67004b826658339b14d7fb19beb36befa18c6d0eef572f0cad90434d.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8d8769f9aedd55622b1c994ae8cf7cddefbc66a55e0b33bbb4f07b2de7220e15.png",
         "id": "0x0CC800000000258C",
-        "name": "智能延展器<br />按下【技能2】强化智能挖掘钻，使其最大弹道射程扩大100%，持续4秒"
+        "name": "智能延展器<br />按下 {0} 强化智能挖掘钻，使其最大弹道射程扩大100%，持续4秒"
       },
       {
         "heroId": "0x02E000000000032B",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/3a2b1a3d8b4306794912a74aef5109acf6575ef712cef8fc1acb86ddd89a1af3.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/bd3a6e0335e5c643bac274f1c7e6920712eb2844d2ef60e19434f1841990a238.png",
         "id": "0x0CC80000000025B9",
         "name": "尘土满身<br />使用猛钻造成伤害可提供最多30点探险家的决心护盾"
       },
       {
         "heroId": "0x02E000000000032B",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/efc80b3390618a1416b9e8698ca80bbf78eb6864ead9e3f977c0a57bcd55e93d.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d960ab39306289f689d7796d9ed40bc638e5ff8179c48be8cc6f7fa8a5b22497.png",
         "id": "0x0CC80000000025C7",
         "name": "轰轰钻机汹汹来袭<br />地壳震击激活时，各项冷却刷新速度加快300%"
       },
       {
         "heroId": "0x02E000000000032B",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d8c94fdde254c1b2a6bd23d22da9ec19c1599bd79e8aaba3d3210238f4ae78c1.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/74c79013c0286944d1b98298ed164d3d7d8f8c4248c3369af265fecadb7154b1.png",
         "id": "0x0CC80000000026BB",
         "name": "深岩掘地<br />钻地时，钻头突刺距离扩大50%"
       }
@@ -20193,51 +20929,51 @@
     "0x02E0000000000362": [
       {
         "heroId": "0x02E0000000000362",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f1b5f7785c190737f2a2ae39bab845d241746f9308d162d32b702a8a25898b4b.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/62bfe61a4ea9e9152030ab3b52d52d16eeb5db74fdb1109d1e9545e79011d62c.png",
         "id": "0x0CC8000000002594",
-        "name": "尖刺重构<br />尖刺墙命中会为尖刺护体充能25点能量，最多额外充能50点"
+        "name": "尖刺重构<br />尖刺墙命中会为尖刺护体过量充能25%额外能量"
       },
       {
         "heroId": "0x02E0000000000362",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/1cdf42ac88577ac330d467565ce66a8088a45a77c15dc97d7c99b6935dbecaf3.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/5769d726c1fd432aee499cc0adfc4812a82bd3a928af713302de5157e03986cd.png",
         "id": "0x0CC8000000002595",
-        "name": "激进狂热<br />尖刺护体的尖刺获得25%生命汲取"
+        "name": "激进狂热<br />尖刺护体的尖刺获得40%生命汲取"
       },
       {
         "heroId": "0x02E0000000000362",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/54ea72bd0d912e34afaa5e684b011b5d3bc4a4d220f4958c5d2c22067ed322f7.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/26384e47df6a6723ce3a777ae72b667f60f4bdf317ac87bd01df4af34dbb95b9.png",
         "id": "0x0CC8000000002596",
-        "name": "强劲狂跃<br />狂跃的范围扩大15%"
+        "name": "强劲狂跃<br />狂跃的范围扩大20%"
       },
       {
         "heroId": "0x02E0000000000362",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/715709c313f15557ca0b427903cc747b755a05ca9e9004bd6fe50b7cb478b5b8.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d6c6cff5997b09cc6c02c03b0d2bfce48afc4bbf3f95717ea337f633af985b5f.png",
         "id": "0x0CC800000000272C",
-        "name": "爆炸穿刺<br />骨刺命中后会在目标身上留下尖刺。快速近身攻击和狂跃的劈砍会引爆尖刺，造成40点爆炸伤害"
+        "name": "爆炸穿刺<br />骨刺命中后会在目标身上留下尖刺。快速近身攻击和狂跃的劈砍会引爆尖刺，造成30点爆炸伤害"
       }
     ],
     "0x02E0000000000365": [
       {
         "heroId": "0x02E0000000000365",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6346fdf40594e3e238c589f3922d3f5dbb59b21512b308e98ead0825d938b06b.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c797b7a1b9be4f7df0cf86824570d408ed7a0e4112ad51545b3eaf78c4dbf44a.png",
         "id": "0x0CC8000000002590",
         "name": "急救优先<br />脉冲星飞雷对盟友的锁定速度加快35%"
       },
       {
         "heroId": "0x02E0000000000365",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c568bfa38ccb6fb25baa54faaac1c7b8910664ab30931e8372f7cab38d6e3a21.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/477a3abe9f68e2a2324e3f2a8faeb14bb6102b2e0c272d93463d6d27726629ae.png",
         "id": "0x0CC80000000025E4",
         "name": "锁定打击<br />脉冲星飞雷每命中一名敌人，冷却时间缩短1秒"
       },
       {
         "heroId": "0x02E0000000000365",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e3e9e5aa508b432088d3265f2b75e86b012b7870939588a9be181ecd10c532a6.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/7b122bd8091f5005bfee07aa787f98126ddbe80aacdd11e7a2d076b9d03e35b2.png",
         "id": "0x0CC800000000265D",
         "name": "高速冲击枪<br />滑翔推进激活时，医疗冲击枪可以连续射击"
       },
       {
         "heroId": "0x02E0000000000365",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/1f5d28e8b48808d70fa210c0ff952beb47c4313613f0bfd09fce97abe5c359a0.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/efe7a92601ea7fc95274ee11d1628fb31238c707331b87545a7c754fcd48ca68.png",
         "id": "0x0CC8000000002721",
         "name": "飞上新高<br />火星套靴现在可以三段跳"
       }
@@ -20245,25 +20981,25 @@
     "0x02E00000000003C3": [
       {
         "heroId": "0x02E00000000003C3",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0699c838f8b52d5da9e2b19e67d9a0bcefa8374676096f3b080fcfebdd8d715b.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4159af4f1e6cb3fa0879727deec0d07d151a8b96e883b4b2e13ab570d840d514.png",
         "id": "0x0CC80000000025D2",
-        "name": "水满则溢<br />飞流步激活时，获得10发弹药和33%治疗资源"
+        "name": "水满则溢<br />飞流步激活时，获得10发弹药和50%治疗资源"
       },
       {
         "heroId": "0x02E00000000003C3",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4649e5729a8fcc1cb82876da5e0e6b9eec3a4e218fe2eaab1338ab31ae22844d.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ce177940cb80eb007a9b845861407335caf18048affe226b1e2c39b4a01c6b22.png",
         "id": "0x0CC80000000025D8",
-        "name": "潮涨潮落<br />翻江浪会回流至出发点。回流时造成的伤害量降低50%"
+        "name": "潮涨潮落<br />翻江浪会回流至出发点"
       },
       {
         "heroId": "0x02E00000000003C3",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2dc18d1c9c2715e4981393d3e957541537b14e5ee0b532d826465a99816ba862.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0ef4ae1adde715d22a18b57810ede98b0ed61b649d71364b0077ffe3dbb965fc.png",
         "id": "0x0CC80000000025D9",
-        "name": "阴阳平衡<br />用水珠造成伤害时，养神泉的被动治疗量提高40%，持续2秒"
+        "name": "阴阳平衡<br />用水珠造成伤害时，养神泉的被动治疗量提高30%，持续2秒"
       },
       {
         "heroId": "0x02E00000000003C3",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0747adb28994c38993e30ccdd743fd1a20c342407de5c7db0110f67ba2d02bbf.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b4b736a801ab836d8c66825bb8dfc7051333b54f42406ef79520c11d43159a7a.png",
         "id": "0x0CC80000000025DA",
         "name": "暴雨倾盆<br />可同时控制3颗水珠，每颗水珠造成的伤害降低60%，爆炸范围强化缩小25%"
       }
@@ -20271,27 +21007,21 @@
     "0x02E0000000000472": [
       {
         "heroId": "0x02E0000000000472",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/9c2ba71f2fa258af0cd1871d21e0992b973f391ae5650c017f708c476b3b39fd.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2f56f724364510363723ecace47dd3d08358146b1d689dca22fe1040c7f61705.png",
         "id": "0x0CC80000000025DF",
-        "name": "虹吸斩击<br />竖直劈斩获得30%生命汲取"
+        "name": "虹吸斩击<br />竖直劈斩获得40%生命汲取"
       },
       {
         "heroId": "0x02E0000000000472",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/66fe1e10b43ef611a7fe9ccdd9293729052d8cf4504c04cecd9a73af78267791.png",
-        "id": "0x0CC80000000025E0",
-        "name": "快意恩仇<br />将上一位对你造成最后一击的敌人作为目标。消灭目标会获得125点过量生命值并重置各项技能的冷却时间"
-      },
-      {
-        "heroId": "0x02E0000000000472",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4f3cf1a6597869ffeca041179c4cfdee3adb3f91137309d65e6d981460683abd.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/954fc7de0d9e63b963e255eb433ceba0a8fe7af235e93023bbc2788decec218e.png",
         "id": "0x0CC8000000002691",
-        "name": "狂怒风暴<br />旋风疾步会持续旋转，在大范围内额外攻击3次，每次伤害量为40点"
+        "name": "狂怒风暴<br />旋风疾步会持续旋转，在大范围内额外攻击3次，每次伤害量为30点"
       },
       {
         "heroId": "0x02E0000000000472",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d9753fa84f6eef65f4ddbc80851fe98dc93194a9440b14dc9d4cd2d7b7aea251.png",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6f16af6f1ddffb07db1c5885caf9ed63754c025d0ad7d0be09d7b45908fad80e.png",
         "id": "0x0CC800000000269B",
-        "name": "无情君威<br />越战越勇可额外叠加3次，每次会使攻击速度加快5%，移动速度加快4%"
+        "name": "无情君威<br />越战越勇可额外叠加3次，每次会使攻击速度加快5%，移动速度加快3%"
       },
       {
         "heroId": "0x02E0000000000472",
@@ -20302,28 +21032,28 @@
     ],
     "0x02E00000000004C4": [
       {
-        "heroId": "207165582859044036",
+        "heroId": "0x02E00000000004C4",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/e875e96eb7ae576aadb73eda105c4c75c7d6ee8e838db32d7f157e381eaff665.png",
         "id": "0x0CC800000000269E",
         "name": "高效设计<br />使用屏障阵列后，恢复50点护盾并激活被动生命值恢复"
       },
       {
-        "heroId": "207165582859044036",
+        "heroId": "0x02E00000000004C4",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/7dc9179235d865d3d3725fec2c7dce9a042a727dd2715028e30484ca97610336.png",
         "id": "0x0CC800000000269F",
         "name": "扰动爆破<br />被爆能水晶爆炸命中的敌人会被减速30%，持续2秒"
       },
       {
-        "heroId": "207165582859044036",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b323ce262b4a78ac62179d862e48600b093d296fbcc3bdc98b5b34bc65b5e864.png",
-        "id": "0x0CC80000000026A0",
-        "name": "强权压制<br />屏障阵列可作为音速斥力场击晕敌人所需的墙壁，此时伤害提升100%"
-      },
-      {
-        "heroId": "207165582859044036",
+        "heroId": "0x02E00000000004C4",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8525083a67878879365273e04f3a6b2f8585b804f457a4b34b005d52204a70cc.png",
         "id": "0x0CC80000000026A1",
         "name": "权力扩张<br />光子马格南的射程扩大20%"
+      },
+      {
+        "heroId": "0x02E00000000004C4",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6006092e920e1e719a22090967108f164083e4217a748fabfc00eb905724b421.png",
+        "id": "0x0CC8000000002957",
+        "name": "战略转移<br />屏障阵列激活时，可移动一次位置"
       }
     ],
     "0x02E00000000004D2": [
@@ -20331,7 +21061,7 @@
         "heroId": "0x02E00000000004D2",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/b61cf59f034272059a12bc580f5554c80cada3d3efb58bd2a50b6422f8dd228f.png",
         "id": "0x0CC80000000028EA",
-        "name": "紧盯不放<br />螺旋步枪的子弹散布收紧速度加快100%，放宽速度减慢30%"
+        "name": "紧盯不放<br />螺旋步枪的子弹散布收紧速度加快70%，放宽速度减慢30%"
       },
       {
         "heroId": "0x02E00000000004D2",
@@ -20349,30 +21079,30 @@
         "heroId": "0x02E00000000004D2",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/656d1dee1ba31c2433d36512c973f0958231dae8dcfc70226c16497819ddc65f.png",
         "id": "0x0CC80000000028EE",
-        "name": "锁定猛攻<br />发射追踪弹会使你的攻击速度加快20%，持续2秒"
+        "name": "锁定猛攻<br />追踪弹命中敌人会使你的攻击速度加快20%，持续2秒"
       }
     ],
     "0x02E00000000004D8": [
       {
-        "heroId": "207165582859044056",
+        "heroId": "0x02E00000000004D8",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c1e486e48f92254734e19a47d63672f81c187bfbcb524f9634fe295ea89d36ee.png",
         "id": "0x0CC800000000282E",
         "name": "赛博黏附<br />赛博手雷接触时会附着，对被附着的敌人额外造成40点伤害"
       },
       {
-        "heroId": "207165582859044056",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/c1e486e48f92254734e19a47d63672f81c187bfbcb524f9634fe295ea89d36ee.png",
+        "heroId": "0x02E00000000004D8",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/be7d093a726667fb18c02a46983edf58dda1e07c1e6b411e202461414d28ccba.png",
         "id": "0x0CC8000000002854",
-        "name": "散热装置<br />虹吸冲击枪直接命中会返还热量并使其持续时间延长0.1秒"
+        "name": "散热装置<br />虹吸冲击枪直接命中会返还60%热量并使其持续时间延长0.1秒"
       },
       {
-        "heroId": "207165582859044056",
+        "heroId": "0x02E00000000004D8",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/241ca51517666e1a6d64dda896c55d67151beab7e7ba1a54936beddb00186261.png",
         "id": "0x0CC8000000002858",
         "name": "压制安防<br />覆盖协议的轻型弹药会使敌人减速30%，持续1秒"
       },
       {
-        "heroId": "207165582859044056",
+        "heroId": "0x02E00000000004D8",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/0a82995c66a16506c6637fa41deefa87b913bb398126e68091ff308f544d9219.png",
         "id": "0x0CC80000000028AA",
         "name": "敏捷强化<br />虹吸冲击枪的移动速度加成在不开火时提高20%"
@@ -20383,7 +21113,7 @@
         "heroId": "0x02E00000000004DD",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/110e0b00345b359281b3ae871725d149051bed40fce266435806b4c390729722.png",
         "id": "0x0CC80000000027C4",
-        "name": "噬心狂炎<br />使用熠闪舞每命中一名敌人治疗50点生命值"
+        "name": "噬心狂炎<br />熠闪舞后续打击的治疗量提高25点"
       },
       {
         "heroId": "0x02E00000000004DD",
@@ -20395,7 +21125,7 @@
         "heroId": "0x02E00000000004DD",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/52a35ec19286d15384a73910c2763d02774674069f3cfd0ee5681afd545f3c82.png",
         "id": "0x0CC8000000002879",
-        "name": "烈火护体<br />终极技能每点燃一名敌人，获得60点过量生命值，可叠加至180点"
+        "name": "烈火护体<br />使用终极技能时获得50点过量生命值，用终极技能每点燃一名敌人，也会获得50点过量生命值"
       },
       {
         "heroId": "0x02E00000000004DD",
@@ -20406,25 +21136,25 @@
     ],
     "0x02E00000000004E3": [
       {
-        "heroId": "207165582859044067",
+        "heroId": "0x02E00000000004E3",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/f87c6cc1b61157dc4d40cac191544a3ebfa2c0a44b956e8526e6bf6eef6d5351.png",
         "id": "0x0CC8000000002841",
         "name": "共鸣飞返<br />疗魂斗笠额外弹跳一次。每弹跳一次，治疗量提高10点"
       },
       {
-        "heroId": "207165582859044067",
+        "heroId": "0x02E00000000004E3",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/44773ab19e89d3732249176897c44c9164c5099e5c8e29599255ba3cc3e29f62.png",
         "id": "0x0CC8000000002856",
         "name": "魂中破绽<br />用缚魂锁链命中敌人会使你对其造成的伤害提高30%，持续2秒"
       },
       {
-        "heroId": "207165582859044067",
+        "heroId": "0x02E00000000004E3",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/65dc63c40f3f40290ad291f9dda4f981e4cf9980b676946d1b145336b4aa1858.png",
         "id": "0x0CC800000000286F",
-        "name": "灵气奔涌<br />安魂灵气资源获取量提高25%"
+        "name": "灵气奔涌<br />安魂灵气获取量提高25%"
       },
       {
-        "heroId": "207165582859044067",
+        "heroId": "0x02E00000000004E3",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/d29b3404035091c9429058c468bef3b7cd9299a366e8fa203ef343177db586bd.png",
         "id": "0x0CC8000000002870",
         "name": "飞魂迅步<br />替魂纸人激活时，安魂灵气范围内的盟友移动速度加快25%"
@@ -20432,34 +21162,54 @@
     ],
     "0x02E0000000000516": [
       {
-        "heroId": "207165582859044118",
+        "heroId": "0x02E0000000000516",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/acd4b58fc4607cf4471de067547d9dd1fd1760fbf55d67217f0574567aa0e98b.png",
         "id": "0x0CC8000000002833",
-        "name": "带盾运输<br />运输其他英雄时获得最多75点额外护盾生命值"
+        "name": "带盾运输<br />运输其他英雄时获得最多50点额外护盾生命值"
       },
       {
-        "heroId": "207165582859044118",
+        "heroId": "0x02E0000000000516",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/8acbab332f33f9c286388451d5ba322cc0aea8baddaee562900dad4da1b9d777.png",
         "id": "0x0CC8000000002834",
-        "name": "火箭头槌<br />咻咻飞达到足够速度时，击中敌人会将其击退"
+        "name": "火箭头槌<br />咻咻飞达到足够速度可击退敌人，击中时造成50点伤害"
       },
       {
-        "heroId": "207165582859044118",
-        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4d113ff342b074640c75e870311307c43529d1c5e510a2c77ac7f455235d14be.png",
-        "id": "0x0CC8000000002835",
-        "name": "领地意识<br />呼噜噜还会对周围敌人造成伤害，数值为治疗量的50%。移除击退效果"
-      },
-      {
-        "heroId": "207165582859044118",
+        "heroId": "0x02E0000000000516",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/989caae5faf782438c32b4ed7451ac93ebff03d884c065c768c1cee265b8aae9.png",
         "id": "0x0CC80000000028B0",
-        "name": "嗷呜一爪<br />快速近身攻击每6秒获得一次强化，能创伤敌人，造成50点伤害，并在短时间内使其减速30%"
+        "name": "嗷呜一爪<br />快速近身攻击每6秒获得一次强化，能创伤敌人，造成40点伤害，并使其减速30%，持续1秒"
       },
       {
         "heroId": "0x02E0000000000516",
         "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6d7c27041b9a59820556eb5b7795fb1a320973482553c6f509d386b2cd371a80.png",
         "id": "0x0CC80000000028EF",
         "name": "别有用心<br />生物猫爪弹会恢复燃料，数值为治疗量的15%"
+      }
+    ],
+    "0x02E000000000052C": [
+      {
+        "heroId": "0x02E000000000052C",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/7d496f8a59eb6f13d661bc282be234e96a683862347777ec7281a92516b8bb1c.png",
+        "id": "0x0CC80000000028F3",
+        "name": "斩杀机器<br />交叉枪决对生命值低于50%的敌人造成的伤害提高20%"
+      },
+      {
+        "heroId": "0x02E000000000052C",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/89b16eb9226b933934040d80842d3bf395e058d7bfebc98f71250ddfcd86e2a4.png",
+        "id": "0x0CC8000000002959",
+        "name": "快速装填<br />机动闪避会装填9发弹药"
+      },
+      {
+        "heroId": "0x02E000000000052C",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/ef825e7cd91405f38bb5e0400b9d20162a01fa81e726d574528a0d3ef3812abc.png",
+        "id": "0x0CC800000000295F",
+        "name": "燃料补充<br />激活纵情狂飙时立即恢复50点生命值，且在激活期间每秒恢复20点生命值"
+      },
+      {
+        "heroId": "0x02E000000000052C",
+        "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/60e45c630f647bf5b254bb31b02c2597b8d7ace1e7444b05357b694dac3a1d54.png",
+        "id": "0x0CC8000000002962",
+        "name": "死神万相<br />获得其他三个输出副职责的被动效果（侦察、专业和神准）"
       }
     ]
   },
@@ -20503,6 +21253,11 @@
       "startTime": "2026.4.15",
       "endTime": "2026.6",
       "desc": "Y2026S2"
+    },
+    "23": {
+      "startTime": "2026.6",
+      "endTime": "",
+      "desc": "S23"
     }
   },
   "heroConfig": {

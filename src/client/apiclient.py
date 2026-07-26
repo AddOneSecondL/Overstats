@@ -5,6 +5,7 @@ from collections import deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 import hashlib
+import json
 import os
 from pathlib import Path
 import random
@@ -364,6 +365,90 @@ def _is_successful_upstream_payload(status_code: int, payload: Any) -> bool:
     return True
 
 
+def _compact_log_value(value: Any, *, max_length: int = 240) -> str:
+    if isinstance(value, (dict, list)):
+        try:
+            text = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        except (TypeError, ValueError):
+            text = str(value)
+    else:
+        text = str(value or "")
+    text = " ".join(text.split())
+    if len(text) > max_length:
+        return f"{text[: max_length - 3]}..."
+    return text
+
+
+def _response_failure_reason(response: httpx.Response) -> str:
+    reason_keys = (
+        "msg",
+        "message",
+        "error_description",
+        "error",
+        "detail",
+        "reason",
+        "title",
+    )
+    try:
+        payload = response.json()
+    except Exception:
+        payload = None
+
+    if isinstance(payload, dict):
+        for key in reason_keys:
+            value = payload.get(key)
+            if value not in (None, "", [], {}):
+                if isinstance(value, dict):
+                    for nested_key in reason_keys:
+                        nested_value = value.get(nested_key)
+                        if nested_value not in (None, "", [], {}):
+                            return _compact_log_value(nested_value)
+                return _compact_log_value(value)
+    elif payload not in (None, "", [], {}):
+        return _compact_log_value(payload)
+
+    try:
+        response_text = _compact_log_value(response.text)
+    except Exception:
+        response_text = ""
+    if response_text:
+        return response_text
+
+    reason_phrase = _compact_log_value(response.reason_phrase)
+    return reason_phrase or f"HTTP {response.status_code}"
+
+
+def _request_log_url(url: str) -> str:
+    try:
+        path = str(httpx.URL(url).path or "/")
+    except Exception:
+        path = str(url or "").split("?", 1)[0]
+    return path or "/"
+
+
+def _request_nickname(request_kwargs: Dict[str, Any]) -> str:
+    nickname_keys = (
+        "nickname",
+        "nick_name",
+        "player_name",
+        "playerName",
+        "bnet",
+        "bnet_id",
+        "battletag",
+        "battle_tag",
+        "name",
+    )
+    for container_key in ("params", "json", "data"):
+        container = request_kwargs.get(container_key)
+        if not isinstance(container, dict):
+            continue
+        for key in nickname_keys:
+            value = container.get(key)
+            if value not in (None, ""):
+                return _compact_log_value(value, max_length=80)
+    return ""
+
+
 def _metric_url_for_request(url: str, params: Any = None) -> str:
     try:
         normalized = httpx.URL(url)
@@ -604,29 +689,10 @@ class SafeClient:
         cur_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         context_suffix = f" {log_context}" if log_context else ""
         print(
-            f"[{cur_time}] [SafeClient {method} Error] "
+            f"[{cur_time}] [{method} Error] "
             f"route={route.label} slot={slot_kind} attempt={attempt} cost_ms={cost_ms} "
-            f"retry={will_retry} active={self._active_count()} slow={self._slow_count()}"
-            f"{context_suffix} URL: {url} | Error: {type(exc).__name__}({exc})"
-        )
-
-    def _log_slow_success(
-        self,
-        method: str,
-        url: str,
-        route: _SafeRoute,
-        cost_ms: int,
-        slot_kind: str,
-        log_context: Optional[str],
-    ) -> None:
-        if cost_ms < int(DASHEN_SLOW_REQUEST_SECONDS * 1000):
-            return
-        cur_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        context_suffix = f" {log_context}" if log_context else ""
-        print(
-            f"[{cur_time}] [SafeClient {method} Slow] "
-            f"route={route.label} slot={slot_kind} cost_ms={cost_ms} "
-            f"active={self._active_count()} slow={self._slow_count()}{context_suffix} URL: {url}"
+            f"retry={will_retry} active={self._active_count()}"
+            f"{context_suffix} URL: {_request_log_url(url)} | Error: {type(exc).__name__}({exc})"
         )
 
     def _log_request_start(
@@ -646,10 +712,10 @@ class SafeClient:
         cur_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         context_suffix = f" {log_context}" if log_context else ""
         print(
-            f"[{cur_time}] [SafeClient {method} Start] "
+            f"[{cur_time}] [{method} Start] "
             f"id={request_id} route={route.label} slot={slot_kind} attempt={attempt} "
-            f"active={self._active_count()} slow={self._slow_count()} start_rps={start_rps}/{REQUEST_LOG_WINDOW_SECONDS:.1f}s"
-            f"{context_suffix} URL: {url}"
+            f"active={self._active_count()} start_rps={start_rps}/{REQUEST_LOG_WINDOW_SECONDS:.1f}s"
+            f"{context_suffix} URL: {_request_log_url(url)}"
         )
 
     def _log_request_success(
@@ -671,12 +737,15 @@ class SafeClient:
         start_rps = _current_request_window_count(_request_started_timestamps, now)
         cur_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         context_suffix = f" {log_context}" if log_context else ""
+        reason_suffix = ""
+        if response.status_code != 200:
+            reason_suffix = f" reason={json.dumps(_response_failure_reason(response), ensure_ascii=False)}"
         print(
-            f"[{cur_time}] [SafeClient {method} Done] "
+            f"[{cur_time}] [{method} Done] "
             f"id={request_id} route={route.label} slot={slot_kind} attempt={attempt} status={response.status_code} "
-            f"cost_ms={cost_ms} active={self._active_count()} slow={self._slow_count()} "
+            f"cost_ms={cost_ms} active={self._active_count()} "
             f"start_rps={start_rps}/{REQUEST_LOG_WINDOW_SECONDS:.1f}s done_rps={done_rps}/{REQUEST_LOG_WINDOW_SECONDS:.1f}s"
-            f"{context_suffix} URL: {url}"
+            f"{context_suffix}{reason_suffix} URL: {_request_log_url(str(response.url))}"
         )
 
     async def _request_with_retry(
@@ -702,7 +771,6 @@ class SafeClient:
                 cost_ms = int((time.monotonic() - started_at) * 1000)
                 self._record_route_success(route)
                 self._log_request_success(request_id, method, url, route, response, cost_ms, attempt, slot_kind, log_context)
-                self._log_slow_success(method, url, route, cost_ms, slot_kind, log_context)
                 return response
             except Exception as exc:
                 cost_ms = int((time.monotonic() - started_at) * 1000)
@@ -723,6 +791,10 @@ class SafeClient:
         rate_limit_identity: Optional[str] = None,
         **kwargs: Any,
     ) -> httpx.Response:
+        nickname = _request_nickname(kwargs)
+        if nickname:
+            nickname_context = f"nickname={json.dumps(nickname, ensure_ascii=False)}"
+            log_context = f"{log_context} {nickname_context}" if log_context else nickname_context
         sem, slot_kind = await self._acquire_slot()
         domain_host, domain_limit = _domain_limit_for_url(url)
         domain_sem = get_domain_semaphore(domain_host, domain_limit) if domain_host and domain_limit else None
@@ -972,7 +1044,7 @@ class DashenAPIClient:
             if response.status_code in {401, 403}:
                 self.credential_pool.mark_failure(
                     credential,
-                    reason=f"http_{response.status_code}",
+                    reason=_response_failure_reason(response),
                 )
             else:
                 self.credential_pool.mark_success(credential)
