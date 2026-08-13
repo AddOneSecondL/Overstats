@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ...constants.backgrounds import build_random_map_background
+from ...constants.ranks import RANK_LABELS_CN, strength_score_to_icon_level
 
 from .engine import score_to_rank
 
@@ -17,8 +18,16 @@ except ModuleNotFoundError:
 
 try:
     from overstats.src.modules.font_resolver import load_font
+    from overstats.src.modules.risk_status import (
+        draw_risk_status_badge,
+        measure_risk_status_badge,
+    )
 except ModuleNotFoundError:
     from src.modules.font_resolver import load_font
+    from src.modules.risk_status import (
+        draw_risk_status_badge,
+        measure_risk_status_badge,
+    )
 
 
 def _resolve_resource_dir() -> Path:
@@ -34,18 +43,7 @@ def _resolve_resource_dir() -> Path:
 
 
 RESOURCE_DIR = _resolve_resource_dir()
-RANK_BREAKPOINTS = [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500]
-RANK_LABELS_CN = {
-    "Bronze": "青铜",
-    "Silver": "白银",
-    "Gold": "黄金",
-    "Platinum": "白金",
-    "Diamond": "钻石",
-    "Master": "大师",
-    "Grandmaster": "宗师",
-    "Champion": "英杰",
-    "Unranked": "未定级",
-}
+RANK_BREAKPOINTS = [500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500]
 RESULT_LABELS = {1: "胜", -1: "负", 0: "平"}
 DEFAULT_STRENGTH_THEME = {
     "range_color": (140, 214, 255, 188),
@@ -76,6 +74,7 @@ def render_quick_strength(
     summary: Dict[str, Any],
     matches: Sequence[Dict[str, Any]],
     avatar_bytes: Optional[bytes] = None,
+    risk_status: Any = None,
     config: Optional[Dict[str, Any]] = None,
     theme: Optional[Dict[str, Any]] = None,
     title_text: str = "快速强度指数",
@@ -128,6 +127,7 @@ def render_quick_strength(
         bnet_id=bnet_id,
         summary=summary,
         avatar_bytes=avatar_bytes,
+        risk_status=risk_status,
         fonts=fonts,
         scale=scale,
         theme=active_theme,
@@ -229,6 +229,7 @@ def _draw_header(
     bnet_id: str,
     summary: Dict[str, Any],
     avatar_bytes: Optional[bytes],
+    risk_status: Any,
     fonts: Dict[str, Any],
     scale: int,
     theme: Dict[str, Any],
@@ -271,9 +272,27 @@ def _draw_header(
 
     title_x = 188 * scale
     name_font = fonts[_player_name_font_key(name_text)]
+    badge_max_width = 240 * scale
+    badge_width, _, _ = measure_risk_status_badge(
+        draw,
+        risk_status,
+        font=fonts["font_meta"],
+        padding_x=8 * scale,
+        padding_y=3 * scale,
+        max_width=badge_max_width,
+    )
+    if badge_width:
+        player_region_right = 760 * scale
+        max_name_width = max(
+            80 * scale,
+            player_region_right - title_x - badge_width - 36 * scale,
+        )
+        rendered_name = _fit_text(draw, name_text, name_font, max_name_width)
+    else:
+        rendered_name = name_text
     draw.text(
         (title_x, 42 * scale),
-        name_text,
+        rendered_name,
         font=name_font,
         fill=(242, 247, 255, 255),
     )
@@ -291,9 +310,24 @@ def _draw_header(
         fill=(158, 178, 205, 255),
     )
 
-    name_width = _measure_text(draw, name_text, name_font)
+    name_width = _measure_text(draw, rendered_name, name_font)
     summary_x = max(500 * scale, title_x + name_width + 4 * scale)
-    summary_x = min(summary_x, 660 * scale)
+    if badge_width:
+        badge_x = title_x + name_width + 12 * scale
+        badge_width, _ = draw_risk_status_badge(
+            draw,
+            badge_x,
+            47 * scale,
+            risk_status,
+            font=fonts["font_meta"],
+            padding_x=8 * scale,
+            padding_y=3 * scale,
+            max_width=badge_max_width,
+        )
+        summary_x = max(summary_x, badge_x + badge_width + 18 * scale)
+        summary_x = min(summary_x, 760 * scale)
+    else:
+        summary_x = min(summary_x, 660 * scale)
     _draw_summary_block(
         canvas,
         draw,
@@ -427,11 +461,11 @@ def _draw_chart(
 
     score_values = _collect_chart_scores(matches)
     if not score_values:
-        score_min = 1000
+        score_min = 500
         score_max = 5000
     else:
-        score_min = max(900, min(score_values) - 180)
-        score_max = min(5100, max(score_values) + 180)
+        score_min = max(400, min(score_values) - 180)
+        score_max = min(5000, max(score_values) + 180)
         score_min = (score_min // 100) * 100
         score_max = ((score_max + 99) // 100) * 100
         if score_max - score_min < 1200:
@@ -943,27 +977,7 @@ def _summary_rank_icon_size(rank_level: int, *, scale: int) -> Tuple[int, int]:
 
 
 def _rank_icon_level_from_score(score: float) -> int:
-    try:
-        score_num = int(float(score))
-    except (TypeError, ValueError):
-        return 0
-    if score_num <= 0:
-        return 0
-    if score_num < 1500:
-        return 1
-    if score_num < 2000:
-        return 2
-    if score_num < 2500:
-        return 3
-    if score_num < 3000:
-        return 4
-    if score_num < 3500:
-        return 5
-    if score_num < 4000:
-        return 6
-    if score_num < 4500:
-        return 7
-    return 8
+    return strength_score_to_icon_level(score)
 
 
 def _score_to_rank_cn(score: Any) -> str:

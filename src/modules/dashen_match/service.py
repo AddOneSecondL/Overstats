@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import copy
 from collections import OrderedDict
 from dataclasses import dataclass, field
 import json
@@ -15,13 +16,17 @@ import httpx
 try:
     from overstats.config import config as app_config
     from overstats.src.client.apiclient import DashenAPIClient
+    from overstats.src.constants.ranks import get_rank_score
     from overstats.src.modules.bnet_search import BnetSearchModule, BnetSearchResult, bnet_search_module
     from overstats.src.modules.errors import ModuleError
+    from overstats.src.modules.risk_status import RiskStatus, parse_risk_status
 except ModuleNotFoundError:
     from config import config as app_config
     from src.client.apiclient import DashenAPIClient
+    from src.constants.ranks import get_rank_score
     from src.modules.bnet_search import BnetSearchModule, BnetSearchResult, bnet_search_module
     from src.modules.errors import ModuleError
+    from src.modules.risk_status import RiskStatus, parse_risk_status
 from ..analysis_common import build_async_client as build_analysis_async_client
 from ..analysis_common import get_analysis_proxy
 
@@ -214,7 +219,13 @@ class DashenMatchModule:
         query, resolved_bnet = await self._resolve_query(query)
         matches = await self.requests.list_recent_matches(query)
         full_id = resolved_bnet.full_id if resolved_bnet else (query.bnet_id or f"token:{query.customer_token}")
-        image = render_match_list(matches, full_id=full_id) if render else None
+        image = None
+        if render:
+            risk_status = await self._fetch_player_risk_status(query.customer_token)
+            render_kwargs: Dict[str, Any] = {"full_id": full_id}
+            if risk_status is not None:
+                render_kwargs["risk_status"] = risk_status
+            image = render_match_list(matches, **render_kwargs)
         self._store_reply_context(query, resolved_bnet, matches)
         return DashenMatchListOutput(
             matches=matches,
@@ -255,16 +266,15 @@ class DashenMatchModule:
         render: bool = True,
     ) -> DashenMatchDetailOutput:
         detail = await self.requests.get_match_detail(customer_token, match)
-        image = (
-            render_match_detail(
-                detail.payload,
+        image = None
+        if render:
+            enriched_detail = await self._hydrate_match_detail_risk_statuses(detail.payload)
+            image = render_match_detail(
+                enriched_detail,
                 source_match=detail.source_match,
                 query_full_id=query_full_id,
                 query_bnet_id=query_bnet_id,
             )
-            if render
-            else None
-        )
         return DashenMatchDetailOutput(detail=detail, customer_token=customer_token, image=image)
 
     async def query_match_detail_by_index(
@@ -285,16 +295,15 @@ class DashenMatchModule:
                 details={"index": index, "match_count": len(matches)},
             )
         detail = await self.requests.get_match_detail(query.customer_token, matches[index])
-        image = (
-            render_match_detail(
-                detail.payload,
+        image = None
+        if render:
+            enriched_detail = await self._hydrate_match_detail_risk_statuses(detail.payload)
+            image = render_match_detail(
+                enriched_detail,
                 source_match=detail.source_match,
                 query_full_id=resolved_bnet.full_id if resolved_bnet else query.bnet_id,
                 query_bnet_id=resolved_bnet.bnet_id if resolved_bnet else "",
             )
-            if render
-            else None
-        )
         return DashenMatchDetailOutput(
             detail=detail,
             customer_token=query.customer_token,
@@ -362,20 +371,25 @@ class DashenMatchModule:
         )
         query_bnet_id = (resolved_bnet.bnet_id if resolved_bnet else "") or (str(query.bnet_id or "") if query else "")
 
-        main_image = render_match_detail(
+        target_risk_status = await self._fetch_player_risk_status(customer_token)
+        detail_root = await self._hydrate_match_detail_risk_statuses(
             detail.payload,
+            known_risk_statuses={customer_token: target_risk_status},
+        )
+        main_image = render_match_detail(
+            detail_root,
             source_match=detail.source_match or source_match,
             query_full_id=query_full_id,
             query_bnet_id=query_bnet_id,
         )
-        main_image = decorate_rendered_image_header(
-            main_image,
-            query_full_id,
-            bnet_id=query_bnet_id,
-            subtitle="角斗对局主战绩" if detail.match_kind == "fight" else "大神对局主战绩",
-        )
+        main_header_kwargs: Dict[str, Any] = {
+            "bnet_id": query_bnet_id,
+            "subtitle": "角斗对局主战绩" if detail.match_kind == "fight" else "大神对局主战绩",
+        }
+        if target_risk_status is not None:
+            main_header_kwargs["risk_status"] = target_risk_status
+        main_image = decorate_rendered_image_header(main_image, query_full_id, **main_header_kwargs)
 
-        detail_root = _extract_match_detail_data(detail.payload)
         ordered_player_ids = self._ordered_player_ids(detail_root)
         is_competitive_match = self._is_competitive_match(detail_root, detail.match_kind, detail.source_match or source_match)
         replies = [
@@ -415,7 +429,10 @@ class DashenMatchModule:
                 query_bnet_id=query_bnet_id,
             )
             waterfall = render_all_players_waterfall(player_details, match_game_time_sec=detail_root.get("gameTimeSec"))
-            waterfall = decorate_rendered_image_header(waterfall, query_full_id, bnet_id=query_bnet_id, subtitle="全员详细数据")
+            waterfall_header_kwargs: Dict[str, Any] = {"bnet_id": query_bnet_id, "subtitle": "全员详细数据"}
+            if target_risk_status is not None:
+                waterfall_header_kwargs["risk_status"] = target_risk_status
+            waterfall = decorate_rendered_image_header(waterfall, query_full_id, **waterfall_header_kwargs)
             replies.append(_image_reply(waterfall))
             if analyze:
                 analysis_result = await self._build_ai_analysis(
@@ -443,7 +460,10 @@ class DashenMatchModule:
                 focus_detail,
                 match_game_time_sec=detail_root.get("gameTimeSec"),
             )
-            detail_image = decorate_rendered_image_header(detail_image, query_full_id, bnet_id=query_bnet_id, subtitle="英雄详细数据")
+            detail_header_kwargs: Dict[str, Any] = {"bnet_id": query_bnet_id, "subtitle": "英雄详细数据"}
+            if target_risk_status is not None:
+                detail_header_kwargs["risk_status"] = target_risk_status
+            detail_image = decorate_rendered_image_header(detail_image, query_full_id, **detail_header_kwargs)
             replies.append(_image_reply(detail_image))
 
         return DashenMatchRepliesOutput(
@@ -591,9 +611,9 @@ class DashenMatchModule:
         if match_kind == "fight":
             return "sportfight" in str((source_match or {}).get("gameMode") or "").lower()
         for player in list(detail_root.get("teammateList") or []) + list(detail_root.get("enemyList") or []):
-            rank_info = player.get("rankInfo") or {}
+            rank_info = player.get("rankInfo") or player.get("rank_info") or {}
             try:
-                if int(rank_info.get("rankScore") or 0) > 0:
+                if int(get_rank_score(rank_info) or 0) > 0:
                     return True
             except (TypeError, ValueError):
                 continue
@@ -637,19 +657,23 @@ class DashenMatchModule:
                         "team_type": team_type,
                         "rankInfo": player.get("rankInfo") or {},
                         "bnet_id": str(player.get("bnetId") or ""),
+                        "customer_token": str(player.get("customerToken") or player.get("customer_token") or "").strip(),
+                        "risk_status": player.get("riskStatus") or player.get("risk_status"),
                     }
                 )
 
         async def fetch_target(target: Dict[str, Any]) -> Dict[str, Any]:
             full_name = str(target.get("name") or "")
-            if full_name.lower() == target_id.lower():
+            token = str(target.get("customer_token") or "").strip()
+            if not token:
                 token = await self._resolve_player_customer_token(full_name)
+            if full_name.lower() == target_id.lower():
                 try:
                     card_payload = await self._fetch_cached_player_card(token) if token else {}
                 except Exception:
                     card_payload = {}
                 card_data = card_payload.get("data") if isinstance(card_payload, dict) and isinstance(card_payload.get("data"), dict) else {}
-                return {
+                result = {
                     "name": full_name,
                     "heroList": detail_root.get("heroList") or [],
                     "bnet_id": target.get("bnet_id") or query_bnet_id,
@@ -658,7 +682,10 @@ class DashenMatchModule:
                     "icon": str(card_data.get("icon") or "").strip(),
                     "success": True,
                 }
-            token = await self._resolve_player_customer_token(full_name)
+                risk_status = parse_risk_status(card_payload) or parse_risk_status(target.get("risk_status"))
+                if risk_status is not None:
+                    result["riskStatus"] = risk_status.to_dict()
+                return result
             if not token:
                 return {"name": full_name, "team_type": target.get("team_type"), "success": False}
             detail_payload, card_payload = await asyncio.gather(
@@ -669,7 +696,7 @@ class DashenMatchModule:
             payload = detail_payload if isinstance(detail_payload, dict) else {}
             root = _extract_match_detail_data(payload)
             card_data = card_payload.get("data") if isinstance(card_payload, dict) and isinstance(card_payload.get("data"), dict) else {}
-            return {
+            result = {
                 "name": full_name,
                 "heroList": root.get("heroList") or [],
                 "bnet_id": target.get("bnet_id"),
@@ -678,6 +705,10 @@ class DashenMatchModule:
                 "icon": str(card_data.get("icon") or "").strip(),
                 "success": bool(root.get("heroList")),
             }
+            risk_status = parse_risk_status(card_payload) or parse_risk_status(target.get("risk_status"))
+            if risk_status is not None:
+                result["riskStatus"] = risk_status.to_dict()
+            return result
 
         results = await asyncio.gather(*(fetch_target(item) for item in all_targets), return_exceptions=True)
         valid: List[Dict[str, Any]] = []
@@ -694,18 +725,19 @@ class DashenMatchModule:
                 if str(enemy.get("name") or "").strip() == focus_name:
                     team_type = "enemy"
                     break
-            valid.insert(
-                0,
-                {
-                    "name": target_id,
-                    "heroList": detail_root.get("heroList") or [],
-                    "bnet_id": query_bnet_id,
-                    "rankInfo": focus_player.get("rankInfo") or {},
-                    "team_type": team_type,
-                    "icon": "",
-                    "success": True,
-                },
-            )
+            fallback = {
+                "name": target_id,
+                "heroList": detail_root.get("heroList") or [],
+                "bnet_id": query_bnet_id,
+                "rankInfo": focus_player.get("rankInfo") or {},
+                "team_type": team_type,
+                "icon": "",
+                "success": True,
+            }
+            fallback_risk_status = parse_risk_status(focus_player.get("riskStatus") or focus_player.get("risk_status"))
+            if fallback_risk_status is not None:
+                fallback["riskStatus"] = fallback_risk_status.to_dict()
+            valid.insert(0, fallback)
         ordered_names = {name.lower(): idx for idx, name in enumerate(self._ordered_player_ids(detail_root))}
         valid.sort(
             key=lambda item: (
@@ -756,6 +788,66 @@ class DashenMatchModule:
                 pass
         _cache_put(_PLAYER_CARD_CACHE, cache_key, payload, ttl=PLAYER_CARD_CACHE_TTL, max_size=PLAYER_CARD_CACHE_MAX)
         return payload
+
+    async def _fetch_player_risk_status(self, customer_token: str) -> Optional[RiskStatus]:
+        try:
+            return parse_risk_status(await self._fetch_cached_player_card(customer_token))
+        except Exception:
+            return None
+
+    async def _hydrate_match_detail_risk_statuses(
+        self,
+        payload: Dict[str, Any],
+        *,
+        known_risk_statuses: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Copy match detail and attach queryCard restrictions to rendered players."""
+
+        detail_root = copy.deepcopy(_extract_match_detail_data(payload))
+        players: List[Dict[str, Any]] = []
+
+        def collect_from(container: Any) -> None:
+            if not isinstance(container, dict):
+                return
+            for team_key in ("teammateList", "enemyList"):
+                for player in container.get(team_key, []) or []:
+                    if isinstance(player, dict):
+                        players.append(player)
+
+        collect_from(detail_root)
+        collect_from(detail_root.get("totalCount"))
+        for round_data in detail_root.get("roundCountList", []) or []:
+            collect_from(round_data)
+
+        players_by_token: Dict[str, List[Dict[str, Any]]] = {}
+        for player in players:
+            customer_token = str(player.get("customerToken") or player.get("customer_token") or "").strip()
+            if customer_token:
+                players_by_token.setdefault(customer_token, []).append(player)
+
+        normalized_known: Dict[str, Optional[RiskStatus]] = {}
+        for customer_token, value in (known_risk_statuses or {}).items():
+            token = str(customer_token or "").strip()
+            if token:
+                normalized_known[token] = parse_risk_status(value)
+
+        missing_tokens = [token for token in players_by_token if token not in normalized_known]
+        fetched = await asyncio.gather(
+            *(self._fetch_player_risk_status(token) for token in missing_tokens),
+            return_exceptions=True,
+        )
+        for token, result in zip(missing_tokens, fetched):
+            normalized_known[token] = result if isinstance(result, RiskStatus) else None
+
+        for token, token_players in players_by_token.items():
+            risk_status = normalized_known.get(token)
+            if risk_status is None:
+                continue
+            normalized = risk_status.to_dict()
+            for player in token_players:
+                player["riskStatus"] = dict(normalized)
+
+        return detail_root
 
     async def _build_ai_analysis(
         self,

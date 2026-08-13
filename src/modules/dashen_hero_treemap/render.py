@@ -11,9 +11,11 @@ from ...constants.backgrounds import build_random_map_background
 try:
     from overstats.src.modules.font_resolver import load_font
     from overstats.src.modules.query_tool import get_cached_asset_path
+    from overstats.src.modules.risk_status import draw_risk_status_badge
 except ModuleNotFoundError:
     from src.modules.font_resolver import load_font
     from src.modules.query_tool import get_cached_asset_path
+    from src.modules.risk_status import draw_risk_status_badge
 
 from .engine import ROLE_LABELS
 
@@ -212,11 +214,24 @@ def _draw_header(
 
     title = "英雄云图"
     display_name = str(player.get("display_name") or "").strip() or "未知玩家"
-    subtitle = f"{display_name}  |  {_mode_label(mode)}"
     season_text = _season_label(season)
 
     draw.text((box[0] + 24, box[1] + 20), title, font=fonts["header_title"], fill=TEXT_PRIMARY)
-    draw.text((box[0] + 26, box[1] + 74), subtitle, font=fonts["header_emphasis"], fill=TEXT_SECONDARY)
+    player_x = box[0] + 26
+    player_y = box[1] + 74
+    draw.text((player_x, player_y), display_name, font=fonts["header_emphasis"], fill=TEXT_SECONDARY)
+    player_width = _measure(draw, display_name, fonts["header_emphasis"])[0]
+    badge_width, _ = draw_risk_status_badge(
+        draw,
+        player_x + player_width + 12,
+        player_y - 2,
+        player.get("risk_status"),
+        font=fonts["header_meta"],
+        padding_x=9,
+        padding_y=4,
+    )
+    mode_x = player_x + player_width + (badge_width + 24 if badge_width else 12)
+    draw.text((mode_x, player_y), f"|  {_mode_label(mode)}", font=fonts["header_emphasis"], fill=TEXT_SECONDARY)
     _draw_header_meta_row(
         draw,
         x=box[0] + 26,

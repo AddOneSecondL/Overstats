@@ -1,6 +1,6 @@
 {
   "antiCrawlerConfig": {
-    "enabled": true,
+    "enabled": false,
     "searchEnabled": true,
     "minEndorsementLevel": 1,
     "minGameTimeMinutes": 600,
@@ -27,15 +27,21 @@
     "yd.921245d92f5f48ca9@163.com",
     "13521910363"
   ],
-  "dynamicBanner": [],
+  "dynamicBanner": [
+    {
+      "img": "https://img.166.net/gameyw-misc/opd/squash/20260806/112554-bn9drajwvi.png",
+      "url": "https://act.ds.163.com/6cd050e87b181b32/6a6ae17030d6bc055216045d/gl/?wvFullScreen=true&wvStatusBarStyle=white"
+    }
+  ],
   "isOpenCustomerFreind": true,
-  "isOpenSuperSetting": true,
+  "isOpenSuperSetting": false,
   "AIEvaluateConfig": [
     {
       "mode": "SportPreset",
       "seasonIdList": [
         "22",
-        "23"
+        "23",
+        "24"
       ],
       "name": "竞技比赛"
     },
@@ -43,7 +49,8 @@
       "mode": "LeisurePreset",
       "seasonIdList": [
         "22",
-        "23"
+        "23",
+        "24"
       ],
       "name": "休闲比赛"
     },
@@ -79,7 +86,7 @@
       "prodUrl": "https://support.battlenet.com.cn/ld5/question/detail?template=ajfk_cht_ow_negative_ds"
     }
   ],
-  "noticeMessage": "个人绑定数据已恢复正常！",
+  "noticeMessage": "部分对局数据存在异常，正在处理中！",
   "pcNoticeMessage": {
     "sport": "",
     "leisure": "",
@@ -1205,7 +1212,7 @@
       "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173228-hm0wp6s9r8.png",
       "level": [
         0,
-        1499
+        999
       ]
     },
     {
@@ -1213,8 +1220,8 @@
       "name": "白银",
       "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173228-54lydwzj1b.png",
       "level": [
-        1500,
-        1999
+        1000,
+        1499
       ]
     },
     {
@@ -1222,14 +1229,23 @@
       "name": "黄金",
       "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173228-lqado269cb.png",
       "level": [
-        2000,
-        2499
+        1500,
+        1999
       ]
     },
     {
       "key": "Platinum",
       "name": "白金",
       "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173228-9zfa7bjkc6.png",
+      "level": [
+        2000,
+        2499
+      ]
+    },
+    {
+      "key": "Emerald",
+      "name": "翡翠",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20260812/110401-ylm2tg3nop.png",
       "level": [
         2500,
         2999
@@ -1950,7 +1966,7 @@
       "icon": "https://img.166.net/gameyw-misc/opd/squash/20260409/093913-tiza8w2vmd.png",
       "smallIconUrl": "https://img.166.net/gameyw-misc/opd/squash/20260409/093806-jsn02kgu8a.png",
       "cover": "",
-      "destinyHeroBanner": "",
+      "destinyHeroBanner": "https://img.166.net/gameyw-misc/opd/squash/20260811/131421-z4j5o8wu31.png",
       "ddHeroIcon": "https://img.166.net/gameyw-misc/opd/squash/20260509/142317-5vpiksb4hf.png"
     },
     {
@@ -1961,6 +1977,18 @@
       "name": "死怨",
       "icon": "https://img.166.net/gameyw-misc/opd/squash/20260617/103249-5seylwhsvc.png",
       "smallIconUrl": "https://img.166.net/gameyw-misc/opd/squash/20260617/103249-y40i5fglj9.png",
+      "cover": "",
+      "destinyHeroBanner": "https://img.166.net/gameyw-misc/opd/squash/20260811/131236-6p9avmoh2u.png",
+      "ddHeroIcon": ""
+    },
+    {
+      "id": "0x02E0000000000542",
+      "heroGuid": "207165582859044162",
+      "roleGuid": "972777519512029264",
+      "roleType": "tank",
+      "name": "D.Mon",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20260811/221615-1ycb8irolk.png",
+      "smallIconUrl": "https://img.166.net/gameyw-misc/opd/squash/20260812/030234-bekicjoms2.png",
       "cover": "",
       "destinyHeroBanner": "",
       "ddHeroIcon": ""
@@ -19551,6 +19579,41 @@
       "valueType": "通用数据"
     },
     {
+      "heroGuid": "207165582859044162",
+      "heroName": "D.Mon",
+      "valueGuid": "603482350067648623",
+      "valueText": "英雄获胜",
+      "valueType": "通用数据"
+    },
+    {
+      "heroGuid": "207165582859044162",
+      "heroName": "D.Mon",
+      "valueGuid": "603482350067650470",
+      "valueText": "无极斩消灭",
+      "valueType": "特色数据"
+    },
+    {
+      "heroGuid": "207165582859044162",
+      "heroName": "D.Mon",
+      "valueGuid": "603482350067650466",
+      "valueText": "聚变连发枪命中率",
+      "valueType": "特色数据"
+    },
+    {
+      "heroGuid": "207165582859044162",
+      "heroName": "D.Mon",
+      "valueGuid": "603482350067650475",
+      "valueText": "聚变连发枪消灭",
+      "valueType": "特色数据"
+    },
+    {
+      "heroGuid": "207165582859044162",
+      "heroName": "D.Mon",
+      "valueGuid": "603482350067647626",
+      "valueText": "强化伤害",
+      "valueType": "特色数据"
+    },
+    {
       "heroGuid": "207165582859044056",
       "heroName": "埃姆雷",
       "valueGuid": "603482350067646497",
@@ -19812,6 +19875,13 @@
     {
       "heroGuid": "207165582859044140",
       "heroName": "死怨",
+      "valueGuid": "603482350067646497",
+      "valueText": "累计游戏时间",
+      "valueType": "通用数据"
+    },
+    {
+      "heroGuid": "207165582859044162",
+      "heroName": "D.Mon",
       "valueGuid": "603482350067646497",
       "valueText": "累计游戏时间",
       "valueType": "通用数据"
@@ -21258,6 +21328,11 @@
       "startTime": "2026.6",
       "endTime": "",
       "desc": "S23"
+    },
+    "24": {
+      "startTime": "2026.6",
+      "endTime": "",
+      "desc": "S24"
     }
   },
   "heroConfig": {

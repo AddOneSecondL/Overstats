@@ -4,16 +4,20 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
 try:
+    from overstats.src.constants.ranks import get_rank_score, get_rank_sub_tier, raw_rank_score_to_icon_level
     from overstats.src.client.apiclient import DashenAPIClient
     from overstats.src.modules.bnet_search import BnetSearchModule, BnetSearchResult, bnet_search_module
     from overstats.src.modules.dashen_profile import get_live_dashen_season
     from overstats.src.modules.errors import ModuleError
+    from overstats.src.modules.risk_status import RiskStatus, parse_risk_status
     from overstats.src.modules.season_config import get_dashen_history_start_season
 except ModuleNotFoundError:
+    from src.constants.ranks import get_rank_score, get_rank_sub_tier, raw_rank_score_to_icon_level
     from src.client.apiclient import DashenAPIClient
     from src.modules.bnet_search import BnetSearchModule, BnetSearchResult, bnet_search_module
     from src.modules.dashen_profile import get_live_dashen_season
     from src.modules.errors import ModuleError
+    from src.modules.risk_status import RiskStatus, parse_risk_status
     from src.modules.season_config import get_dashen_history_start_season
 
 from .render import HISTORY_SUBTITLE, RenderedImage, collect_missing_assets, render_rank_history
@@ -42,6 +46,7 @@ class DashenRankHistoryOutput:
     missing_assets: Sequence[str]
     resolved_bnet: Optional[BnetSearchResult] = None
     image: Optional[RenderedImage] = None
+    risk_status: Optional[RiskStatus] = None
 
 
 class DashenRankHistoryModule:
@@ -79,12 +84,23 @@ class DashenRankHistoryModule:
             bnet_id = query.bnet_id
 
         image = None
+        risk_status = None
         if render:
             try:
+                try:
+                    card_payload = await self.requests.api_client.query_card(query.customer_token)
+                except Exception:
+                    card_payload = {}
+                card_data = card_payload.get("data") if isinstance(card_payload, dict) else None
+                if isinstance(card_data, dict):
+                    risk_status = parse_risk_status(card_data)
+                    full_id = str(card_data.get("name") or full_id).strip()
+                    bnet_id = str(card_data.get("bnetId") or bnet_id).strip()
                 image = render_rank_history(
                     player_name=full_id or bnet_id or query.bnet_id or "Unknown",
                     subtitle=HISTORY_SUBTITLE,
                     seasons=seasons,
+                    risk_status=risk_status,
                 )
             except RuntimeError as exc:
                 raise ModuleError(
@@ -103,6 +119,7 @@ class DashenRankHistoryModule:
             seasons=tuple(seasons),
             raw_seasons=tuple(raw_seasons),
             missing_assets=tuple(missing_assets),
+            risk_status=risk_status,
             resolved_bnet=resolved_bnet,
             image=image,
         )
@@ -233,14 +250,14 @@ class DashenRankHistoryModule:
                     "win_rate": win_rate,
                     "win_sum": int(match_sum * win_rate / 100) if match_sum > 0 else 0,
                     "current": {
-                        "rank_score": self._safe_int(last_rank_info.get("rankScore")),
-                        "rank_sub_tier": self._safe_int(last_rank_info.get("rankSubTier")),
-                        "rank_level": (self._safe_int(last_rank_info.get("rankScore")) // 100) + 1 if self._safe_int(last_rank_info.get("rankScore")) > 0 else 0,
+                        "rank_score": self._safe_int(get_rank_score(last_rank_info)),
+                        "rank_sub_tier": self._safe_int(get_rank_sub_tier(last_rank_info)),
+                        "rank_level": raw_rank_score_to_icon_level(get_rank_score(last_rank_info)),
                     },
                     "peak": {
-                        "rank_score": self._safe_int(max_rank_info.get("rankScore")),
-                        "rank_sub_tier": self._safe_int(max_rank_info.get("rankSubTier")),
-                        "rank_level": (self._safe_int(max_rank_info.get("rankScore")) // 100) + 1 if self._safe_int(max_rank_info.get("rankScore")) > 0 else 0,
+                        "rank_score": self._safe_int(get_rank_score(max_rank_info)),
+                        "rank_sub_tier": self._safe_int(get_rank_sub_tier(max_rank_info)),
+                        "rank_level": raw_rank_score_to_icon_level(get_rank_score(max_rank_info)),
                     },
                 }
             )

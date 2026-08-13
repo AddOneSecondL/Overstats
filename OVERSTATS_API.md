@@ -315,7 +315,7 @@ JSON response shape:
   "summary": {
     "match_count": 12,
     "overall_avg_score": 2875.4,
-    "overall_avg_rank": "Platinum 2",
+    "overall_avg_rank": "Emerald 2",
     "score_range": {
       "min": 2410,
       "max": 3310
@@ -329,7 +329,7 @@ JSON response shape:
       "result": 1,
       "map_guid": "map-guid",
       "avg_score": 2920.0,
-      "avg_rank": "Platinum 1",
+      "avg_rank": "Emerald 1",
       "role_range": {
         "min": 2510,
         "max": 3350
@@ -638,7 +638,7 @@ Request body for hero history:
 }
 ```
 
-`view` supports `ranking` and `history`. `game_mode` supports `quick` and `competitive`. `mmr` supports `all`, `Bronze`, `Silver`, `Gold`, `Platinum`, `Diamond`, `Master`, `Grandmaster`, and `Champion`.
+`view` supports `ranking` and `history`. `game_mode` supports `quick` and `competitive`. `mmr` supports `all`, `Bronze`, `Silver`, `Gold`, `Platinum`, `Emerald`, `Diamond`, `Master`, `Grandmaster`, and `Champion`.
 
 Ranking JSON response shape:
 

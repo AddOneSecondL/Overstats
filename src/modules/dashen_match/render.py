@@ -19,6 +19,32 @@ try:
 except ModuleNotFoundError:
     from src.modules.font_resolver import load_font, resolve_resource_dir
 
+try:
+    from overstats.src.modules.risk_status import draw_risk_status_badge, measure_risk_status_badge
+except ModuleNotFoundError:
+    from src.modules.risk_status import draw_risk_status_badge, measure_risk_status_badge
+
+try:
+    from overstats.src.constants.ranks import (
+        get_rank_name,
+        get_rank_score,
+        get_rank_sub_tier,
+        rank_name_cn,
+        raw_rank_score_to_icon_level,
+        raw_rank_score_to_strength,
+        strength_score_to_rank,
+    )
+except ModuleNotFoundError:
+    from src.constants.ranks import (
+        get_rank_name,
+        get_rank_score,
+        get_rank_sub_tier,
+        rank_name_cn,
+        raw_rank_score_to_icon_level,
+        raw_rank_score_to_strength,
+        strength_score_to_rank,
+    )
+
 
 RESOURCE_DIR = resolve_resource_dir()
 ASSET_MANIFEST_PATH = RESOURCE_DIR / "query_tool_assets" / "assets_manifest.json"
@@ -54,6 +80,8 @@ def render_match_list(
     full_id: str = "",
     footer_lines: Sequence[str] | None = None,
     hint_text: str | None = None,
+    risk_status: Any = None,
+    title_risk_statuses: Sequence[tuple[str, Any]] | None = None,
 ) -> RenderedImage:
     try:
         from PIL import Image, ImageDraw, ImageFont
@@ -80,7 +108,18 @@ def render_match_list(
     title_text = title
     if full_id and title == "大神对局列表":
         title_text = f"{full_id} 近期对局列表"
-    draw.text((20, 15), title_text, fill=(0, 255, 200), font=font_title)
+    title_entries = list(title_risk_statuses or ())
+    if not title_entries and full_id:
+        title_entries = [(full_id, risk_status)]
+    _draw_title_with_risk_statuses(
+        draw,
+        title_text,
+        title_entries,
+        x=20,
+        y=15,
+        font=font_title,
+        fill=(0, 255, 200),
+    )
 
     total_recent = len(recent_matches)
     wins_recent = sum(1 for match in recent_matches if match.get("matchRet") == 1)
@@ -111,6 +150,59 @@ def render_match_list(
     output = BytesIO()
     img.convert("RGB").save(output, format="PNG", optimize=True)
     return RenderedImage(content=output.getvalue())
+
+
+def _draw_title_with_risk_statuses(
+    draw: Any,
+    title: str,
+    entries: Sequence[tuple[str, Any]],
+    *,
+    x: int,
+    y: int,
+    font: Any,
+    fill: Any,
+) -> None:
+    active_entries = [
+        (str(player_id or ""), risk_status)
+        for player_id, risk_status in (entries or ())
+        if str(player_id or "") and risk_status is not None
+    ]
+    if not active_entries:
+        draw.text((x, y), str(title or ""), fill=fill, font=font)
+        return
+
+    cursor_x = int(x)
+    source = str(title or "")
+    source_offset = 0
+    badge_font = _font_chinese(11)
+    for player_id, risk_status in active_entries:
+        match_at = source.find(player_id, source_offset)
+        if match_at < 0:
+            continue
+        leading = source[source_offset:match_at]
+        if leading:
+            draw.text((cursor_x, y), leading, fill=fill, font=font)
+            cursor_x += _text_width(draw, leading, font)
+
+        draw.text((cursor_x, y), player_id, fill=fill, font=font)
+        cursor_x += _text_width(draw, player_id, font)
+        badge_width, _ = draw_risk_status_badge(
+            draw,
+            cursor_x + 6,
+            y + 1,
+            risk_status,
+            font=badge_font,
+            compact=True,
+            padding_x=6,
+            padding_y=3,
+            max_width=126,
+        )
+        cursor_x += badge_width + (12 if badge_width else 0)
+        source_offset = match_at + len(player_id)
+
+    trailing = source[source_offset:]
+    if trailing:
+        draw.text((cursor_x, y), trailing, fill=fill, font=font)
 
 
 def render_match_detail(
@@ -708,21 +800,52 @@ def _draw_scoreboard_players(
         is_my_teammate = bool(not is_me and me_party_index != -1 and party_index == me_party_index)
         name_color, num_color = _scoreboard_name_colors(is_me=is_me, is_my_teammate=is_my_teammate)
         name_is_ascii = bool(re.match(r"^[a-zA-Z0-9_\\-]+$", battletag))
+        risk_status = player.get("riskStatus") or player.get("risk_status")
+        risk_font = _font_chinese(max(int(11 * row_h / 82), 8))
+        risk_width, _, _ = measure_risk_status_badge(
+            draw,
+            risk_status,
+            font=risk_font,
+            compact=True,
+            padding_x=5,
+            padding_y=2,
+            max_width=94,
+        )
+        name_width_limit = max(58, 175 - risk_width - (6 if risk_width else 0))
         font_name = _fit_font(
             draw,
             battletag.upper() if name_is_ascii else battletag,
             _font_en_oblique if name_is_ascii else _font_chinese,
             max(int(40 * row_h / 82), 10),
             max(int(16 * row_h / 82), 8),
-            175,
+            name_width_limit,
+        )
+        rendered_name = _fit_text(
+            draw,
+            battletag.upper() if name_is_ascii else battletag,
+            font_name,
+            name_width_limit,
         )
         draw.text(
             (140, name_y),
-            _fit_text(draw, battletag.upper() if name_is_ascii else battletag, font_name, 175),
+            rendered_name,
             font=font_name,
             fill=name_color,
             anchor="lm",
         )
+        if risk_width:
+            rendered_name_width = _text_width(draw, rendered_name, font_name)
+            draw_risk_status_badge(
+                draw,
+                140 + rendered_name_width + 6,
+                int(name_y - max(int(11 * row_h / 82), 8) / 2 - 3),
+                risk_status,
+                font=risk_font,
+                compact=True,
+                padding_x=5,
+                padding_y=2,
+                max_width=94,
+            )
         draw.text((140, num_y), f"#{battlenum}" if battlenum else "", font=font_num_small, fill=num_color, anchor="lm")
 
 
@@ -787,13 +910,25 @@ def _draw_fight_player_row(
     name = name_map.get(bnet_id) or _player_name(player)
     display_name = name.split("#", 1)[0]
     name_is_ascii = bool(re.match(r"^[a-zA-Z0-9_\\-]+$", display_name))
+    risk_status = player.get("riskStatus") or player.get("risk_status")
+    risk_font = _font_chinese(9)
+    risk_width, _, _ = measure_risk_status_badge(
+        draw,
+        risk_status,
+        font=risk_font,
+        compact=True,
+        padding_x=4,
+        padding_y=2,
+        max_width=76,
+    )
+    name_width_limit = max(64, 160 - risk_width - (5 if risk_width else 0))
     font_name = _fit_font(
         draw,
         display_name.upper() if name_is_ascii else display_name,
         _font_en_oblique if name_is_ascii else _font_chinese,
         max(15, int(getattr(font, "size", 16))),
         10,
-        160,
+        name_width_limit,
     )
     hero_info = _resolve_player_hero(config, player)
     draw.rectangle((230, y, 1876, y + 54), fill=(34, 37, 49, 255))
@@ -807,12 +942,31 @@ def _draw_fight_player_row(
         ("heroes", "misc"),
     )
     _draw_player_role_icon(img, hero_info, player, 288, y + 11, 28)
+    rendered_name = _fit_text(
+        draw,
+        display_name.upper() if name_is_ascii else display_name,
+        font_name,
+        name_width_limit,
+    )
     draw.text(
         (386, y + 7),
-        _fit_text(draw, display_name.upper() if name_is_ascii else display_name, font_name, 160),
+        rendered_name,
         font=font_name,
         fill=(245, 247, 250, 255),
     )
+    if risk_width:
+        rendered_name_width = _text_width(draw, rendered_name, font_name)
+        draw_risk_status_badge(
+            draw,
+            386 + rendered_name_width + 5,
+            y + 9,
+            risk_status,
+            font=risk_font,
+            compact=True,
+            padding_x=4,
+            padding_y=2,
+            max_width=76,
+        )
     hero_name = hero_info.get("name") or ""
     if hero_name:
         draw.text((386, y + 30), _fit_text(draw, hero_name, font_tiny, 160), font=font_tiny, fill=(178, 184, 198, 255))
@@ -891,8 +1045,8 @@ def _draw_rank_badge(
     if not isinstance(rank_info, dict) or not rank_info:
         return
 
-    score = _safe_int(rank_info.get("rankScore") or rank_info.get("score"))
-    tier = str(rank_info.get("rankSubTier") or rank_info.get("rank_sub_tier") or "").strip()
+    score = _safe_int(get_rank_score(rank_info))
+    tier = str(get_rank_sub_tier(rank_info) or "").strip()
     if score <= 0 and not tier:
         return
 
@@ -926,8 +1080,8 @@ def _draw_rank_badge(
 def _build_rank_badge_image(rank_info: Dict[str, Any], *, width: int, height: int, mode: str) -> Any:
     from PIL import Image, ImageDraw
 
-    score = _safe_int(rank_info.get("rankScore") or rank_info.get("score"))
-    tier = str(rank_info.get("rankSubTier") or rank_info.get("rank_sub_tier") or "").strip()
+    score = _safe_int(get_rank_score(rank_info))
+    tier = str(get_rank_sub_tier(rank_info) or "").strip()
     asset_path = _rank_badge_asset_path(score, mode=mode)
     if asset_path is None or not asset_path.exists():
         return None
@@ -969,8 +1123,9 @@ def _rank_badge_asset_path(score: int, *, mode: str) -> Path | None:
         normal_path = rank_flat_dir / f"{level}.png"
         return normal_path if normal_path.exists() else None
 
-    max_level = 9 if (rank_flat_dir / "9.png").exists() else 8
-    level = max(1, min(max_level, (_safe_int(score) // 100) + 1))
+    level = raw_rank_score_to_icon_level(score)
+    if level <= 0:
+        return None
     normal_path = rank_flat_dir / f"{level}.png"
     if normal_path.exists():
         return normal_path
@@ -1597,8 +1752,8 @@ def _fmt_num(value: Any) -> str:
 def _rank_text(rank_info: Any) -> str:
     if not isinstance(rank_info, dict) or not rank_info:
         return "-"
-    score = rank_info.get("rankScore") or rank_info.get("score")
-    tier = rank_info.get("rankSubTier") or rank_info.get("rank_sub_tier") or ""
+    score = get_rank_score(rank_info)
+    tier = get_rank_sub_tier(rank_info)
     if score:
         return f"{score}{tier}"
     return str(tier or "-")
@@ -1635,9 +1790,11 @@ def _role_style(role: str) -> tuple[tuple[int, int, int, int], tuple[int, int, i
 
 
 def _rank_label(rank_info: Dict[str, Any], *, mode: str) -> str:
-    score = _safe_int(rank_info.get("rankScore") or rank_info.get("score"))
-    tier = str(rank_info.get("rankSubTier") or rank_info.get("rank_sub_tier") or "").strip()
-    rank_name = str(rank_info.get("rankName") or rank_info.get("rank_name") or "").strip()
+    score = _safe_int(get_rank_score(rank_info))
+    tier = str(get_rank_sub_tier(rank_info) or "").strip()
+    rank_name = str(get_rank_name(rank_info) or "").strip()
+    if rank_name and mode != "fight":
+        rank_name = rank_name_cn(rank_name)
     if rank_name and tier:
         return f"{rank_name}{tier}"
     if rank_name:
@@ -1652,6 +1809,8 @@ def _rank_label(rank_info: Dict[str, Any], *, mode: str) -> str:
 
 
 def _rank_colors(score: int, mode: str) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]]:
+    if mode != "fight":
+        score = raw_rank_score_to_strength(score) or 0
     if score >= 4500:
         return (164, 45, 255, 230), (248, 219, 255, 255)
     if score >= 4000:
@@ -1661,42 +1820,19 @@ def _rank_colors(score: int, mode: str) -> tuple[tuple[int, int, int, int], tupl
     if score >= 3000:
         return (82, 178, 255, 230), (222, 241, 255, 255)
     if score >= 2500:
-        return (57, 205, 174, 230), (215, 255, 244, 255)
+        return (34, 197, 94, 230), (215, 255, 228, 255)
     if score >= 2000:
-        return (255, 196, 70, 230), (255, 245, 207, 255)
+        return (57, 205, 174, 230), (215, 255, 244, 255)
     if score >= 1500:
+        return (255, 196, 70, 230), (255, 245, 207, 255)
+    if score >= 1000:
         return (185, 191, 203, 230), (245, 247, 252, 255)
     return (156, 106, 73, 235), (235, 214, 196, 255)
 
 
 def _score_to_rank(score: int) -> str:
-    if score < 0:
-        return "未定义"
-    if score < 1500:
-        idx = int((score - 1000) // 100)
-        return f"青铜{5 - idx}"
-    if score < 2000:
-        idx = int((score - 1500) // 100)
-        return f"白银{5 - idx}"
-    if score < 2500:
-        idx = int((score - 2000) // 100)
-        return f"黄金{5 - idx}"
-    if score < 3000:
-        idx = int((score - 2500) // 100)
-        return f"白金{5 - idx}"
-    if score < 3500:
-        idx = int((score - 3000) // 100)
-        return f"钻石{5 - idx}"
-    if score < 4000:
-        idx = int((score - 3500) // 100)
-        return f"大师{5 - idx}"
-    if score < 4500:
-        idx = int((score - 4000) // 100)
-        return f"宗师{5 - idx}"
-    if score < 5000:
-        idx = int((score - 4500) // 100)
-        return f"英杰{5 - idx}"
-    return "未定义"
+    strength_score = raw_rank_score_to_strength(score)
+    return strength_score_to_rank(strength_score, chinese=True) if strength_score is not None else "未定义"
 
 
 def _score_to_rank_fight(score: int) -> str:
@@ -1761,9 +1897,11 @@ def _role_style(role: str) -> tuple[tuple[int, int, int, int], tuple[int, int, i
 
 
 def _rank_label(rank_info: Dict[str, Any], *, mode: str) -> str:
-    score = _safe_int(rank_info.get("rankScore") or rank_info.get("score"))
-    tier = str(rank_info.get("rankSubTier") or rank_info.get("rank_sub_tier") or "").strip()
-    rank_name = str(rank_info.get("rankName") or rank_info.get("rank_name") or "").strip()
+    score = _safe_int(get_rank_score(rank_info))
+    tier = str(get_rank_sub_tier(rank_info) or "").strip()
+    rank_name = str(get_rank_name(rank_info) or "").strip()
+    if rank_name and mode != "fight":
+        rank_name = rank_name_cn(rank_name)
     if rank_name and tier:
         return f"{rank_name}{tier}"
     if rank_name:
@@ -1778,33 +1916,8 @@ def _rank_label(rank_info: Dict[str, Any], *, mode: str) -> str:
 
 
 def _score_to_rank(score: int) -> str:
-    if score < 0:
-        return "未定级"
-    if score < 1500:
-        idx = int((score - 1000) // 100)
-        return f"青铜{5 - idx}"
-    if score < 2000:
-        idx = int((score - 1500) // 100)
-        return f"白银{5 - idx}"
-    if score < 2500:
-        idx = int((score - 2000) // 100)
-        return f"黄金{5 - idx}"
-    if score < 3000:
-        idx = int((score - 2500) // 100)
-        return f"铂金{5 - idx}"
-    if score < 3500:
-        idx = int((score - 3000) // 100)
-        return f"钻石{5 - idx}"
-    if score < 4000:
-        idx = int((score - 3500) // 100)
-        return f"大师{5 - idx}"
-    if score < 4500:
-        idx = int((score - 4000) // 100)
-        return f"宗师{5 - idx}"
-    if score < 5000:
-        idx = int((score - 4500) // 100)
-        return f"英杰{5 - idx}"
-    return "未定级"
+    strength_score = raw_rank_score_to_strength(score)
+    return strength_score_to_rank(strength_score, chinese=True) if strength_score is not None else "未定级"
 
 
 def _score_to_rank_fight(score: int) -> str:

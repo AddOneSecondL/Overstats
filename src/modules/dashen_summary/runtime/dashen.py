@@ -5,6 +5,8 @@ import datetime as dt
 import os
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
+from ....constants.ranks import get_rank_score, raw_rank_score_to_strength
+
 try:
     from overstats.src.client.apiclient import (
         dashen_api_client,
@@ -447,13 +449,10 @@ async def ranking_dist2(st: int = 0) -> Optional[tuple[int, List[int]]]:
 
 
 def _coerce_rank_score(value: Any) -> Optional[float]:
-    try:
-        score = float(value)
-    except (TypeError, ValueError):
+    score = raw_rank_score_to_strength(value)
+    if score is None:
         return None
-    if score <= 0:
-        return None
-    return score
+    return float(score)
 
 
 async def match_rating_recent(match_id: str, token: str, config: Dict[str, Any]) -> tuple[Any, ...]:
@@ -474,11 +473,17 @@ async def match_rating_recent(match_id: str, token: str, config: Dict[str, Any])
         for player in data.get("teammateList" if side == "team" else "enemyList", []) or []:
             if not isinstance(player, dict):
                 continue
-            rank_info = player.get("rankInfo") or {}
-            score = _coerce_rank_score(rank_info.get("rankScore"))
+            rank_info = player.get("rankInfo") or player.get("rank_info") or {}
+            score = _coerce_rank_score(get_rank_score(rank_info, None))
             if score is None:
-                last_rank_info = player.get("lastRankInfo") or rank_info.get("lastRankInfo") or {}
-                score = _coerce_rank_score(last_rank_info.get("rankScore"))
+                last_rank_info = (
+                    player.get("lastRankInfo")
+                    or player.get("last_rank_info")
+                    or rank_info.get("lastRankInfo")
+                    or rank_info.get("last_rank_info")
+                    or {}
+                )
+                score = _coerce_rank_score(get_rank_score(last_rank_info, None))
             if score is None:
                 continue
             scores.append(score)

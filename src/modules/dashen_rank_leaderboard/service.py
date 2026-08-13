@@ -4,8 +4,22 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
 try:
+    from overstats.src.constants.ranks import (
+        RANK_LABELS_CN,
+        RANK_NAME_TO_ICON_LEVEL,
+        rank_info_score_to_strength,
+        strength_score_to_icon_level,
+        strength_score_to_rank,
+    )
     from overstats.src.modules.errors import ModuleError
 except ModuleNotFoundError:
+    from src.constants.ranks import (
+        RANK_LABELS_CN,
+        RANK_NAME_TO_ICON_LEVEL,
+        rank_info_score_to_strength,
+        strength_score_to_icon_level,
+        strength_score_to_rank,
+    )
     from src.modules.errors import ModuleError
 
 from .render import RenderedImage, render_rank_leaderboard
@@ -14,16 +28,10 @@ from .requests import DashenRankLeaderboardQuery, DashenRankLeaderboardRequests,
 
 UNRANKED_LABEL = "未定级"
 RANK_LABEL_ICON_LEVELS = {
-    "青铜": 1,
-    "白银": 2,
-    "黄金": 3,
-    "白金": 4,
-    "铂金": 4,
-    "钻石": 5,
-    "大师": 6,
-    "宗师": 7,
-    "英杰": 8,
+    RANK_LABELS_CN[rank_name]: icon_level
+    for rank_name, icon_level in RANK_NAME_TO_ICON_LEVEL.items()
 }
+RANK_LABEL_ICON_LEVELS["铂金"] = RANK_NAME_TO_ICON_LEVEL["Platinum"]
 
 
 @dataclass(frozen=True)
@@ -185,8 +193,9 @@ class DashenRankLeaderboardModule:
         return DashenRankLeaderboardQuery(province=province, role=role)
 
     def _to_entry(self, payload: Dict[str, Any]) -> DashenRankLeaderboardEntry:
-        rank_info = payload.get("rankInfo")
-        rank_score = self._safe_int(rank_info.get("rankScore")) if isinstance(rank_info, dict) else 0
+        rank_info = payload.get("rankInfo") or payload.get("rank_info")
+        normalized_rank_score = rank_info_score_to_strength(rank_info) if isinstance(rank_info, dict) else None
+        rank_score = normalized_rank_score if normalized_rank_score is not None else 0
         match_sum = self._safe_int(payload.get("matchSum"))
         win_rate = self._safe_float(payload.get("winRate"))
         wins = round(win_rate / 100.0 * match_sum) if match_sum > 0 else 0
@@ -246,53 +255,11 @@ class DashenRankLeaderboardModule:
 
 
 def rank_icon_level_for_score(score: int) -> int:
-    if score >= 4500:
-        return 8
-    if score >= 4000:
-        return 7
-    if score >= 3500:
-        return 6
-    if score >= 3000:
-        return 5
-    if score >= 2500:
-        return 4
-    if score >= 2000:
-        return 3
-    if score >= 1500:
-        return 2
-    if score >= 1000:
-        return 1
-    return 0
+    return strength_score_to_icon_level(score)
 
 
 def score_to_rank(score: int) -> str:
-    if score <= 0:
-        return UNRANKED_LABEL
-    if score < 1500:
-        idx = max(0, int((score - 1000) // 100))
-        return f"青铜{5 - idx}"
-    if score < 2000:
-        idx = int((score - 1500) // 100)
-        return f"白银{5 - idx}"
-    if score < 2500:
-        idx = int((score - 2000) // 100)
-        return f"黄金{5 - idx}"
-    if score < 3000:
-        idx = int((score - 2500) // 100)
-        return f"白金{5 - idx}"
-    if score < 3500:
-        idx = int((score - 3000) // 100)
-        return f"钻石{5 - idx}"
-    if score < 4000:
-        idx = int((score - 3500) // 100)
-        return f"大师{5 - idx}"
-    if score < 4500:
-        idx = int((score - 4000) // 100)
-        return f"宗师{5 - idx}"
-    if score < 5000:
-        idx = int((score - 4500) // 100)
-        return f"英杰{5 - idx}"
-    return UNRANKED_LABEL
+    return strength_score_to_rank(score, chinese=True)
 
 
 dashen_rank_leaderboard_module = DashenRankLeaderboardModule()

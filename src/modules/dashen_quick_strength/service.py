@@ -8,11 +8,13 @@ try:
     from overstats.src.modules.bnet_search import BnetSearchModule, BnetSearchResult, bnet_search_module
     from overstats.src.modules.errors import ModuleError
     from overstats.src.modules.query_tool import load_query_tool
+    from overstats.src.modules.risk_status import RiskStatus, parse_risk_status
 except ModuleNotFoundError:
     from src.client.apiclient import DashenAPIClient
     from src.modules.bnet_search import BnetSearchModule, BnetSearchResult, bnet_search_module
     from src.modules.errors import ModuleError
     from src.modules.query_tool import load_query_tool
+    from src.modules.risk_status import RiskStatus, parse_risk_status
 
 from .engine import DashenQuickStrengthEngine, normalize_limit
 from .render import RenderedImage, render_quick_strength
@@ -82,6 +84,7 @@ class DashenQuickStrengthOutput:
     matches: Sequence[DashenQuickStrengthMatchPoint]
     resolved_bnet: Optional[BnetSearchResult] = None
     image: Optional[RenderedImage] = None
+    risk_status: Optional[RiskStatus] = None
 
 
 class DashenQuickStrengthModule:
@@ -151,8 +154,12 @@ class DashenQuickStrengthModule:
         full_id = resolved_bnet.full_id if resolved_bnet else (query.bnet_id or "Unknown")
         bnet_id = resolved_bnet.bnet_id if resolved_bnet else (query.bnet_id or "Unknown")
         image = None
+        risk_status = None
         if render:
-            avatar_bytes = await self._try_fetch_avatar_bytes(resolved_bnet, query.customer_token)
+            avatar_bytes, risk_status = await self._try_fetch_profile_assets(
+                resolved_bnet,
+                query.customer_token,
+            )
             try:
                 image = render_quick_strength(
                     player_name=full_id,
@@ -160,6 +167,7 @@ class DashenQuickStrengthModule:
                     summary=summary.to_dict(),
                     matches=[item.to_dict() for item in matches],
                     avatar_bytes=avatar_bytes,
+                    risk_status=risk_status,
                     config=config,
                 )
             except RuntimeError as exc:
@@ -176,6 +184,7 @@ class DashenQuickStrengthModule:
             bnet_id=bnet_id,
             summary=summary,
             matches=matches,
+            risk_status=risk_status,
             resolved_bnet=resolved_bnet,
             image=image,
         )
@@ -238,28 +247,30 @@ class DashenQuickStrengthModule:
             search_output.result,
         )
 
-    async def _try_fetch_avatar_bytes(
+    async def _try_fetch_profile_assets(
         self,
         resolved_bnet: Optional[BnetSearchResult],
         customer_token: str,
-    ) -> Optional[bytes]:
+    ) -> tuple[Optional[bytes], Optional[RiskStatus]]:
         icon_url = str(resolved_bnet.icon_url or "").strip() if resolved_bnet else ""
-        if not icon_url:
-            try:
-                payload = await self.requests.api_client.query_card(customer_token)
-            except Exception as exc:
-                print(f"[overstats] failed to fetch quick-strength profile card: {exc}")
-                payload = {}
-            data = payload.get("data") if isinstance(payload, dict) else None
-            if isinstance(data, dict):
-                icon_url = str(data.get("icon") or "").strip()
-        if not icon_url:
-            return None
         try:
-            return await self.requests.api_client.get_icon(icon_url)
+            payload = await self.requests.api_client.query_card(customer_token)
+        except Exception as exc:
+            print(f"[overstats] failed to fetch quick-strength profile card: {exc}")
+            payload = {}
+
+        risk_status = parse_risk_status(payload)
+        data = payload.get("data") if isinstance(payload, dict) else None
+        if isinstance(data, dict):
+            icon_url = str(data.get("icon") or "").strip() or icon_url
+        if not icon_url:
+            return None, risk_status
+        try:
+            avatar_bytes = await self.requests.api_client.get_icon(icon_url)
         except Exception as exc:
             print(f"[overstats] failed to fetch quick-strength avatar: {exc}")
-            return None
+            avatar_bytes = None
+        return avatar_bytes, risk_status
 
     def _load_ow_config(self) -> Dict[str, Any]:
         try:

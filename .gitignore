@@ -36,3 +36,4 @@ api_test_data.json
 !/test/test_blizzard_profile.py
 !/test/test_ow_guess_catalog.py
 !/test/test_ow_hero_leaderboard_service.py
+!/test/test_risk_status.py

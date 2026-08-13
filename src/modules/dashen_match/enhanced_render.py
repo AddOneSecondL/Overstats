@@ -7,6 +7,7 @@ import re
 from typing import Any, Dict, List, Optional, Sequence
 
 try:
+    from overstats.src.constants.ranks import get_rank_score
     from overstats.src.modules.dashen_summary.runtime.db import IDPoolDB
     from overstats.src.client.apiclient import _find_cached_remote_image_path
     from overstats.src.modules.dashen_summary.runtime.stat_reference import (
@@ -20,6 +21,7 @@ try:
         normalize_hero_rank_score,
     )
 except ModuleNotFoundError:
+    from src.constants.ranks import get_rank_score
     from src.client.apiclient import _find_cached_remote_image_path
     from src.modules.dashen_summary.runtime.db import IDPoolDB
     from src.modules.dashen_summary.runtime.stat_reference import (
@@ -32,6 +34,11 @@ except ModuleNotFoundError:
         normalize_dashen_hero_stat_value,
         normalize_hero_rank_score,
     )
+
+try:
+    from overstats.src.modules.risk_status import draw_risk_status_badge, measure_risk_status_badge
+except ModuleNotFoundError:
+    from src.modules.risk_status import draw_risk_status_badge, measure_risk_status_badge
 
 from .render import (
     RenderedImage,
@@ -176,7 +183,13 @@ def _draw_title_badges(
         curr_x += badge_width + badge_gap
 
 
-def decorate_image_with_player_title_header(base_image: Any, player_name: str, bnet_id: Any = None, subtitle: str = "") -> Any:
+def decorate_image_with_player_title_header(
+    base_image: Any,
+    player_name: str,
+    bnet_id: Any = None,
+    subtitle: str = "",
+    risk_status: Any = None,
+) -> Any:
     from PIL import Image, ImageDraw
 
     if base_image is None:
@@ -201,18 +214,45 @@ def decorate_image_with_player_title_header(base_image: Any, player_name: str, b
         sub_parts.append(str(subtitle).strip())
 
     draw.text((24, 12), display_name, font=font_name, fill=(255, 255, 255, 255))
+    name_width = _measure(draw, display_name, font_name)
+    badge_x = 24 + name_width + 12
+    badge_width, _ = draw_risk_status_badge(
+        draw,
+        badge_x,
+        19,
+        risk_status,
+        font=_font_chinese(12),
+        compact=True,
+        padding_x=7,
+        padding_y=3,
+        max_width=132,
+    )
     title_list = _group_titles(bnet_id)
     if title_list:
-        name_width = _measure(draw, display_name, font_name)
-        _draw_title_badges(draw, title_list, 24 + name_width + 18, 30, canvas.width - 24, badge_height=28, badge_gap=10, max_badge_width=138, min_badge_width=58, max_font_size=16, min_font_size=11)
+        title_x = badge_x + badge_width + 10 if badge_width else 24 + name_width + 18
+        _draw_title_badges(draw, title_list, title_x, 30, canvas.width - 24, badge_height=28, badge_gap=10, max_badge_width=138, min_badge_width=58, max_font_size=16, min_font_size=11)
     if sub_parts:
         draw.text((24, 54), " | ".join(sub_parts), font=font_sub, fill=(180, 185, 195, 255))
     draw.line([(0, header_height - 1), (canvas.width, header_height - 1)], fill=(55, 61, 74, 255), width=1)
     return canvas
 
 
-def decorate_rendered_image_header(rendered: RenderedImage, player_name: str, bnet_id: Any = None, subtitle: str = "") -> RenderedImage:
-    return _pil_to_rendered(decorate_image_with_player_title_header(_open_rendered(rendered), player_name, bnet_id=bnet_id, subtitle=subtitle))
+def decorate_rendered_image_header(
+    rendered: RenderedImage,
+    player_name: str,
+    bnet_id: Any = None,
+    subtitle: str = "",
+    risk_status: Any = None,
+) -> RenderedImage:
+    return _pil_to_rendered(
+        decorate_image_with_player_title_header(
+            _open_rendered(rendered),
+            player_name,
+            bnet_id=bnet_id,
+            subtitle=subtitle,
+            risk_status=risk_status,
+        )
+    )
 
 
 def _load_icon_rgba(url: str, *, size: tuple[int, int]) -> Any:
@@ -357,7 +397,7 @@ def _hero_stat_rows(
         hero_guid,
         stat_map,
         stat_map.get(GAME_TIME_GUID, 0),
-        (rank_info or {}).get("rankScore"),
+        get_rank_score(rank_info or {}),
     )
     preferred_order = {KILL_GUID: 0, ASSIST_GUID: 1, DEATH_GUID: 2, FINAL_HIT_GUID: 3}
     rows = []
@@ -689,7 +729,34 @@ def render_all_players_waterfall(
         info_right = role_x - 10 if roles else x + player_w - 12
         name_x = icon_x + 54
         info_w = max(72, info_right - name_x)
-        draw.text((name_x, y + 8), _fit_text(draw, display_name, _font_chinese(20), info_w), font=_font_chinese(20), fill=text_main)
+        risk_status = player.get("riskStatus") or player.get("risk_status")
+        risk_font = _font_chinese(10)
+        risk_width, _, _ = measure_risk_status_badge(
+            draw,
+            risk_status,
+            font=risk_font,
+            compact=True,
+            padding_x=5,
+            padding_y=2,
+            max_width=88,
+        )
+        name_width_limit = max(42, info_w - risk_width - (6 if risk_width else 0))
+        name_font = _font_chinese(20)
+        rendered_name = _fit_text(draw, display_name, name_font, name_width_limit)
+        draw.text((name_x, y + 8), rendered_name, font=name_font, fill=text_main)
+        if risk_width:
+            rendered_name_width = _text_width(draw, rendered_name, name_font)
+            draw_risk_status_badge(
+                draw,
+                name_x + rendered_name_width + 6,
+                y + 10,
+                risk_status,
+                font=risk_font,
+                compact=True,
+                padding_x=5,
+                padding_y=2,
+                max_width=88,
+            )
         if battle_num:
             draw.text((name_x, y + 32), _fit_text(draw, battle_num, _font_meta(14), info_w), font=_font_meta(14), fill=text_dim)
 
@@ -968,7 +1035,34 @@ def _render_all_players_waterfall_readable(
         info_right = role_x - 10 if roles else x + player_w - 12
         name_x = icon_x + 62
         info_w = max(72, info_right - name_x)
-        draw.text((name_x, y + 10), _fit_text(draw, display_name, _font_chinese(22), info_w), font=_font_chinese(22), fill=text_main)
+        risk_status = player.get("riskStatus") or player.get("risk_status")
+        risk_font = _font_chinese(10)
+        risk_width, _, _ = measure_risk_status_badge(
+            draw,
+            risk_status,
+            font=risk_font,
+            compact=True,
+            padding_x=5,
+            padding_y=2,
+            max_width=92,
+        )
+        name_width_limit = max(44, info_w - risk_width - (6 if risk_width else 0))
+        name_font = _font_chinese(22)
+        rendered_name = _fit_text(draw, display_name, name_font, name_width_limit)
+        draw.text((name_x, y + 10), rendered_name, font=name_font, fill=text_main)
+        if risk_width:
+            rendered_name_width = _text_width(draw, rendered_name, name_font)
+            draw_risk_status_badge(
+                draw,
+                name_x + rendered_name_width + 6,
+                y + 13,
+                risk_status,
+                font=risk_font,
+                compact=True,
+                padding_x=5,
+                padding_y=2,
+                max_width=92,
+            )
         if battle_num:
             draw.text((name_x, y + 38), _fit_text(draw, battle_num, _font_meta(15), info_w), font=_font_meta(15), fill=text_dim)
 

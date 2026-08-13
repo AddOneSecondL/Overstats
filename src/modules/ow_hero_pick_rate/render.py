@@ -40,6 +40,18 @@ def _resolve_resource_dir() -> Path:
 
 RESOURCE_DIR = _resolve_resource_dir()
 DEFAULT_THEME = dict(QUICK_STRENGTH_THEME)
+MMR_LABELS_CN = {
+    "all": "全段位",
+    "bronze": "青铜",
+    "silver": "白银",
+    "gold": "黄金",
+    "platinum": "白金",
+    "emerald": "翡翠",
+    "diamond": "钻石",
+    "master": "大师",
+    "grandmaster": "宗师",
+    "champion": "英杰",
+}
 
 
 @dataclass(frozen=True)
@@ -542,7 +554,8 @@ def _game_mode_label(game_mode: str) -> str:
 
 
 def _mmr_label(mmr: str) -> str:
-    return "全段位" if str(mmr or "").strip().lower() == "all" else str(mmr or "--")
+    normalized = str(mmr or "").strip()
+    return MMR_LABELS_CN.get(normalized.lower(), normalized or "--")
 
 
 def _hero_role_label(role_type: Any) -> str:

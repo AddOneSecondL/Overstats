@@ -7,10 +7,12 @@ try:
     from overstats.src.modules.errors import ModuleError
     from overstats.src.modules.query_tool import load_query_tool
     from overstats.src.modules.dashen_profile.requests import DashenProfileBundle
+    from overstats.src.modules.risk_status import RiskStatus, parse_risk_status
 except ModuleNotFoundError:
     from src.modules.errors import ModuleError
     from src.modules.query_tool import load_query_tool
     from src.modules.dashen_profile.requests import DashenProfileBundle
+    from src.modules.risk_status import RiskStatus, parse_risk_status
 
 from .requests import MODE_QUICK
 
@@ -32,6 +34,7 @@ class DashenHeroTreemapPlayer:
     bnet_id: str
     level: int
     title: str
+    risk_status: Optional[RiskStatus] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -39,6 +42,7 @@ class DashenHeroTreemapPlayer:
             "bnet_id": self.bnet_id,
             "level": int(self.level),
             "title": self.title,
+            "risk_status": self.risk_status.to_dict() if self.risk_status else None,
         }
 
 
@@ -198,6 +202,7 @@ class DashenHeroTreemapEngine:
             bnet_id=str(card_data.get("bnetId") or "").strip(),
             level=_safe_int(card_data.get("level")),
             title=str(card_data.get("title") or "").strip(),
+            risk_status=parse_risk_status(card_data),
         )
         season = DashenHeroTreemapSeason(
             logical=bundle.logical_season,

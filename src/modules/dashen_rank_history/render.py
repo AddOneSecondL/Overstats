@@ -16,9 +16,16 @@ except ModuleNotFoundError:
     from src.modules.query_tool import get_cached_asset_path, load_query_tool
 
 try:
+    from overstats.src.constants.ranks import get_rank_score, get_rank_sub_tier, raw_rank_score_to_icon_level
+except ModuleNotFoundError:
+    from src.constants.ranks import get_rank_score, get_rank_sub_tier, raw_rank_score_to_icon_level
+
+try:
     from overstats.src.modules.font_resolver import load_font, resolve_resource_dir
+    from overstats.src.modules.risk_status import draw_risk_status_badge
 except ModuleNotFoundError:
     from src.modules.font_resolver import load_font, resolve_resource_dir
+    from src.modules.risk_status import draw_risk_status_badge
 
 from .requests import fight_payload_has_content, payload_data, sport_payload_has_content
 
@@ -85,6 +92,7 @@ def render_rank_history(
     player_name: str,
     subtitle: str = HISTORY_SUBTITLE,
     seasons: Sequence[Dict[str, Any]],
+    risk_status: Any = None,
 ) -> RenderedImage:
     try:
         from PIL import Image, ImageDraw
@@ -113,7 +121,7 @@ def render_rank_history(
         draw.text((115, 390), "NO HISTORY", font=fonts["font_en_large"], fill=(255, 255, 255, 255))
         draw.text((120, 520), "未找到历史段位数据", font=fonts["font_cn"], fill=(255, 255, 255, 255))
 
-    canvas = _decorate_with_header(image, player_name=player_name, subtitle=subtitle)
+    canvas = _decorate_with_header(image, player_name=player_name, subtitle=subtitle, risk_status=risk_status)
     output = BytesIO()
     canvas.save(output, format="PNG")
     return RenderedImage(content=output.getvalue())
@@ -245,13 +253,13 @@ def _paste_rank_bar(
     prefix: str,
     fonts: Dict[str, Any],
 ) -> None:
-    score = _safe_int(rank_info.get("rankScore"))
-    tier = _safe_int(rank_info.get("rankSubTier"))
+    score = _safe_int(get_rank_score(rank_info))
+    tier = _safe_int(get_rank_sub_tier(rank_info))
     if score <= 0:
         draw.text((x + 75, y + 5), "-", font=fonts["font_num"], fill=(0, 0, 0, 255))
         return
 
-    rank_level = (score // 100) + 1
+    rank_level = raw_rank_score_to_icon_level(score)
     asset = RANK_FLAT_DIR / f"{prefix}{rank_level}.png"
     if asset.exists():
         from PIL import Image
@@ -368,7 +376,7 @@ def _load_role_icon(role_type: Any, *, size: tuple[int, int]) -> Any:
     return icon.resize(size, Image.LANCZOS)
 
 
-def _decorate_with_header(base_image: Any, *, player_name: str, subtitle: str) -> Any:
+def _decorate_with_header(base_image: Any, *, player_name: str, subtitle: str, risk_status: Any = None) -> Any:
     from PIL import Image, ImageDraw
 
     header_height = 88
@@ -390,6 +398,17 @@ def _decorate_with_header(base_image: Any, *, player_name: str, subtitle: str) -
 
     name_text = display_name.upper() if display_name.isascii() else display_name
     draw.text((24, 12), name_text, font=fonts["font_player_name"], fill=(255, 255, 255, 255))
+    name_width = _measure_text_width(draw, name_text, fonts["font_player_name"])
+    draw_risk_status_badge(
+        draw,
+        24 + name_width + 14,
+        17,
+        risk_status,
+        font=fonts["font_cn_small_ex"],
+        padding_x=8,
+        padding_y=4,
+        max_width=max(0, canvas.width - 24 - name_width - 28),
+    )
     if sub_parts:
         draw.text((24, 54), " · ".join(sub_parts), font=fonts["font_cn_small_ex"], fill=(180, 185, 195, 255))
     draw.line([(0, header_height - 1), (canvas.width, header_height - 1)], fill=(55, 61, 74, 255), width=1)

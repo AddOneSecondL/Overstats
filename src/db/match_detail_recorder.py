@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, urlsplit
 
 try:
     from overstats.config import is_database_write_enabled
+    from overstats.src.constants.ranks import get_rank_score
     from overstats.src.db.match_stats import IDPoolDB
     from overstats.src.modules.dashen_summary.runtime.stat_reference import (
         normalize_dashen_hero_stat_value,
@@ -18,6 +19,7 @@ try:
     from overstats.src.modules.query_tool import read_query_tool
 except ModuleNotFoundError:
     from config import is_database_write_enabled
+    from src.constants.ranks import get_rank_score
     from src.db.match_stats import IDPoolDB
     from src.modules.dashen_summary.runtime.stat_reference import (
         normalize_dashen_hero_stat_value,
@@ -211,7 +213,7 @@ def extract_normal_match_detail_records(
 
     now_ts = _safe_int(extracted_at if extracted_at is not None else time.time())
     focus_player_name = _player_name(focus_player) or str(data.get("name") or "").strip()
-    focus_rank_score = _safe_int((focus_player.get("rankInfo") or {}).get("rankScore"), 0)
+    focus_rank_score = _safe_int(get_rank_score(focus_player.get("rankInfo") or focus_player.get("rank_info") or {}), 0)
     focus_rank_bucket = normalize_hero_rank_score(focus_rank_score)
     map_guid = str(data.get("mapGuid") or "").strip()
     start_time = _safe_int(data.get("startTime"), 0)
@@ -283,7 +285,7 @@ def extract_normal_match_detail_records(
         if not isinstance(perks, list) or not perks:
             continue
         player_name = _player_name(player)
-        rank_score = _safe_int((player.get("rankInfo") or {}).get("rankScore"), 0)
+        rank_score = _safe_int(get_rank_score(player.get("rankInfo") or player.get("rank_info") or {}), 0)
         rank_bucket = normalize_hero_rank_score(rank_score)
         for slot_index, perk in enumerate(perks):
             if not isinstance(perk, dict):

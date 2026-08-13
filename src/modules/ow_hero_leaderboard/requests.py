@@ -28,6 +28,7 @@ CN_MMRS: tuple[str, ...] = (
     "Silver",
     "Gold",
     "Platinum",
+    "Emerald",
     "Diamond",
     "Master",
     "Grandmaster",

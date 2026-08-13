@@ -3,6 +3,11 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
+try:
+    from overstats.src.constants.ranks import get_rank_score, raw_rank_score_to_strength, strength_score_to_rank
+except ModuleNotFoundError:
+    from src.constants.ranks import get_rank_score, raw_rank_score_to_strength, strength_score_to_rank
+
 from .requests import DashenCompetitiveStrengthRequests, get_live_dashen_season, normalize_role_type
 
 
@@ -13,18 +18,6 @@ MAX_SCORE_LOOKBACK = 1
 DEFAULT_SCORE_LOOKBACK = MAX_SCORE_LOOKBACK
 DEFAULT_MATCH_CONCURRENCY = 4
 
-_RANK_BUCKETS = (
-    (1000, 1500, "Bronze"),
-    (1500, 2000, "Silver"),
-    (2000, 2500, "Gold"),
-    (2500, 3000, "Platinum"),
-    (3000, 3500, "Diamond"),
-    (3500, 4000, "Master"),
-    (4000, 4500, "Grandmaster"),
-    (4500, 5100, "Champion"),
-)
-
-
 def normalize_limit(value: Any) -> int:
     try:
         limit = int(value or DEFAULT_MATCH_LIMIT)
@@ -34,30 +27,11 @@ def normalize_limit(value: Any) -> int:
 
 
 def convert_rank_score(score: Any) -> Optional[int]:
-    try:
-        score_num = int(score)
-    except (TypeError, ValueError):
-        return None
-    if score_num <= 0:
-        return None
-    rank = (score_num // 100) + 2
-    tier = (score_num % 100)
-    tier = (tier % 10) - 5
-    return int(rank * 500 + tier * 100)
+    return raw_rank_score_to_strength(score)
 
 
 def score_to_rank(score: Any) -> str:
-    try:
-        score_num = int(float(score))
-    except (TypeError, ValueError):
-        return "Unranked"
-    if score_num <= 0:
-        return "Unranked"
-    for lower, upper, label in _RANK_BUCKETS:
-        if lower <= score_num < upper:
-            bucket_index = max(0, min(4, (score_num - lower) // 100))
-            return f"{label} {5 - int(bucket_index)}"
-    return "Champion 1"
+    return strength_score_to_rank(score)
 
 
 def _safe_int(value: Any) -> int:
@@ -112,7 +86,7 @@ def _build_player_competitive_meta(
         if not isinstance(row, dict):
             continue
         role_type = normalize_role_type(row.get("roleType"))
-        score = convert_rank_score((row.get("lastRankInfo") or {}).get("rankScore"))
+        score = convert_rank_score(get_rank_score(row.get("lastRankInfo") or row.get("last_rank_info") or {}))
         if role_type and score is not None:
             current_role_scores[role_type] = score
 
@@ -123,7 +97,7 @@ def _build_player_competitive_meta(
             role_type = normalize_role_type(row.get("roleType"))
             if not role_type or role_type in latest_role_scores:
                 continue
-            score = convert_rank_score((row.get("lastRankInfo") or {}).get("rankScore"))
+            score = convert_rank_score(get_rank_score(row.get("lastRankInfo") or row.get("last_rank_info") or {}))
             if score is None:
                 continue
             latest_role_scores[role_type] = score
@@ -293,7 +267,7 @@ class DashenCompetitiveStrengthEngine:
                 if not player_token:
                     continue
                 participants.append({"side": side, "player_token": player_token})
-                converted_score = convert_rank_score((player.get("rankInfo") or {}).get("rankScore"))
+                converted_score = convert_rank_score(get_rank_score(player.get("rankInfo") or player.get("rank_info") or {}))
                 if isinstance(converted_score, int) and converted_score > 0:
                     current_scores.append(converted_score)
                     if side == "team":

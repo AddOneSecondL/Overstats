@@ -28,6 +28,7 @@ try:
     )
     from overstats.src.modules.dashen_match.requests import get_recent_dashen_seasons, iter_dashen_season_request_values
     from overstats.src.modules.errors import ModuleError
+    from overstats.src.modules.risk_status import RiskStatus, parse_risk_status
 except ModuleNotFoundError:
     from src.modules.dashen_match import DashenMatchQuery, DashenMatchRequests, dashen_match_module
     from src.modules.dashen_match.enhanced_render import (
@@ -47,6 +48,7 @@ except ModuleNotFoundError:
     )
     from src.modules.dashen_match.requests import get_recent_dashen_seasons, iter_dashen_season_request_values
     from src.modules.errors import ModuleError
+    from src.modules.risk_status import RiskStatus, parse_risk_status
 
 
 SAMEPLAY_CACHE_TTL = 1800
@@ -156,19 +158,23 @@ class ResolvedSameplayPlayer:
     full_id: str
     bnet_id: str
     customer_token: str
+    risk_status: Optional[RiskStatus] = None
 
     @property
     def display_name(self) -> str:
         return str(self.full_id or self.query or f"token:{_token_preview(self.customer_token)}").strip()
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "query": self.query,
             "full_id": self.full_id,
             "bnet_id": self.bnet_id,
             "customer_token": self.customer_token,
             "has_customer_token": bool(self.customer_token),
         }
+        if self.risk_status is not None:
+            result["risk_status"] = self.risk_status.to_dict()
+        return result
 
 
 @dataclass(frozen=True)
@@ -270,12 +276,17 @@ class DashenSameplayModule:
         summary["returned_count"] = len(visible_matches)
         image = None
         if render:
-            image = render_match_list(
-                visible_matches,
-                title=f"{player1.display_name} & {player2.display_name} 同玩对局",
-                footer_lines=[self._build_list_footer(summary, scan_complete=bool(common_output.get("scan_complete")))],
-                hint_text="回复此图片并 @机器人 发送 1 / 1* / 1**，可按序号查看同玩对局详情",
-            )
+            render_kwargs: Dict[str, Any] = {
+                "title": f"{player1.display_name} & {player2.display_name} 同玩对局",
+                "footer_lines": [self._build_list_footer(summary, scan_complete=bool(common_output.get("scan_complete")))],
+                "hint_text": "回复此图片并 @机器人 发送 1 / 1* / 1**，可按序号查看同玩对局详情",
+            }
+            if player1.risk_status is not None or player2.risk_status is not None:
+                render_kwargs["title_risk_statuses"] = [
+                    (player1.display_name, player1.risk_status),
+                    (player2.display_name, player2.risk_status),
+                ]
+            image = render_match_list(visible_matches, **render_kwargs)
         return DashenSameplayListOutput(
             player1=player1,
             player2=player2,
@@ -338,21 +349,27 @@ class DashenSameplayModule:
         source_match = self._select_source_match(common_output["matches"], index=index, match_id=match_id)
         detail, source_player_index = await self._fetch_main_match_detail(player1, player2, source_match)
         detail_root = _extract_match_detail_data(detail.payload)
+        if render:
+            detail_root = await self.match_module._hydrate_match_detail_risk_statuses(
+                detail.payload,
+                known_risk_statuses={
+                    player1.customer_token: player1.risk_status,
+                    player2.customer_token: player2.risk_status,
+                },
+            )
 
         main_image = None
         if render:
             main_image = render_match_detail(
-                detail.payload,
+                detail_root,
                 source_match=source_match,
                 query_full_id=player1.full_id,
                 query_bnet_id=player1.bnet_id,
             )
-            main_image = decorate_rendered_image_header(
-                main_image,
-                player1.display_name,
-                bnet_id=player1.bnet_id,
-                subtitle="同玩对局主战绩",
-            )
+            main_header_kwargs: Dict[str, Any] = {"bnet_id": player1.bnet_id, "subtitle": "同玩对局主战绩"}
+            if player1.risk_status is not None:
+                main_header_kwargs["risk_status"] = player1.risk_status
+            main_image = decorate_rendered_image_header(main_image, player1.display_name, **main_header_kwargs)
 
         player_details = await asyncio.gather(
             self._build_focus_player_output(
@@ -385,11 +402,16 @@ class DashenSameplayModule:
                     all_player_details,
                     match_game_time_sec=detail_root.get("gameTimeSec"),
                 )
+                waterfall_header_kwargs: Dict[str, Any] = {
+                    "bnet_id": focus_player.bnet_id,
+                    "subtitle": "全员详细数据",
+                }
+                if focus_player.risk_status is not None:
+                    waterfall_header_kwargs["risk_status"] = focus_player.risk_status
                 waterfall_image = decorate_rendered_image_header(
                     waterfall_image,
                     focus_player.display_name,
-                    bnet_id=focus_player.bnet_id,
-                    subtitle="全员详细数据",
+                    **waterfall_header_kwargs,
                 )
                 if analyze:
                     analysis = await self.match_module._build_ai_analysis(
@@ -527,6 +549,7 @@ class DashenSameplayModule:
                 full_id=full_id or explicit_bnet_id or token_label,
                 bnet_id=resolved_bnet_id or explicit_bnet_id,
                 customer_token=resolved_token,
+                risk_status=parse_risk_status(card_payload),
             )
 
         query = DashenMatchQuery(
@@ -536,12 +559,18 @@ class DashenSameplayModule:
             target_count=20,
         )
         resolved_query, resolved_bnet = await self.match_module._resolve_query(query)
+        risk_status: Optional[RiskStatus] = None
+        try:
+            risk_status = parse_risk_status(await self.requests.api_client.query_card(resolved_query.customer_token))
+        except Exception:
+            risk_status = None
         if resolved_bnet is not None:
             return ResolvedSameplayPlayer(
                 query=resolved_bnet.query,
                 full_id=resolved_bnet.full_id,
                 bnet_id=resolved_bnet.bnet_id,
                 customer_token=resolved_query.customer_token,
+                risk_status=risk_status,
             )
         token_label = f"token:{_token_preview(resolved_query.customer_token)}"
         return ResolvedSameplayPlayer(
@@ -549,6 +578,7 @@ class DashenSameplayModule:
             full_id=explicit_bnet_id or token_label,
             bnet_id=explicit_bnet_id,
             customer_token=resolved_query.customer_token,
+            risk_status=risk_status,
         )
 
     async def _list_common_matches(
@@ -896,12 +926,10 @@ class DashenSameplayModule:
                 focus_detail,
                 match_game_time_sec=detail_root.get("gameTimeSec"),
             )
-            image = decorate_rendered_image_header(
-                image,
-                player.display_name,
-                bnet_id=player.bnet_id,
-                subtitle="英雄详细数据",
-            )
+            header_kwargs: Dict[str, Any] = {"bnet_id": player.bnet_id, "subtitle": "英雄详细数据"}
+            if player.risk_status is not None:
+                header_kwargs["risk_status"] = player.risk_status
+            image = decorate_rendered_image_header(image, player.display_name, **header_kwargs)
         return DashenSameplayDetailPlayerOutput(
             player=player,
             available=True,

@@ -87,7 +87,11 @@ Sensitive or session-bound headers should be masked in docs:
     "titleIcon": "https://ld5picproxy.ds.163.com/overwatch/<MASKED>.png",
     "level": 4,
     "gameTime": "1063.29",
-    "customerToken": "<CUSTOMER_TOKEN>"
+    "customerToken": "<CUSTOMER_TOKEN>",
+    "riskStatus": {
+      "expireTime": 1787127797000,
+      "status": "SUSPENDED"
+    }
   },
   "success": true,
   "traceId": "<MASKED>"
@@ -106,6 +110,9 @@ Sensitive or session-bound headers should be masked in docs:
 - `data.level`: player display level
 - `data.gameTime`: total playtime string
 - `data.customerToken`: customer token returned again in the card payload
+- `data.riskStatus`: optional restriction entry; it is present only while the player is suspended
+- `data.riskStatus.expireTime`: suspension expiry as a Unix timestamp in milliseconds
+- `data.riskStatus.status`: reserved upstream status value; Overstats currently treats every present `riskStatus` entry as “suspended” and does not assign meaning to individual values
 - `traceId`: upstream trace id
 
 ## Raw Capture Mapping
@@ -138,7 +145,11 @@ and returns:
     "titleIcon": "https://ld5picproxy.ds.163.com/overwatch/<MASKED>.png",
     "level": 4,
     "gameTime": "1063.29",
-    "customerToken": "<CUSTOMER_TOKEN>"
+    "customerToken": "<CUSTOMER_TOKEN>",
+    "riskStatus": {
+      "expireTime": 1787127797000,
+      "status": "SUSPENDED"
+    }
   },
   "success": true,
   "traceId": "<MASKED>"

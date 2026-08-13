@@ -12,8 +12,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 try:
     from overstats.src.modules.errors import ModuleError
+    from overstats.src.modules.risk_status import parse_risk_status
 except ModuleNotFoundError:
     from src.modules.errors import ModuleError
+    from src.modules.risk_status import parse_risk_status
 
 try:
     from overstats.src.client.apiclient import dashen_api_client
@@ -174,6 +176,7 @@ def _resolved_target_from_query(query: Any) -> Dict[str, Any]:
             full_id = bnet_id
     if not full_id:
         full_id = bnet_id or battletag or "Unknown"
+    query_risk_status = parse_risk_status(getattr(query, "risk_status", None))
     return {
         "full_id": full_id,
         "bnet_id": bnet_id,
@@ -181,13 +184,11 @@ def _resolved_target_from_query(query: Any) -> Dict[str, Any]:
         "battletag": battletag.strip() or full_id,
         "battlenum": str(battlenum).strip() or "0",
         "icon_url": str(getattr(query, "icon_url", "") or "").strip(),
+        "risk_status": query_risk_status.to_dict() if query_risk_status else None,
     }
 
 
 async def _ensure_target_icon_url(resolved_target: Dict[str, Any]) -> Dict[str, Any]:
-    if str(resolved_target.get("icon_url") or "").strip():
-        return resolved_target
-
     customer_token = str(resolved_target.get("customer_token") or "").strip()
     if not customer_token:
         return resolved_target
@@ -200,6 +201,9 @@ async def _ensure_target_icon_url(resolved_target: Dict[str, Any]) -> Dict[str, 
     data = payload.get("data") if isinstance(payload, dict) else None
     if not isinstance(data, dict):
         return resolved_target
+
+    risk_status = parse_risk_status(data)
+    resolved_target["risk_status"] = risk_status.to_dict() if risk_status else None
 
     icon_url = str(data.get("icon") or "").strip()
     if icon_url:

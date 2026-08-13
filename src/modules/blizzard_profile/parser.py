@@ -189,6 +189,7 @@ def build_blizzard_render_context(
         title=parsed.summary.title,
         level=parsed.summary.endorsement_level,
         game_time=parsed.summary.game_time_hours,
+        risk_status=None,
         logical_season=None,
         quick_mode=parsed.summary.mode != "competitive",
         avatar_bytes=None,

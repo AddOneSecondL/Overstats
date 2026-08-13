@@ -457,6 +457,7 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
                     HTTPUIFieldOption("Silver", "白银"),
                     HTTPUIFieldOption("Gold", "黄金"),
                     HTTPUIFieldOption("Platinum", "白金"),
+                    HTTPUIFieldOption("Emerald", "翡翠"),
                     HTTPUIFieldOption("Diamond", "钻石"),
                     HTTPUIFieldOption("Master", "大师"),
                     HTTPUIFieldOption("Grandmaster", "宗师"),

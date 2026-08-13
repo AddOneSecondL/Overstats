@@ -15,6 +15,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 from ....constants.backgrounds import build_random_map_background
+from ....constants.ranks import get_rank_score, normalize_raw_rank_bucket, raw_rank_score_to_strength
 
 from .dashen import (
     dashen_api_client,
@@ -34,8 +35,18 @@ from .stat_reference import get_cached_statmap_summary as _shared_get_cached_sta
 
 try:
     from overstats.src.modules.font_resolver import load_font
+    from overstats.src.modules.risk_status import (
+        draw_risk_status_badge,
+        measure_risk_status_badge,
+        parse_risk_status,
+    )
 except ModuleNotFoundError:
     from src.modules.font_resolver import load_font
+    from src.modules.risk_status import (
+        draw_risk_status_badge,
+        measure_risk_status_badge,
+        parse_risk_status,
+    )
 
 
 def _read_env_int(name, default):
@@ -88,6 +99,30 @@ MAX_GROUP_TITLES_PER_PLAYER = 3
 GROUP_TITLE_COLOR_RE = re.compile(r"^(?:背景颜色)?#([0-9A-Fa-f]{6})$")
 
 OW_CONFIG = load_ow_config()
+
+
+async def _ensure_resolved_target_risk_status(resolved_target):
+    if not isinstance(resolved_target, dict):
+        return resolved_target
+
+    existing = parse_risk_status(resolved_target.get("risk_status"))
+    if existing is None and "riskStatus" in resolved_target:
+        existing = parse_risk_status({"riskStatus": resolved_target.get("riskStatus")})
+    if existing is not None:
+        resolved_target["risk_status"] = existing.to_dict()
+        return resolved_target
+
+    customer_token = str(resolved_target.get("customer_token") or "").strip()
+    if not customer_token:
+        return resolved_target
+    try:
+        payload = await dashen_api_client.query_card(customer_token)
+    except Exception:
+        return resolved_target
+
+    risk_status = parse_risk_status(payload)
+    resolved_target["risk_status"] = risk_status.to_dict() if risk_status else None
+    return resolved_target
 
 
 def _summary_png_b64(image):
@@ -225,15 +260,16 @@ ATTR_TEXT_BY_GUID = {
     for item in OW_CONFIG.get("heroAttrList", [])
     if item.get("valueGuid")
 }
-QUICK_DIST_BUCKET_START = 1000
+QUICK_DIST_BUCKET_START = 500
 QUICK_DIST_BUCKET_END = 4900
 QUICK_DIST_BUCKET_STEP = 100
-QUICK_DIST_SNAPSHOT_VERSION = 2
+QUICK_DIST_SNAPSHOT_VERSION = 3
 QUICK_DIST_RANK_SPANS = (
-    (1000, 1500, "青铜"),
-    (1500, 2000, "白银"),
-    (2000, 2500, "黄金"),
-    (2500, 3000, "白金"),
+    (500, 1000, "青铜"),
+    (1000, 1500, "白银"),
+    (1500, 2000, "黄金"),
+    (2000, 2500, "白金"),
+    (2500, 3000, "翡翠"),
     (3000, 3500, "钻石"),
     (3500, 4000, "大师"),
     (4000, 4500, "宗师"),
@@ -306,15 +342,7 @@ def _clamp_percent_value(value):
 
 
 def _normalize_hero_rank_score(rank_score):
-    if rank_score is None:
-        return None
-    try:
-        rank_score = int(rank_score)
-    except (TypeError, ValueError):
-        return None
-    if rank_score >= 100:
-        return rank_score // 100
-    return rank_score
+    return normalize_raw_rank_bucket(rank_score)
 
 
 def _get_hero_avg_percent_guids(stat_guids=None):
@@ -898,9 +926,9 @@ def _build_stats(matches, detail_pairs, resolved_target):
         "total_healing_taken": 0,
         "total_objective_time": 0,
         "maps": defaultdict(lambda: {"total": 0, "wins": 0}),
-        "friends": defaultdict(lambda: {"games": 0, "wins": 0, "time": 0, "score": 0, "bnet_id": "", "objective_time": 0, "deaths": 0, "damage_taken": 0, "endorse_received": 0, "heroes": set()}),
+        "friends": defaultdict(lambda: {"games": 0, "wins": 0, "time": 0, "score": 0, "bnet_id": "", "risk_status": None, "objective_time": 0, "deaths": 0, "damage_taken": 0, "endorse_received": 0, "heroes": set()}),
         "strangers": Counter(),
-        "stranger_details": defaultdict(lambda: {"games": 0, "wins": 0, "time": 0, "score": 0, "bnet_id": "", "objective_time": 0, "deaths": 0, "damage_taken": 0, "endorse_received": 0, "heroes": set()}),
+        "stranger_details": defaultdict(lambda: {"games": 0, "wins": 0, "time": 0, "score": 0, "bnet_id": "", "risk_status": None, "objective_time": 0, "deaths": 0, "damage_taken": 0, "endorse_received": 0, "heroes": set()}),
         "party": Counter(),
         "party_wins": Counter(),
         "heroes": Counter(),
@@ -1029,11 +1057,16 @@ def _build_stats(matches, detail_pairs, resolved_target):
             if not teammate_hero_guid and player.get("heroList"):
                 hero_item = (player.get("heroList") or [{}])[0] or {}
                 teammate_hero_guid = hero_item.get("heroGuid") or hero_item.get("heroId")
+            teammate_risk_status = None
+            if "riskStatus" in player:
+                parsed_teammate_risk = parse_risk_status({"riskStatus": player.get("riskStatus")})
+                teammate_risk_status = parsed_teammate_risk.to_dict() if parsed_teammate_risk else None
             teammate_entry = {
                 "kda": teammate_kda,
                 "name": name,
                 "heroGuid": teammate_hero_guid,
                 "mapGuid": match.get("mapGuid") or detail.get("mapGuid"),
+                "risk_status": teammate_risk_status,
             }
             existing_best = next((item for item in stats["top3_strongest"] if item["name"] == name), None)
             if existing_best is None:
@@ -1056,6 +1089,8 @@ def _build_stats(matches, detail_pairs, resolved_target):
             if str(player.get("bnetId")) in friends:
                 if player.get("bnetId") is not None:
                     stats["friends"][name]["bnet_id"] = str(player.get("bnetId"))
+                if teammate_risk_status:
+                    stats["friends"][name]["risk_status"] = teammate_risk_status
                 stats["friends"][name]["games"] += 1
                 stats["friends"][name]["time"] += game_time
                 stats["friends"][name]["objective_time"] += _num(player.get("targetCompetingTime"))
@@ -1082,6 +1117,8 @@ def _build_stats(matches, detail_pairs, resolved_target):
                 stats["strangers"][name] += 1
                 if player.get("bnetId") is not None:
                     stats["stranger_details"][name]["bnet_id"] = str(player.get("bnetId"))
+                if teammate_risk_status:
+                    stats["stranger_details"][name]["risk_status"] = teammate_risk_status
                 stats["stranger_details"][name]["games"] += 1
                 stats["stranger_details"][name]["time"] += game_time
                 stats["stranger_details"][name]["objective_time"] += _num(player.get("targetCompetingTime"))
@@ -1154,14 +1191,6 @@ def _score_bucket_key(score):
         return None
     if score <= 0:
         return None
-    if score < 1000:
-        # rank 表 / ranking_dist2 使用的是原始 rankScore:
-        # 95-99 青铜5-1, 195-199 白银5-1, ... , 795-799 英杰5-1
-        major = score // 100
-        tier = score % 100
-        if major < 0 or tier < 95:
-            return None
-        score = 1000 + (major * 500) + ((tier - 95) * 100)
     score = max(QUICK_DIST_BUCKET_START, min(QUICK_DIST_BUCKET_END, score))
     return ((score - QUICK_DIST_BUCKET_START) // QUICK_DIST_BUCKET_STEP) * QUICK_DIST_BUCKET_STEP + QUICK_DIST_BUCKET_START
 
@@ -1172,10 +1201,11 @@ def _all_rank_bucket_keys():
 
 def _major_rank_breakpoints():
     return [
-        ("青铜", 1200),
-        ("白银", 1700),
-        ("黄金", 2200),
-        ("白金", 2700),
+        ("青铜", 700),
+        ("白银", 1200),
+        ("黄金", 1700),
+        ("白金", 2200),
+        ("翡翠", 2700),
         ("钻石", 3200),
         ("大师", 3700),
         ("宗师", 4200),
@@ -1218,7 +1248,8 @@ def _build_rank_distribution_snapshot(target_day):
         if not isinstance(row, dict):
             continue
         for key in ("tank", "dps", "healer"):
-            bucket = _score_bucket_key(row.get(key))
+            strength = raw_rank_score_to_strength(row.get(key))
+            bucket = _score_bucket_key(strength)
             if bucket is None:
                 continue
             bucket_counts[str(bucket)] = bucket_counts.get(str(bucket), 0) + 1
@@ -1271,7 +1302,8 @@ async def _build_rank_distribution_snapshot_from_ranking_dist(target_day):
         },
     )
     for score in rank_scores or []:
-        bucket = _score_bucket_key(score)
+        strength = raw_rank_score_to_strength(score)
+        bucket = _score_bucket_key(strength)
         if bucket is None:
             continue
         bucket_counts[str(bucket)] = bucket_counts.get(str(bucket), 0) + 1
@@ -1703,7 +1735,7 @@ def _draw_quick_strength_distribution(draw, box, dist_data):
 
     draw.line((inner_x1, axis_y, inner_x2, axis_y), fill=(72, 94, 122, 140), width=2)
 
-    for label, lower, upper in QUICK_DIST_RANK_SPANS:
+    for lower, upper, label in QUICK_DIST_RANK_SPANS:
         rank_buckets = [bucket for bucket in visible_bucket_keys if lower <= bucket < upper]
         if not rank_buckets:
             continue
@@ -2235,7 +2267,7 @@ def _build_period_stat_highlights(detail_pairs, resolved_target):
         me = _resolve_me_player_detail(detail, resolved_target)
         if not me:
             continue
-        rank_bucket = _normalize_hero_rank_score((me.get("rankInfo") or {}).get("rankScore"))
+        rank_bucket = _normalize_hero_rank_score(get_rank_score(me.get("rankInfo") or me.get("rank_info") or {}))
         match_map_guid = match.get("mapGuid") or _detail_root(detail).get("mapGuid")
         for hero in me.get("heroList", []) or []:
             hero_id = str(hero.get("heroGuid") or hero.get("heroId") or "")
@@ -2751,8 +2783,33 @@ async def _draw_teammate_spotlight(draw, canvas, box, title, entries, color, is_
         else:
             draw.ellipse((x1 + 14, row_y + 3, x1 + 38, row_y + 27), fill=(55, 65, 82, 210))
 
-        name_text = _truncate_to_width(draw, entry.get("name"), _load_font(14, bold=True), 210)
-        draw.text((x1 + 46, row_y + 1), name_text, font=_load_font(14, bold=True), fill=(246, 248, 255))
+        name_font = _load_font(14, bold=True)
+        risk_font = _load_font(8, bold=True)
+        risk_width, risk_height, _ = measure_risk_status_badge(
+            draw,
+            entry.get("risk_status"),
+            font=risk_font,
+            compact=True,
+            padding_x=4,
+            padding_y=2,
+            max_width=90,
+        )
+        name_max_width = max(92, 210 - risk_width - (6 if risk_width else 0))
+        name_text = _truncate_to_width(draw, entry.get("name"), name_font, name_max_width)
+        draw.text((x1 + 46, row_y + 1), name_text, font=name_font, fill=(246, 248, 255))
+        if risk_width:
+            name_width = _text_size(draw, name_text, name_font)[0]
+            draw_risk_status_badge(
+                draw,
+                x1 + 46 + name_width + 6,
+                row_y + max(1, int((28 - risk_height) / 2)),
+                entry.get("risk_status"),
+                font=risk_font,
+                compact=True,
+                padding_x=4,
+                padding_y=2,
+                max_width=90,
+            )
 
         kda_text = f"KDA {_num(entry.get('kda')):.2f}"
         map_text = _truncate_to_width(draw, _map_name(entry.get("mapGuid")), _load_font(12), max(80, x2 - x1 - 300))
@@ -2880,16 +2937,32 @@ async def _render_period_image(
     measure_draw = ImageDraw.Draw(Image.new("RGBA", (width, 320), (0, 0, 0, 0)))
     name_font = _load_font(44, bold=True)
     title_font = _load_font(22, bold=True)
+    risk_badge_font = _load_font(16, bold=True)
     display_name = _truncate_to_width(measure_draw, display_name, name_font, 420)
     name_x = 190
     name_y = 70
     name_w, name_h = _text_size(measure_draw, display_name, name_font)
+    risk_badge_x = name_x + name_w + 16
+    risk_badge_max_width = max(96, min(250, 802 - risk_badge_x))
+    risk_badge_width, risk_badge_height, _ = measure_risk_status_badge(
+        measure_draw,
+        resolved_target.get("risk_status"),
+        font=risk_badge_font,
+        compact=True,
+        padding_x=9,
+        padding_y=4,
+        max_width=risk_badge_max_width,
+    )
+    risk_badge_y = name_y + max(0, int((name_h - risk_badge_height) / 2))
+    identity_end_x = name_x + name_w
+    if risk_badge_width:
+        identity_end_x = risk_badge_x + risk_badge_width
     player_titles = _get_group_titles_safe(resolved_target.get("bnet_id"))
-    badges_bottom = name_y + name_h
+    badges_bottom = max(name_y + name_h, risk_badge_y + risk_badge_height)
     if player_titles:
-        badge_center_y = 92 if (name_x + name_w) <= 450 else 178
-        badge_start_x = name_x + name_w + 16 if badge_center_y == 92 else name_x
-        _, _, badges_bottom = _draw_group_title_badges(
+        badge_center_y = 92 if identity_end_x <= 450 else 178
+        badge_start_x = identity_end_x + 16 if badge_center_y == 92 else name_x
+        _, _, title_badges_bottom = _draw_group_title_badges(
             measure_draw,
             player_titles,
             badge_start_x,
@@ -2906,6 +2979,7 @@ async def _render_period_image(
             wrap_start_x=name_x,
             row_gap=8,
         )
+        badges_bottom = max(badges_bottom, title_badges_bottom)
     subtitle_y = max(128, int(badges_bottom) + 12)
     profile_y = subtitle_y + 38
     period_y = profile_y + 38
@@ -2991,6 +3065,18 @@ async def _render_period_image(
         draw.ellipse((55, 55, 165, 165), fill=(28, 36, 50, 220), outline=(96, 126, 160, 180), width=2)
 
     draw.text((name_x, name_y), display_name, font=name_font, fill=(255, 255, 255))
+    if risk_badge_width:
+        draw_risk_status_badge(
+            draw,
+            risk_badge_x,
+            risk_badge_y,
+            resolved_target.get("risk_status"),
+            font=risk_badge_font,
+            compact=True,
+            padding_x=9,
+            padding_y=4,
+            max_width=risk_badge_max_width,
+        )
     if player_titles:
         _draw_group_title_badges(
             draw,
@@ -3179,13 +3265,39 @@ async def _render_period_image(
             draw.rounded_rectangle((735, row_y + 3, 775, row_y + 21), radius=4, fill=badge_color)
             draw.text((743, row_y + 3), kind, font=_load_font(11, bold=True), fill=(18, 24, 34))
             name_font = _load_font(17, bold=True)
-            friend_name = _truncate_to_width(draw, name, name_font, 210)
+            risk_font = _load_font(8, bold=True)
+            risk_width, risk_height, _ = measure_risk_status_badge(
+                draw,
+                data.get("risk_status"),
+                font=risk_font,
+                compact=True,
+                padding_x=4,
+                padding_y=2,
+                max_width=84,
+            )
+            friend_name_max_width = max(90, 210 - risk_width - (6 if risk_width else 0))
+            friend_name = _truncate_to_width(draw, name, name_font, friend_name_max_width)
             draw.text((784, row_y), friend_name, font=name_font, fill=(218, 228, 242))
             friend_name_w = _text_size(draw, friend_name, name_font)[0]
+            title_badge_start_x = 784 + friend_name_w + 8
+            if risk_width:
+                risk_x = 784 + friend_name_w + 6
+                draw_risk_status_badge(
+                    draw,
+                    risk_x,
+                    row_y + max(1, int((24 - risk_height) / 2)),
+                    data.get("risk_status"),
+                    font=risk_font,
+                    compact=True,
+                    padding_x=4,
+                    padding_y=2,
+                    max_width=84,
+                )
+                title_badge_start_x = risk_x + risk_width + 4
             _draw_group_title_badges(
                 draw,
                 _get_group_titles_safe(data.get("bnet_id")),
-                784 + friend_name_w + 8,
+                title_badge_start_x,
                 row_y + 12,
                 1018,
                 badge_height=18,
@@ -3383,14 +3495,40 @@ def _render_season_image(stats, resolved_target):
     canvas = _make_background((width, height))
     draw = ImageDraw.Draw(canvas, "RGBA")
 
-    display_name = resolved_target.get("full_id") or "Unknown Player"
+    display_name = str(resolved_target.get("full_id") or "Unknown Player")
     season_info = OW_CONFIG.get("seasonList", {}).get(str(season), {})
     season_text = f"S{season}"
     if season_info:
         season_text += f" | {season_info.get('startTime', '')}-{season_info.get('endTime', '')}"
 
     draw.text((54, 42), "赛季总结", font=_load_font(54, bold=True), fill=(255, 255, 255))
-    draw.text((58, 112), display_name, font=_load_font(28, bold=True), fill=(218, 228, 242))
+    name_font = _load_font(28, bold=True)
+    risk_badge_font = _load_font(13, bold=True)
+    display_name = _truncate_to_width(draw, display_name, name_font, 560)
+    draw.text((58, 112), display_name, font=name_font, fill=(218, 228, 242))
+    name_width, name_height = _text_size(draw, display_name, name_font)
+    risk_badge_x = 58 + name_width + 12
+    risk_badge_width, risk_badge_height, _ = measure_risk_status_badge(
+        draw,
+        resolved_target.get("risk_status"),
+        font=risk_badge_font,
+        compact=True,
+        padding_x=8,
+        padding_y=3,
+        max_width=max(90, 850 - risk_badge_x),
+    )
+    if risk_badge_width:
+        draw_risk_status_badge(
+            draw,
+            risk_badge_x,
+            112 + max(0, int((name_height - risk_badge_height) / 2)),
+            resolved_target.get("risk_status"),
+            font=risk_badge_font,
+            compact=True,
+            padding_x=8,
+            padding_y=3,
+            max_width=max(90, 850 - risk_badge_x),
+        )
     draw.text((58, 150), season_text, font=_load_font(20), fill=(165, 178, 198))
 
     _draw_metric(draw, 880, 54, "总场次", stats["total"], (139, 216, 255))
@@ -3590,6 +3728,7 @@ async def render_period_conclusion(
     customer_token = resolved_target.get("customer_token")
     if not customer_token:
         await bot.finish(ev, "没有找到该玩家的大神 token，无法生成总结图。")
+    resolved_target = await _ensure_resolved_target_risk_status(resolved_target)
 
     matches = [dict(match) for match in (matches or []) if isinstance(match, dict)]
     matches.sort(key=lambda item: item.get("beginTs") or 0, reverse=True)
@@ -3674,6 +3813,7 @@ async def _render_season_conclusion_locked(
     customer_token = resolved_target.get("customer_token")
     if not customer_token:
         await bot.finish(ev, "没有找到该玩家的大神 token，无法生成赛季总结。")
+    resolved_target = await _ensure_resolved_target_risk_status(resolved_target)
 
     matches = await _fetch_season_match_lists(customer_token)
     if not matches:

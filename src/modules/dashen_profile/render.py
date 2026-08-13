@@ -14,8 +14,15 @@ except ModuleNotFoundError:
 
 try:
     from overstats.src.modules.font_resolver import load_font, resolve_resource_dir
+    from overstats.src.modules.risk_status import draw_risk_status_badge
 except ModuleNotFoundError:
     from src.modules.font_resolver import load_font, resolve_resource_dir
+    from src.modules.risk_status import draw_risk_status_badge
+
+try:
+    from overstats.src.constants.ranks import get_rank_score, get_rank_sub_tier, raw_rank_score_to_icon_level
+except ModuleNotFoundError:
+    from src.constants.ranks import get_rank_score, get_rank_sub_tier, raw_rank_score_to_icon_level
 
 from .engine import HeroBillboardEntry, HeroUsageRow, ProfileRenderContext, RolePanelEntry
 
@@ -93,6 +100,7 @@ def render_profile_summary(context: ProfileRenderContext) -> RenderedImage:
         battlenum=context.battlenum,
         title=context.title,
         level=context.level,
+        risk_status=context.risk_status,
         fonts=fonts,
     )
     _draw_header(draw, context.game_time, fonts)
@@ -145,6 +153,7 @@ def _draw_name_block(
     battlenum: str,
     title: str,
     level: int,
+    risk_status: Any,
     fonts: Dict[str, Any],
 ) -> int:
     if battletag.isascii():
@@ -160,11 +169,24 @@ def _draw_name_block(
     if title and title != STR_NO_TITLE:
         draw.text((280, 178), title, font=fonts["font_cn_small"], fill="lightgray", spacing=5)
 
+    right_cursor = 280 + text_width + 10
+    badge_width, _ = draw_risk_status_badge(
+        draw,
+        right_cursor,
+        98,
+        risk_status,
+        font=fonts["font_cn_small"],
+        padding_x=11,
+        padding_y=5,
+    )
+    if badge_width:
+        right_cursor += badge_width + 12
+
     if level > 0:
         icon = _load_appreciation_icon(config, level)
         if icon is not None:
             icon = _resize_image(icon, (64, 64))
-            image.paste(icon, (280 + text_width + 10, 80), icon)
+            image.paste(icon, (right_cursor, 80), icon)
 
     if battlenum:
         _draw_mixed_text(
@@ -660,7 +682,7 @@ def _draw_hero_usage_block(
             text_left = score_box_x + 8
             rank_icon = _load_rank_pure_icon(row.rank_overlay.rank_level)
             if rank_icon is not None:
-                if row.rank_overlay.rank_level < 6:
+                if row.rank_overlay.rank_level not in {6, 7, 8}:
                     rank_icon = _resize_image(rank_icon, (32, 32))
                     image.paste(rank_icon, (score_box_x + 5, score_box_y + 1), rank_icon)
                     text_left = score_box_x + 41
@@ -919,7 +941,7 @@ def _draw_recent_match_type(bg: Any, bgdraw: Any, item: Dict[str, Any], match_ty
         return
     if match_type == "IT_RULESET":
         rank_info = item.get("rankInfo")
-        if isinstance(rank_info, dict) and _safe_int(rank_info.get("rankScore")) > 0:
+        if isinstance(rank_info, dict) and _safe_int(get_rank_score(rank_info)) > 0:
             _draw_mixed_text_with_shadow(
                 bgdraw,
                 322,
@@ -931,7 +953,7 @@ def _draw_recent_match_type(bg: Any, bgdraw: Any, item: Dict[str, Any], match_ty
                 shadow_fill=(255, 255, 255, 76),
                 shadow_offset=(0, 1),
             )
-            badge = _build_rank_icon(_safe_int(rank_info.get("rankScore")), str(rank_info.get("rankSubTier") or ""), fonts["font_rank_tier_recent"], (86, 28), tier_vertical_offset=16)
+            badge = _build_rank_icon(_safe_int(get_rank_score(rank_info)), str(get_rank_sub_tier(rank_info) or ""), fonts["font_rank_tier_recent"], (86, 28), tier_vertical_offset=16)
             if badge is not None:
                 bg.paste(badge, (430, 4), badge)
         else:
@@ -960,8 +982,8 @@ def _draw_recent_match_type(bg: Any, bgdraw: Any, item: Dict[str, Any], match_ty
         shadow_offset=(0, 1),
     )
     rank_info = item.get("rankInfo")
-    if isinstance(rank_info, dict) and _safe_int(rank_info.get("rankScore")) > 0:
-        badge = _build_rank_icon(_safe_int(rank_info.get("rankScore")), str(rank_info.get("rankSubTier") or ""), fonts["font_rank_tier_recent"], (86, 28), tier_vertical_offset=16)
+    if isinstance(rank_info, dict) and _safe_int(get_rank_score(rank_info)) > 0:
+        badge = _build_rank_icon(_safe_int(get_rank_score(rank_info)), str(get_rank_sub_tier(rank_info) or ""), fonts["font_rank_tier_recent"], (86, 28), tier_vertical_offset=16)
         if badge is not None:
             bg.paste(badge, (430, 4), badge)
 
@@ -1035,7 +1057,7 @@ def _recent_match_type_color(item: Dict[str, Any], match_type: str) -> tuple[int
         return (184, 111, 0, 255)
     if match_type == "IT_RULESET":
         rank_info = item.get("rankInfo")
-        if isinstance(rank_info, dict) and _safe_int(rank_info.get("rankScore")) > 0:
+        if isinstance(rank_info, dict) and _safe_int(get_rank_score(rank_info)) > 0:
             return hex_to_rgba(COLOR_COMPETITIVE)
         return (47, 121, 255, 255)
     return hex_to_rgba(COLOR_COMPETITIVE)
@@ -1088,7 +1110,7 @@ def _apply_history_style(icon: Any, is_history: bool) -> Any:
 def _load_rank_pure_icon(rank_level: int) -> Any | None:
     from PIL import Image
 
-    normalized_level = max(1, min(8, _safe_int(rank_level)))
+    normalized_level = max(1, min(9, _safe_int(rank_level)))
     path = RESOURCE_DIR / "rank_flat" / f"{normalized_level}_pure.png"
     if not path.exists():
         fallback = RESOURCE_DIR / "rank_flat" / f"f{normalized_level}_pure.png"
@@ -1102,9 +1124,7 @@ def _load_rank_pure_icon(rank_level: int) -> Any | None:
 
 
 def _rank_level_from_score(score: int) -> int:
-    level = (_safe_int(score) // 100) + 1
-    max_level = 9 if (RESOURCE_DIR / "rank_flat" / "9.png").exists() else 8
-    return max(1, min(max_level, level))
+    return raw_rank_score_to_icon_level(score)
 
 
 def _hero_level_tier(hero_level: int) -> int:

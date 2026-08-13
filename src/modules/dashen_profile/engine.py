@@ -6,6 +6,16 @@ import datetime as dt
 import time
 from typing import Any, Awaitable, Callable, Dict, Optional, Sequence
 
+try:
+    from overstats.src.constants.ranks import get_rank_score, get_rank_sub_tier
+except ModuleNotFoundError:
+    from src.constants.ranks import get_rank_score, get_rank_sub_tier
+
+try:
+    from overstats.src.modules.risk_status import RiskStatus, parse_risk_status
+except ModuleNotFoundError:
+    from src.modules.risk_status import RiskStatus, parse_risk_status
+
 from .requests import (
     DashenProfileBundle,
     DashenProfileRequests,
@@ -102,6 +112,7 @@ class ProfileRenderContext:
     leftover_open_billboards: tuple[HeroBillboardEntry, ...]
     leftover_preset_billboards: tuple[HeroBillboardEntry, ...]
     race_progress: Optional[Dict[str, Any]] = None
+    risk_status: Optional[RiskStatus] = None
 
 
 def _payload_data(payload: Any) -> Dict[str, Any]:
@@ -249,7 +260,7 @@ def build_role_panel_entries(
     entries: list[RolePanelEntry] = []
     for role_type in ROLE_ORDER:
         current_role_data = current_map.get(role_type)
-        current_rank_score = _safe_int(((current_role_data or {}).get("lastRankInfo") or {}).get("rankScore"))
+        current_rank_score = _safe_int(get_rank_score((current_role_data or {}).get("lastRankInfo") or {}))
         final_data = dict(current_role_data or {})
         is_history = False
         history_season = ""
@@ -261,7 +272,7 @@ def build_role_panel_entries(
                 history_item = guide_map.get(role_type)
                 if not history_item:
                     continue
-                score = _safe_int(((history_item.get("lastRankInfo") or {}).get("rankScore")))
+                score = _safe_int(get_rank_score(history_item.get("lastRankInfo") or {}))
                 if score > 0:
                     ranked_history = (season_id, history_item)
                     break
@@ -284,10 +295,10 @@ def build_role_panel_entries(
         entries.append(
             RolePanelEntry(
                 role_type=role_type,
-                score=_safe_int(last_rank_info.get("rankScore")),
-                tier=str(last_rank_info.get("rankSubTier") or ""),
-                max_score=_safe_int(max_rank_info.get("rankScore")),
-                max_tier=str(max_rank_info.get("rankSubTier") or ""),
+                score=_safe_int(get_rank_score(last_rank_info)),
+                tier=str(get_rank_sub_tier(last_rank_info) or ""),
+                max_score=_safe_int(get_rank_score(max_rank_info)),
+                max_tier=str(get_rank_sub_tier(max_rank_info) or ""),
                 match_sum=match_sum,
                 win_sum=int(match_sum * win_rate / 100) if match_sum > 0 else 0,
                 is_history=is_history,
@@ -368,6 +379,7 @@ class DashenProfileEngine:
             title=str(card_data.get("title") or "").strip(),
             level=_safe_int(card_data.get("level")),
             game_time=_safe_float(card_data.get("gameTime")),
+            risk_status=parse_risk_status(card_data),
             logical_season=bundle.logical_season,
             quick_mode=quick_mode,
             avatar_bytes=avatar_bytes,
@@ -714,7 +726,7 @@ class DashenProfileEngine:
 
         filtered_matches: list[Dict[str, Any]] = []
         for match in normal_matches:
-            if _safe_int(((match.get("rankInfo") or {}).get("rankScore"))) <= 0:
+            if _safe_int(get_rank_score(match.get("rankInfo") or {})) <= 0:
                 continue
             item = dict(match)
             item["_progress_mode"] = "normal"
@@ -925,7 +937,7 @@ class DashenProfileEngine:
             begin_ts = _safe_begin_ts(match)
             if not (start_ts_ms <= begin_ts <= end_ts_ms):
                 continue
-            if _safe_int(((match.get("rankInfo") or {}).get("rankScore"))) <= 0:
+            if _safe_int(get_rank_score(match.get("rankInfo") or {})) <= 0:
                 continue
             filtered_matches.append(dict(match))
         filtered_matches.sort(key=_safe_begin_ts)
