@@ -446,6 +446,7 @@ class DashenMatchModule:
                     analysis_image = render_analysis_report(
                         json_data,
                         target_hero_images=build_target_hero_icons(focus_detail["heroList"], size=40),
+                        risk_status=target_risk_status,
                         map_name=map_name_for_match(detail_root),
                         map_icon_img=map_icon_image_for_match(detail_root),
                         match_result=self._match_result_text(detail_root),

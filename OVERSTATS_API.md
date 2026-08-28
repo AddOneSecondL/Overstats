@@ -320,7 +320,10 @@ JSON response shape:
       "min": 2410,
       "max": 3310
     },
-    "used_previous_season_fallback": false
+    "used_previous_season_fallback": false,
+    "personal_data_exceeded_percent": 87.7,
+    "personal_data_top_percent": 12.3,
+    "personal_data_metric_count": 18
   },
   "matches": [
     {
@@ -354,6 +357,17 @@ JSON response shape:
   ]
 }
 ```
+
+When database recording is enabled and comparable feature data exists, the three
+`personal_data_*` fields report the equally weighted database percentile. The
+`/image` endpoint displays `personal_data_top_percent` in the upper-right header.
+If recording is disabled or no comparison sample exists, both percentage fields
+are `null` and the metric count is `0`.
+
+The comparison includes available hero feature and common stats such as damage,
+eliminations, assists, and accuracy. KDA is derived per player from eliminations,
+assists, and deaths; deaths use a reversed percentile, so fewer deaths rank higher.
+Accumulated play time is excluded from the combined percentage.
 
 The `/image` endpoint returns `image/png` rendered with Pillow instead of matplotlib.
 
@@ -398,7 +412,10 @@ JSON response shape:
       "min": 3138,
       "max": 3657
     },
-    "used_previous_season_fallback": false
+    "used_previous_season_fallback": false,
+    "personal_data_exceeded_percent": 87.7,
+    "personal_data_top_percent": 12.3,
+    "personal_data_metric_count": 18
   },
   "matches": [
     {
@@ -433,7 +450,9 @@ JSON response shape:
 }
 ```
 
-The `/image` endpoint returns `image/png` rendered with the same PIL layout as quick strength, using the competitive rose-red theme.
+The `personal_data_*` fields follow the same database-switch and percentile rules
+as quick strength. The `/image` endpoint returns `image/png` rendered with the same
+PIL layout as quick strength, using the competitive rose-red theme.
 
 ## Dashen Rank Leaderboard API
 

@@ -37,3 +37,5 @@ api_test_data.json
 !/test/test_ow_guess_catalog.py
 !/test/test_ow_hero_leaderboard_service.py
 !/test/test_risk_status.py
+!/test/test_rank_emerald.py
+!/test/test_personal_data_percentile.py

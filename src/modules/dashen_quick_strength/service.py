@@ -21,6 +21,15 @@ from .render import RenderedImage, render_quick_strength
 from .requests import DashenQuickStrengthQuery, DashenQuickStrengthRequests
 
 
+def _optional_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 @dataclass(frozen=True)
 class DashenQuickStrengthSummary:
     match_count: int
@@ -28,6 +37,9 @@ class DashenQuickStrengthSummary:
     overall_avg_rank: str
     score_range: Dict[str, int]
     used_previous_season_fallback: bool
+    personal_data_exceeded_percent: Optional[float] = None
+    personal_data_top_percent: Optional[float] = None
+    personal_data_metric_count: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -36,6 +48,9 @@ class DashenQuickStrengthSummary:
             "overall_avg_rank": str(self.overall_avg_rank),
             "score_range": dict(self.score_range),
             "used_previous_season_fallback": bool(self.used_previous_season_fallback),
+            "personal_data_exceeded_percent": self.personal_data_exceeded_percent,
+            "personal_data_top_percent": self.personal_data_top_percent,
+            "personal_data_metric_count": int(self.personal_data_metric_count),
         }
 
 
@@ -130,6 +145,11 @@ class DashenQuickStrengthModule:
             overall_avg_rank=str(summary_dict.get("overall_avg_rank") or "Unranked"),
             score_range=dict(summary_dict.get("score_range") or {"min": 0, "max": 0}),
             used_previous_season_fallback=bool(summary_dict.get("used_previous_season_fallback")),
+            personal_data_exceeded_percent=_optional_float(
+                summary_dict.get("personal_data_exceeded_percent")
+            ),
+            personal_data_top_percent=_optional_float(summary_dict.get("personal_data_top_percent")),
+            personal_data_metric_count=int(summary_dict.get("personal_data_metric_count") or 0),
         )
         matches = tuple(
             DashenQuickStrengthMatchPoint(

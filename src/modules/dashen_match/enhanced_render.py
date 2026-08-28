@@ -1356,6 +1356,7 @@ def build_carry_index_data(match_data: dict[str, Any]) -> list[dict[str, Any]]:
                     "team": team_label,
                     "score": int(round(score)),
                     "icon": hero_icon,
+                    "risk_status": player.get("riskStatus") or player.get("risk_status"),
                 }
             )
 
@@ -1367,6 +1368,7 @@ def render_analysis_report(
     json_data: dict[str, Any],
     *,
     target_hero_images: Optional[Sequence[Any]] = None,
+    risk_status: Any = None,
     map_name: Optional[str] = None,
     map_icon_img: Any = None,
     match_result: Optional[str] = None,
@@ -1382,6 +1384,7 @@ def render_analysis_report(
     font_text = _font_chinese(22)
     font_score = _font_chinese(32)
     font_footer = _font_chinese(16)
+    font_risk = _font_chinese(11)
 
     temp = Image.new("RGB", (1, 1))
     temp_draw = ImageDraw.Draw(temp)
@@ -1476,10 +1479,49 @@ def render_analysis_report(
         if section["type"] == "score":
             score_text = str(section["score"]).upper().strip()
             score_color = score_colors.get(score_text[:1] if score_text else "", (255, 255, 255, 255))
-            draw.text((padding + 20, current_y), f"ID：{section['id']}", font=font_text, fill=(220, 225, 230, 255))
-            prefix = f"ID：{section['id']}    评分："
-            draw.text((padding + 20 + measure(f"ID：{section['id']}    ", font_text), current_y), "评分：", font=font_text, fill=(220, 225, 230, 255))
-            draw.text((padding + 20 + measure(prefix, font_text), current_y - 8), score_text, font=font_score, fill=score_color)
+            row_x = padding + 20
+            id_prefix = "ID："
+            id_text = str(section["id"])
+            prefix_width = measure(id_prefix, font_text)
+            badge_width, _, _ = measure_risk_status_badge(
+                draw,
+                risk_status,
+                font=font_risk,
+                compact=True,
+                padding_x=6,
+                padding_y=3,
+                max_width=118,
+            )
+            icon_left = width - padding - len(target_hero_images or ()) * 45
+            score_label_width = measure("评分：", font_text)
+            score_width = measure(score_text, font_score)
+            reserved_right = score_label_width + score_width + 28
+            available_id_width = max(
+                60,
+                icon_left - 12 - row_x - prefix_width - reserved_right - (badge_width + 12 if badge_width else 12),
+            )
+            rendered_id = _fit_text(draw, id_text, font_text, available_id_width)
+            draw.text((row_x, current_y), id_prefix, font=font_text, fill=(220, 225, 230, 255))
+            id_x = row_x + prefix_width
+            draw.text((id_x, current_y), rendered_id, font=font_text, fill=(220, 225, 230, 255))
+            cursor_x = id_x + measure(rendered_id, font_text)
+            if badge_width:
+                drawn_width, _ = draw_risk_status_badge(
+                    draw,
+                    cursor_x + 7,
+                    current_y - 2,
+                    risk_status,
+                    font=font_risk,
+                    compact=True,
+                    padding_x=6,
+                    padding_y=3,
+                    max_width=118,
+                )
+                cursor_x += drawn_width + 14
+            else:
+                cursor_x += 12
+            draw.text((cursor_x, current_y), "评分：", font=font_text, fill=(220, 225, 230, 255))
+            draw.text((cursor_x + score_label_width, current_y - 8), score_text, font=font_score, fill=score_color)
             if target_hero_images:
                 icon_x = width - padding - len(target_hero_images) * 45
                 for icon in target_hero_images:
@@ -1499,7 +1541,31 @@ def render_analysis_report(
             else:
                 max_score = max(1, max(abs(int(item.get("score", 0))) for item in carry_data))
                 for item in carry_data:
-                    draw.text((padding + 60, current_y), str(item.get("name", ""))[:8], font=font_text, fill=(220, 225, 230, 255))
+                    name_x = padding + 60
+                    item_badge_width, _, _ = measure_risk_status_badge(
+                        draw,
+                        item.get("risk_status"),
+                        font=font_risk,
+                        compact=True,
+                        padding_x=5,
+                        padding_y=2,
+                        max_width=80,
+                    )
+                    name_width_limit = max(38, 180 - (item_badge_width + 7 if item_badge_width else 0))
+                    item_name = _fit_text(draw, str(item.get("name", "")), font_text, name_width_limit)
+                    draw.text((name_x, current_y), item_name, font=font_text, fill=(220, 225, 230, 255))
+                    if item_badge_width:
+                        draw_risk_status_badge(
+                            draw,
+                            name_x + measure(item_name, font_text) + 5,
+                            current_y + 1,
+                            item.get("risk_status"),
+                            font=font_risk,
+                            compact=True,
+                            padding_x=5,
+                            padding_y=2,
+                            max_width=80,
+                        )
                     if item.get("icon") is not None:
                         image.paste(item["icon"], (padding + 20, current_y + 2), item["icon"])
                     score_val = int(item.get("score", 0))

@@ -338,6 +338,59 @@ def _draw_header(
         scale=scale,
         match_scope_text=match_scope_text,
     )
+    _draw_personal_data_ranking(
+        draw,
+        summary=summary,
+        fonts=fonts,
+        scale=scale,
+        theme=theme,
+    )
+
+
+def _draw_personal_data_ranking(
+    draw: Any,
+    *,
+    summary: Dict[str, Any],
+    fonts: Dict[str, Any],
+    scale: int,
+    theme: Dict[str, Any],
+) -> None:
+    raw_top_percent = summary.get("personal_data_top_percent")
+    if raw_top_percent is None:
+        return
+    try:
+        top_percent = max(0.0, min(100.0, float(raw_top_percent)))
+    except (TypeError, ValueError):
+        return
+
+    percent_text = f"{top_percent:.1f}".rstrip("0").rstrip(".")
+    text = f"个人数据位于数据库前{percent_text}%"
+    font = fonts["font_sub"]
+    text_width = _measure_text(draw, text, font)
+    padding_x = 14 * scale
+    padding_y = 8 * scale
+    right = 1428 * scale
+    top = 52 * scale
+    box = (
+        right - text_width - padding_x * 2,
+        top - padding_y,
+        right,
+        top + 18 * scale + padding_y,
+    )
+    accent = tuple(theme.get("line_color") or DEFAULT_STRENGTH_THEME["line_color"])
+    draw.rounded_rectangle(
+        box,
+        radius=10 * scale,
+        fill=(24, 34, 51, 218),
+        outline=(accent[0], accent[1], accent[2], 170),
+        width=max(2, scale),
+    )
+    draw.text(
+        (right - text_width - padding_x, top),
+        text,
+        font=font,
+        fill=(226, 237, 252, 255),
+    )
 
 
 def _draw_summary_block(
