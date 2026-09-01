@@ -110,9 +110,15 @@ def render_profile_summary(context: ProfileRenderContext) -> RenderedImage:
     )
     _draw_header(draw, context.game_time, fonts)
     _draw_race_progress(draw, context.race_progress, fonts)
+    billboard_panel_bottom = _leftover_billboard_panel_bottom(
+        image.height,
+        len(context.leftover_open_billboards),
+        len(context.leftover_preset_billboards),
+    )
     _draw_layout_panels(
         image,
         show_billboard_panel=bool(context.leftover_open_billboards or context.leftover_preset_billboards),
+        billboard_panel_bottom=billboard_panel_bottom,
     )
     _draw_role_panel(image, draw, context.role_entries, fonts)
     _draw_stats_block(
@@ -141,6 +147,7 @@ def render_profile_summary(context: ProfileRenderContext) -> RenderedImage:
         context.leftover_open_billboards,
         context.leftover_preset_billboards,
         fonts,
+        panel_bottom=billboard_panel_bottom,
     )
     _draw_recent_match_timeline(image, config, context.recent_matches, fonts)
 
@@ -234,7 +241,12 @@ def _draw_header(draw: Any, game_time: float, fonts: Dict[str, Any]) -> None:
     )
 
 
-def _draw_layout_panels(image: Any, *, show_billboard_panel: bool = False) -> None:
+def _draw_layout_panels(
+    image: Any,
+    *,
+    show_billboard_panel: bool = False,
+    billboard_panel_bottom: int | None = None,
+) -> None:
     from PIL import Image, ImageDraw
 
     overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
@@ -257,7 +269,9 @@ def _draw_layout_panels(image: Any, *, show_billboard_panel: bool = False) -> No
         draw.line((divider_x, 770, divider_x, 1076), fill=(255, 255, 255, 44), width=1)
 
     if show_billboard_panel:
-        billboard_box = (772, 1098, 1602, 1264)
+        billboard_bottom = billboard_panel_bottom or 1264
+        billboard_bottom = min(max(1098, billboard_bottom), image.height - 2)
+        billboard_box = (772, 1098, 1602, billboard_bottom)
         draw.rounded_rectangle(billboard_box, radius=24, fill=(255, 255, 255, 26), outline=(255, 255, 255, 128), width=3)
         draw.rounded_rectangle(
             (billboard_box[0] + 10, billboard_box[1] + 10, billboard_box[2] - 10, billboard_box[3] - 10),
@@ -672,7 +686,8 @@ def _draw_top_heroes(
                 break
         if icon is not None:
             icon = _resize_image(crop_to_circle(icon, 15, ring_color), (128, 128))
-            image.paste(icon, (slot_x, 448), icon)
+            icon = _add_outer_circle_ring(icon, ring_width=7, ring_color=(82, 90, 108, 118))
+            image.paste(icon, (slot_x - 7, 441), icon)
 
         tier_icon = _load_level_tier_icon(_hero_level_tier(row.hero_level)) if row.hero_level > 0 else None
         if tier_icon is not None:
@@ -870,31 +885,89 @@ def _draw_leftover_billboards(
     open_billboards: Sequence[HeroBillboardEntry],
     preset_billboards: Sequence[HeroBillboardEntry],
     fonts: Dict[str, Any],
+    *,
+    panel_bottom: int | None = None,
 ) -> None:
-    x_index = 0
-    y_index = 0
+    sections = _leftover_billboard_sections(open_billboards, preset_billboards)
+    if not sections:
+        return
+    panel_bottom = panel_bottom or _leftover_billboard_panel_bottom(
+        image.height,
+        len(open_billboards),
+        len(preset_billboards),
+    ) or 1264
 
-    if open_billboards:
-        draw.text((800, 1120 + y_index * 30), STR_LEFTOVER_OPEN, font=fonts["font_cn_small"], fill="#1c2238")
-        y_index += 1
-        for billboard in open_billboards:
-            _draw_leftover_billboard_chip(image, draw, config, 800 + x_index * 200, 1120 + y_index * 30, billboard, fonts, show_hero_name=False, highlight_rank=True)
-            x_index += 1
-            if x_index >= 4:
-                x_index = 0
-                y_index += 1
-        y_index += 1
+    hidden_count = 0
+    for label, entries, header_y, positions in sections:
+        if header_y + 25 > panel_bottom - 2:
+            hidden_count += len(entries)
+            continue
+        draw.text((800, header_y), label, font=fonts["font_cn_small"], fill="#1c2238")
+        for billboard, (x, y) in zip(entries, positions):
+            if y + 26 > panel_bottom - 2 or y + 26 > image.height:
+                hidden_count += 1
+                continue
+            _draw_leftover_billboard_chip(
+                image,
+                draw,
+                config,
+                x,
+                y,
+                billboard,
+                fonts,
+                show_hero_name=False,
+                highlight_rank=True,
+            )
 
-    if preset_billboards:
-        x_index = 0
-        draw.text((800, 1120 + y_index * 30), STR_LEFTOVER_PRESET, font=fonts["font_cn_small"], fill="#1c2238")
-        y_index += 1
-        for billboard in preset_billboards:
-            _draw_leftover_billboard_chip(image, draw, config, 800 + x_index * 200, 1120 + y_index * 30, billboard, fonts, show_hero_name=False, highlight_rank=True)
-            x_index += 1
-            if x_index >= 4:
-                x_index = 0
-                y_index += 1
+    if hidden_count:
+        draw.text(
+            (1360, 1120),
+            f"其余 {hidden_count} 项未显示",
+            font=fonts["font_cn_small_ex"],
+            fill="#6E4B1B",
+        )
+
+
+def _leftover_billboard_sections(
+    open_billboards: Sequence[HeroBillboardEntry],
+    preset_billboards: Sequence[HeroBillboardEntry],
+) -> list[tuple[str, Sequence[HeroBillboardEntry], int, list[tuple[int, int]]]]:
+    sections = []
+    header_row = 0
+    for label, entries in (
+        (STR_LEFTOVER_OPEN, open_billboards),
+        (STR_LEFTOVER_PRESET, preset_billboards),
+    ):
+        if not entries:
+            continue
+        row_count = (len(entries) + 3) // 4
+        chip_positions = [
+            (800 + (index % 4) * 200, 1120 + (header_row + 1 + index // 4) * 30)
+            for index in range(len(entries))
+        ]
+        sections.append((label, entries, 1120 + header_row * 30, chip_positions))
+        header_row += row_count + 1
+    return sections
+
+
+def _leftover_billboard_panel_bottom(
+    image_height: int,
+    open_count: int,
+    preset_count: int,
+) -> int | None:
+    sections = _leftover_billboard_sections(
+        [None] * max(0, int(open_count)),
+        [None] * max(0, int(preset_count)),
+    )
+    chip_bottoms = [
+        y + 26
+        for _label, _entries, _header_y, positions in sections
+        for _x, y in positions
+    ]
+    if not chip_bottoms:
+        return None
+    # Grow the panel to contain wrapped rows, but never draw beyond the image.
+    return min(max(1264, max(chip_bottoms) + 2), max(1100, image_height - 2))
 
 
 def _draw_leftover_billboard_chip(
@@ -1906,4 +1979,27 @@ def crop_to_circle(
     ring_draw.ellipse((0, 0, ring_size, ring_size), fill=ring_color)
     ring_draw.ellipse((ring_width, ring_width, ring_size - ring_width, ring_size - ring_width), fill=(0, 0, 0, 0))
     ring_img.paste(img_cropped, (ring_width, ring_width), img_cropped)
+    return ring_img
+
+
+def _add_outer_circle_ring(
+    im: Any,
+    *,
+    ring_width: int = 7,
+    ring_color: tuple[int, int, int, int] = (82, 90, 108, 118),
+) -> Any:
+    from PIL import Image, ImageDraw
+
+    base = im.convert("RGBA")
+    width, height = base.size
+    size = max(width, height)
+    ring_size = size + 2 * ring_width
+    ring_img = Image.new("RGBA", (ring_size, ring_size), (0, 0, 0, 0))
+    ring_draw = ImageDraw.Draw(ring_img)
+    ring_draw.ellipse((0, 0, ring_size - 1, ring_size - 1), fill=ring_color)
+    ring_img.paste(
+        base,
+        (ring_width + (size - width) // 2, ring_width + (size - height) // 2),
+        base,
+    )
     return ring_img

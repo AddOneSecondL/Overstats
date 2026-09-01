@@ -30,7 +30,7 @@ try:
         get_rank_score,
         get_rank_sub_tier,
         rank_name_cn,
-        raw_rank_score_to_icon_level,
+        rank_info_to_icon_level,
         raw_rank_score_to_strength,
         strength_score_to_rank,
     )
@@ -40,7 +40,7 @@ except ModuleNotFoundError:
         get_rank_score,
         get_rank_sub_tier,
         rank_name_cn,
-        raw_rank_score_to_icon_level,
+        rank_info_to_icon_level,
         raw_rank_score_to_strength,
         strength_score_to_rank,
     )
@@ -1082,7 +1082,7 @@ def _build_rank_badge_image(rank_info: Dict[str, Any], *, width: int, height: in
 
     score = _safe_int(get_rank_score(rank_info))
     tier = str(get_rank_sub_tier(rank_info) or "").strip()
-    asset_path = _rank_badge_asset_path(score, mode=mode)
+    asset_path = _rank_badge_asset_path(rank_info, mode=mode)
     if asset_path is None or not asset_path.exists():
         return None
     try:
@@ -1110,8 +1110,9 @@ def _build_rank_badge_image(rank_info: Dict[str, Any], *, width: int, height: in
     return _resize_image(icon, (width, height))
 
 
-def _rank_badge_asset_path(score: int, *, mode: str) -> Path | None:
+def _rank_badge_asset_path(rank_info: Dict[str, Any], *, mode: str) -> Path | None:
     rank_flat_dir = RESOURCE_DIR / "rank_flat"
+    score = _safe_int(get_rank_score(rank_info))
     if score <= 0:
         return None
 
@@ -1123,7 +1124,7 @@ def _rank_badge_asset_path(score: int, *, mode: str) -> Path | None:
         normal_path = rank_flat_dir / f"{level}.png"
         return normal_path if normal_path.exists() else None
 
-    level = raw_rank_score_to_icon_level(score)
+    level = rank_info_to_icon_level(rank_info)
     if level <= 0:
         return None
     normal_path = rank_flat_dir / f"{level}.png"

@@ -332,7 +332,12 @@ class DashenProfileEngine:
         selected_payload = leisure_data if quick_mode else sport_data
 
         tasks: list[Awaitable[Any]] = [
-            self._build_recent_match_pool(bundle, sport_data=sport_data, leisure_data=leisure_data),
+            self._build_recent_match_pool(
+                bundle,
+                sport_data=sport_data,
+                leisure_data=leisure_data,
+                quick_mode=quick_mode,
+            ),
             self._build_role_panel_entries(bundle, sport_data=sport_data),
             self.requests.get_billboard_user(bundle.customer_token),
         ]
@@ -404,6 +409,7 @@ class DashenProfileEngine:
         *,
         sport_data: Dict[str, Any],
         leisure_data: Dict[str, Any],
+        quick_mode: bool = True,
     ) -> tuple[Dict[str, Any], ...]:
         logical_season = int(bundle.logical_season or get_live_dashen_season())
         season_candidates = get_recent_dashen_seasons(
@@ -427,15 +433,26 @@ class DashenProfileEngine:
             return sport_payload, leisure_payload
 
         for season_id in season_candidates:
-            stadium_leisure_payload, stadium_sport_payload = await asyncio.gather(
-                self.requests.get_stadium_leisure_role_card(bundle.customer_token, logical_season=season_id),
-                self.requests.get_stadium_count(bundle.customer_token, logical_season=season_id),
-            )
-            stadium_pool = _normalize_recent_match_entries(
-                extract_match_entries(stadium_leisure_payload, "recentMatchList", "matchList"),
-                season_label=season_id,
-                game_mode="LeisureFight",
-            )
+            if quick_mode:
+                stadium_leisure_payload, stadium_sport_payload = await asyncio.gather(
+                    self.requests.get_stadium_leisure_role_card(bundle.customer_token, logical_season=season_id),
+                    self.requests.get_stadium_count(bundle.customer_token, logical_season=season_id),
+                )
+            else:
+                stadium_leisure_payload = {}
+                stadium_sport_payload = await self.requests.get_stadium_count(
+                    bundle.customer_token,
+                    logical_season=season_id,
+                )
+            stadium_pool = []
+            if quick_mode:
+                stadium_pool.extend(
+                    _normalize_recent_match_entries(
+                        extract_match_entries(stadium_leisure_payload, "recentMatchList", "matchList"),
+                        season_label=season_id,
+                        game_mode="LeisureFight",
+                    )
+                )
             stadium_pool.extend(
                 _normalize_recent_match_entries(
                     extract_match_entries(stadium_sport_payload, "matchList", "recentMatchList"),
@@ -470,30 +487,31 @@ class DashenProfileEngine:
                     _extend_match_pool_unique(match_pool, extra_entries)
                     break
 
-        leisure_match_list = _normalize_recent_match_entries(
-            extract_match_entries(leisure_data, "matchList", "recentMatchList"),
-            season_label=logical_season,
-            game_mode="leisure",
-            instance_type="IT_UNRANKED",
-        )
-        _extend_match_pool_unique(match_pool, leisure_match_list)
-        if len(leisure_match_list) >= 12:
-            for season_id in season_candidates:
-                extra_match = await self.requests.get_extra_match_page(
-                    bundle.customer_token,
-                    "leisure",
-                    page=2,
-                    logical_season=season_id,
-                )
-                extra_entries = _normalize_recent_match_entries(
-                    extract_match_entries(extra_match, "matchList", "recentMatchList"),
-                    season_label=season_id,
-                    game_mode="leisure",
-                    instance_type="IT_UNRANKED",
-                )
-                if extra_entries:
-                    _extend_match_pool_unique(match_pool, extra_entries)
-                    break
+        if quick_mode:
+            leisure_match_list = _normalize_recent_match_entries(
+                extract_match_entries(leisure_data, "matchList", "recentMatchList"),
+                season_label=logical_season,
+                game_mode="leisure",
+                instance_type="IT_UNRANKED",
+            )
+            _extend_match_pool_unique(match_pool, leisure_match_list)
+            if len(leisure_match_list) >= 12:
+                for season_id in season_candidates:
+                    extra_match = await self.requests.get_extra_match_page(
+                        bundle.customer_token,
+                        "leisure",
+                        page=2,
+                        logical_season=season_id,
+                    )
+                    extra_entries = _normalize_recent_match_entries(
+                        extract_match_entries(extra_match, "matchList", "recentMatchList"),
+                        season_label=season_id,
+                        game_mode="leisure",
+                        instance_type="IT_UNRANKED",
+                    )
+                    if extra_entries:
+                        _extend_match_pool_unique(match_pool, extra_entries)
+                        break
 
         if bundle.include_previous_season:
             await self._fill_recent_match_pool_from_previous_season(
@@ -501,6 +519,7 @@ class DashenProfileEngine:
                 logical_season=logical_season,
                 target_pool=match_pool,
                 get_season_payload_pair=get_season_payload_pair,
+                quick_mode=quick_mode,
             )
 
         match_pool = merge_unique_match_entries([], match_pool)
@@ -513,6 +532,7 @@ class DashenProfileEngine:
         logical_season: int,
         target_pool: list[Dict[str, Any]],
         get_season_payload_pair: Callable[[int], Awaitable[tuple[Dict[str, Any], Dict[str, Any]]]],
+        quick_mode: bool = True,
     ) -> None:
         if count_unique_match_entries(target_pool) >= RECENT_MATCH_TARGET:
             return
@@ -521,19 +541,27 @@ class DashenProfileEngine:
         if previous_season <= 0:
             return
 
-        stadium_leisure_payload, stadium_sport_payload = await asyncio.gather(
-            self.requests.get_stadium_leisure_role_card(customer_token, logical_season=previous_season),
-            self.requests.get_stadium_count(customer_token, logical_season=previous_season),
-        )
-        _extend_match_pool_unique(
-            target_pool,
-            _normalize_recent_match_entries(
-                extract_match_entries(stadium_leisure_payload, "recentMatchList", "matchList"),
-                season_label=previous_season,
-                game_mode="LeisureFight",
-            ),
-            limit=RECENT_MATCH_TARGET,
-        )
+        if quick_mode:
+            stadium_leisure_payload, stadium_sport_payload = await asyncio.gather(
+                self.requests.get_stadium_leisure_role_card(customer_token, logical_season=previous_season),
+                self.requests.get_stadium_count(customer_token, logical_season=previous_season),
+            )
+        else:
+            stadium_leisure_payload = {}
+            stadium_sport_payload = await self.requests.get_stadium_count(
+                customer_token,
+                logical_season=previous_season,
+            )
+        if quick_mode:
+            _extend_match_pool_unique(
+                target_pool,
+                _normalize_recent_match_entries(
+                    extract_match_entries(stadium_leisure_payload, "recentMatchList", "matchList"),
+                    season_label=previous_season,
+                    game_mode="LeisureFight",
+                ),
+                limit=RECENT_MATCH_TARGET,
+            )
         _extend_match_pool_unique(
             target_pool,
             _normalize_recent_match_entries(
@@ -575,6 +603,9 @@ class DashenProfileEngine:
             )
 
         if count_unique_match_entries(target_pool) >= RECENT_MATCH_TARGET:
+            return
+
+        if not quick_mode:
             return
 
         leisure_entries = _normalize_recent_match_entries(

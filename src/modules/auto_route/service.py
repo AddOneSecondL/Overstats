@@ -112,6 +112,7 @@ Rules:
 8. For hero_treemap, default to competitive unless the user clearly asks for quick.
 9. For patch_notes, default to latest.
 10. If the user asks for one player tool but the target is missing, still choose the best tool instead of chatting.
+11. For dashen_profile, a trailing `*` on the user's command means competitive mode.
 """.strip()
 
 
@@ -568,6 +569,11 @@ class AutoRouteModule:
             tools=self.build_tools(),
             supported_commands=AUTO_ROUTE_SUPPORTED_COMMANDS,
         )
+        if tool_call.name == "dashen_profile" and normalized_text.endswith(("*", "＊")):
+            tool_call.arguments["mode"] = "competitive"
+            target = str(tool_call.arguments.get("target") or "").strip()
+            if target.endswith(("*", "＊")):
+                tool_call.arguments["target"] = target[:-1].rstrip()
         builder = self._selection_builders.get(tool_call.name)
         if builder is None:
             raise ModuleError(
