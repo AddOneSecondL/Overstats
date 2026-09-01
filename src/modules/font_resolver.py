@@ -76,6 +76,31 @@ def _font_name(font_path: str | os.PathLike[str] | None) -> str:
     return Path(str(font_path or "")).name.lower()
 
 
+def _resource_font_path(resource_dir: Path, font_path: str | os.PathLike[str] | None) -> Path:
+    """Resolve a bundled font without losing its on-disk filename casing.
+
+    The resource files are addressed case-insensitively on Windows, but Linux
+    treats ``BigNoodleToo.ttf`` and ``bignoodletoo.ttf`` as different paths.
+    Keep the requested spelling when possible, then find the matching bundled
+    file case-insensitively so a font never silently falls back to a system
+    font just because the request used a different case.
+    """
+    filename = Path(str(font_path or "")).name
+    exact_path = resource_dir / filename
+    if exact_path.exists():
+        return exact_path
+
+    folded_name = filename.casefold()
+    if folded_name:
+        try:
+            for candidate in resource_dir.iterdir():
+                if candidate.is_file() and candidate.name.casefold() == folded_name:
+                    return candidate
+        except OSError:
+            pass
+    return exact_path
+
+
 def _is_cjk_font_request(font_path: str | os.PathLike[str] | None) -> bool:
     return _font_name(font_path) in _CJK_FONT_FILENAMES
 
@@ -120,13 +145,13 @@ def iter_font_candidates(
         candidates.extend(get_cjk_font_candidates(bold=bold))
 
     if requested_name:
-        candidates.append(resource_dir / requested_name)
+        candidates.append(_resource_font_path(resource_dir, name))
     if fallback_name:
-        candidates.append(resource_dir / fallback_name)
+        candidates.append(_resource_font_path(resource_dir, fallback))
     for extra_candidate in extra:
         extra_name = _font_name(extra_candidate)
         if extra_name:
-            candidates.append(resource_dir / extra_name)
+            candidates.append(_resource_font_path(resource_dir, extra_candidate))
         candidates.append(extra_candidate)
 
     if not treat_as_cjk:

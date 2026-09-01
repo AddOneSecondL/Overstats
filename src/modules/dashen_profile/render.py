@@ -20,9 +20,9 @@ except ModuleNotFoundError:
     from src.modules.risk_status import draw_risk_status_badge
 
 try:
-    from overstats.src.constants.ranks import get_rank_score, get_rank_sub_tier, raw_rank_score_to_icon_level
+    from overstats.src.constants.ranks import get_rank_name, get_rank_score, get_rank_sub_tier, rank_info_to_icon_level, rank_name_to_icon_level
 except ModuleNotFoundError:
-    from src.constants.ranks import get_rank_score, get_rank_sub_tier, raw_rank_score_to_icon_level
+    from src.constants.ranks import get_rank_name, get_rank_score, get_rank_sub_tier, rank_info_to_icon_level, rank_name_to_icon_level
 
 from .engine import HeroBillboardEntry, HeroUsageRow, ProfileRenderContext, RolePanelEntry
 
@@ -61,6 +61,11 @@ STR_STAT_AVG = "均"
 STR_STAT_RECENT = "近"
 STR_STAT_SERVER = "服"
 COLOR_COMPETITIVE = "#C95472"
+ROLE_PANEL_BOX = (772, 742, 1602, 1096)
+ROLE_PANEL_COLUMNS = ((772, 956), (956, 1182), (1182, 1402), (1402, 1602))
+ROLE_PANEL_ROW_Y = (817, 890, 963, 1036)
+ROLE_PANEL_ROLE_ICON_X = 800
+ROLE_PANEL_ROLE_TEXT_X = 840
 
 
 @dataclass(frozen=True)
@@ -206,10 +211,17 @@ def _draw_header(draw: Any, game_time: float, fonts: Dict[str, Any]) -> None:
     draw.text((778, 344), "MOST PLAYED HEROES IN SEASON", font=fonts["font_en_header"], fill="#24324B")
     draw.text((1690, 244), "RECENT MATCH", font=fonts["font_en_header"], fill="#24324B")
     draw.line((1690, 282, 2490, 282), fill="#95A3BD", width=2)
-    draw.text((800, 758), "ROLE", font=fonts["font_en_small2"], fill="#1c2238")
-    draw.text((1000, 758), "CURRENT", font=fonts["font_en_small2"], fill="#1c2238")
-    draw.text((1200, 758), "SEASON HIGH", font=fonts["font_en_small2"], fill="#1c2238")
-    draw.text((1400, 758), "MATCH SUM", font=fonts["font_en_small2"], fill="#1c2238")
+    draw.text((ROLE_PANEL_ROLE_ICON_X, 758), "ROLE", font=fonts["font_en_small2"], fill="#1c2238")
+    for (left, right), label in zip(ROLE_PANEL_COLUMNS[1:], ("CURRENT", "SEASON HIGH", "MATCH SUM")):
+        _draw_centered_mixed_text(
+            draw,
+            (left + right) / 2,
+            758,
+            label,
+            label_font=fonts["font_en_small2"],
+            number_font=fonts["font_en_small2"],
+            fill="#1c2238",
+        )
     draw.text((70, 230), STR_INFO_SWITCH_MODE, font=fonts["font_cn_small_ex"], fill="#1c2238")
     _draw_mixed_text(
         draw,
@@ -229,7 +241,7 @@ def _draw_layout_panels(image: Any, *, show_billboard_panel: bool = False) -> No
     draw = ImageDraw.Draw(overlay)
 
     hero_box = (772, 392, 1602, 668)
-    role_box = (772, 742, 1602, 1096)
+    role_box = ROLE_PANEL_BOX
     for box in (hero_box, role_box):
         draw.rounded_rectangle(box, radius=24, fill=(255, 255, 255, 34), outline=(255, 255, 255, 145), width=3)
         draw.rounded_rectangle(
@@ -349,7 +361,14 @@ def _draw_role_panel(image: Any, draw: Any, entries: Sequence[RolePanelEntry], f
         return
 
     role_map = {entry.role_type: entry for entry in entries}
-    for role_type, y_pos in (("tank", 817), ("dps", 891), ("healer", 964), ("open", 1038)):
+    current_left, current_right = ROLE_PANEL_COLUMNS[1]
+    high_left, high_right = ROLE_PANEL_COLUMNS[2]
+    match_left, match_right = ROLE_PANEL_COLUMNS[3]
+    current_center = (current_left + current_right) / 2
+    high_center = (high_left + high_right) / 2
+    match_center = (match_left + match_right) / 2
+
+    for role_type, y_pos in zip(("tank", "dps", "healer", "open"), ROLE_PANEL_ROW_Y):
         entry = role_map.get(role_type)
         role_label = {
             "tank": "TANK",
@@ -357,49 +376,81 @@ def _draw_role_panel(image: Any, draw: Any, entries: Sequence[RolePanelEntry], f
             "healer": "SUPPORT",
             "open": "OPEN",
         }.get(role_type, "OPEN")
-        role_center_y = y_pos + 16
+        row_center_y = y_pos + 32
         role_icon = _load_role_icon(role_type, size=(28, 28))
         if role_icon is not None:
-            image.paste(role_icon, (800, y_pos + 2), role_icon)
+            image.paste(
+                role_icon,
+                (ROLE_PANEL_ROLE_ICON_X, int(round(row_center_y - role_icon.height / 2))),
+                role_icon,
+            )
         try:
-            text_box = draw.textbbox((0, 0), role_label, font=fonts["font_en_small2"])
-            text_y = int(role_center_y - (text_box[3] - text_box[1]) / 2 - text_box[1])
-            draw.text((840, text_y), role_label, font=fonts["font_en_small2"], fill="#1c2238")
+            role_label_width = _measure_mixed_text(
+                draw,
+                role_label,
+                label_font=fonts["font_en_small2"],
+                number_font=fonts["font_en_small2"],
+            )
+            _draw_mixed_text_centered_in_row(
+                draw,
+                ROLE_PANEL_ROLE_TEXT_X + role_label_width / 2,
+                row_center_y,
+                role_label,
+                label_font=fonts["font_en_small2"],
+                number_font=fonts["font_en_small2"],
+                fill="#1c2238",
+            )
         except Exception:
-            draw.text((840, y_pos + 2), role_label, font=fonts["font_en_small2"], fill="#1c2238")
+            draw.text((ROLE_PANEL_ROLE_TEXT_X, y_pos + 2), role_label, font=fonts["font_en_small2"], fill="#1c2238")
 
         if entry is None or entry.score <= 0:
-            draw.text((1000, y_pos), "UNRANKED", font=fonts["font_en_small2"], fill="#1c2238")
-            draw.text((1200, y_pos), "UNRANKED", font=fonts["font_en_small2"], fill="#1c2238")
+            _draw_mixed_text_centered_in_row(
+                draw,
+                current_center,
+                row_center_y,
+                "UNRANKED",
+                label_font=fonts["font_en_small2"],
+                number_font=fonts["font_en_small2"],
+                fill="#1c2238",
+            )
+            _draw_mixed_text_centered_in_row(
+                draw,
+                high_center,
+                row_center_y,
+                "UNRANKED",
+                label_font=fonts["font_en_small2"],
+                number_font=fonts["font_en_small2"],
+                fill="#1c2238",
+            )
             if entry and entry.is_history and entry.history_season:
-                _draw_mixed_text(draw, 1070, y_pos + 44, entry.history_season, label_font=fonts["font_en_small2_ex"], number_font=fonts["font_en_small2_ex"], fill="#1c2238")
-                _draw_mixed_text(draw, 1270, y_pos + 44, entry.history_season, label_font=fonts["font_en_small2_ex"], number_font=fonts["font_en_small2_ex"], fill="#1c2238")
+                _draw_centered_mixed_text(draw, current_center, y_pos + 44, entry.history_season, label_font=fonts["font_en_small2_ex"], number_font=fonts["font_en_small2_ex"], fill="#1c2238")
+                _draw_centered_mixed_text(draw, high_center, y_pos + 44, entry.history_season, label_font=fonts["font_en_small2_ex"], number_font=fonts["font_en_small2_ex"], fill="#1c2238")
             if entry:
-                _draw_mixed_text(draw, 1430, y_pos, f"{entry.match_sum} | W {entry.win_sum}", label_font=fonts["font_en_small2"], number_font=fonts["font_en_small2"], fill="#1c2238")
+                _draw_mixed_text_centered_in_row(draw, match_center, row_center_y, f"{entry.match_sum} | W {entry.win_sum}", label_font=fonts["font_en_small2"], number_font=fonts["font_en_small2"], fill="#1c2238")
             continue
 
-        current_icon = _build_rank_icon(entry.score, entry.tier, fonts["font_rank_tier"], (154, 52), tier_vertical_offset=14)
-        high_icon = _build_rank_icon(entry.max_score, entry.max_tier, fonts["font_rank_tier"], (154, 52), tier_vertical_offset=14)
-        current_badge_y = y_pos + 6
-        high_badge_y = y_pos + 6
+        current_icon = _build_rank_icon(entry.score, entry.tier, fonts["font_rank_tier"], (154, 52), tier_vertical_offset=14, rank_name=entry.rank_name)
+        high_icon = _build_rank_icon(entry.max_score, entry.max_tier, fonts["font_rank_tier"], (154, 52), tier_vertical_offset=14, rank_name=entry.max_rank_name)
+        current_badge_y = int(round(row_center_y - 26))
+        high_badge_y = int(round(row_center_y - 26))
 
         if current_icon is not None:
             current_icon = _apply_history_style(current_icon, entry.is_history)
-            image.paste(current_icon, (970, current_badge_y), current_icon)
+            image.paste(current_icon, (int(round(current_center - current_icon.width / 2)), current_badge_y), current_icon)
             if entry.is_history and entry.history_season:
-                _draw_mixed_text(draw, 1075, current_badge_y + 34, entry.history_season, label_font=fonts["font_en_small2_ex"], number_font=fonts["font_en_small2_ex"], fill="#1c2238")
+                _draw_centered_mixed_text(draw, current_center, current_badge_y + 34, entry.history_season, label_font=fonts["font_en_small2_ex"], number_font=fonts["font_en_small2_ex"], fill="#1c2238")
         else:
-            _draw_mixed_text(draw, 1000, y_pos, f"{entry.score}{entry.tier}", label_font=fonts["font_en_small2"], number_font=fonts["font_en_small2"], fill="#1c2238")
+            _draw_mixed_text_centered_in_row(draw, current_center, row_center_y, "UNRANKED", label_font=fonts["font_en_small2"], number_font=fonts["font_en_small2"], fill="#1c2238")
 
         if high_icon is not None:
             high_icon = _apply_history_style(high_icon, entry.is_history)
-            image.paste(high_icon, (1185, high_badge_y), high_icon)
+            image.paste(high_icon, (int(round(high_center - high_icon.width / 2)), high_badge_y), high_icon)
             if entry.is_history and entry.history_season:
-                _draw_mixed_text(draw, 1290, high_badge_y + 34, entry.history_season, label_font=fonts["font_en_small2_ex"], number_font=fonts["font_en_small2_ex"], fill="#1c2238")
+                _draw_centered_mixed_text(draw, high_center, high_badge_y + 34, entry.history_season, label_font=fonts["font_en_small2_ex"], number_font=fonts["font_en_small2_ex"], fill="#1c2238")
         else:
-            _draw_mixed_text(draw, 1200, y_pos, f"{entry.max_score}{entry.max_tier}", label_font=fonts["font_en_small2"], number_font=fonts["font_en_small2"], fill="#1c2238")
+            _draw_mixed_text_centered_in_row(draw, high_center, row_center_y, "UNRANKED", label_font=fonts["font_en_small2"], number_font=fonts["font_en_small2"], fill="#1c2238")
 
-        _draw_mixed_text(draw, 1430, y_pos, f"{entry.match_sum} | W {entry.win_sum}", label_font=fonts["font_en_small2"], number_font=fonts["font_en_small2"], fill="#1c2238")
+        _draw_mixed_text_centered_in_row(draw, match_center, row_center_y, f"{entry.match_sum} | W {entry.win_sum}", label_font=fonts["font_en_small2"], number_font=fonts["font_en_small2"], fill="#1c2238")
 
 
 def _draw_stats_block(
@@ -644,6 +695,28 @@ def _draw_hero_usage_block(
     _draw_mixed_text(draw, 60, 735, hero_title, label_font=fonts["font_cn_small"], number_font=fonts["font_cn_small"], fill="#1c2238")
     rows = list(hero_rows)[:10]
     max_length = rows[0].game_time if rows else 0.0
+    billboard_provinces = []
+    for row in rows:
+        for billboard in list(row.billboards)[:2]:
+            province = str(billboard.province or "").strip()
+            if province and province not in billboard_provinces:
+                billboard_provinces.append(province)
+    if billboard_provinces:
+        province_header = _truncate_text_to_width(
+            draw,
+            " / ".join(billboard_provinces),
+            224,
+            fonts["font_cn_small"],
+        )
+        _draw_centered_mixed_text(
+            draw,
+            362,
+            765,
+            province_header,
+            label_font=fonts["font_cn_small"],
+            number_font=fonts["font_cn_small"],
+            fill="#6E4B1B",
+        )
 
     for index, row in enumerate(rows):
         hero_info = _find_hero(config, row.hero_guid)
@@ -657,18 +730,42 @@ def _draw_hero_usage_block(
         fill_bar = create_gradient_playtime_bar(620, 40, 5, ring_color[:3], _calc_playtime_ratio(row.game_time, max_length))
         image.paste(fill_bar, (100, y), fill_bar)
 
+        # Keep the level readable regardless of the hero color or playtime bar fill.
+        level_box = Image.new("RGBA", (144, 36), (0, 0, 0, 0))
+        level_box_draw = ImageDraw.Draw(level_box)
+        level_box_draw.rounded_rectangle(
+            (0, 0, 143, 35),
+            radius=9,
+            fill=(16, 23, 40, 204),
+            outline=(255, 255, 255, 72),
+        )
+        image.paste(level_box, (100, y + 2), level_box)
+
         icon = _load_remote_asset_image(hero_icon_url, category="heroes")
         if icon is not None:
             icon = _resize_image(icon, (40, 40))
             image.paste(icon, (60, y))
 
-        tier_icon = _load_level_tier_icon(_hero_level_tier(row.hero_level)) if row.hero_level > 0 else None
+        hero_level = max(0, _safe_int(row.hero_level))
+        tier_icon = _load_level_tier_icon(_hero_level_tier(hero_level)) if hero_level > 0 else None
         if tier_icon is not None:
             tier_icon = _resize_image(tier_icon, (32, 32))
             image.paste(tier_icon, (110, 799 + index * 43), tier_icon)
 
-        if row.hero_level > 0:
-            _draw_mixed_text(draw, 140, 802 + index * 43, f"{row.hero_level}{STR_LEVEL_SUFFIX}", label_font=fonts["font_cn_small"], number_font=fonts["font_cn_small"], fill="gold")
+        level_text = _hero_level_display_text(hero_level)
+        _draw_mixed_text_with_shadow(
+            draw,
+            140,
+            802 + index * 43,
+            level_text,
+            # Match the Recent Match number/English face while retaining a
+            # CJK fallback for the suffix used by the existing UI.
+            label_font=fonts["font_cn_small"] if hero_level > 0 else fonts["font_en_match"],
+            number_font=fonts["font_en_match"],
+            fill="gold",
+            shadow_fill=(8, 12, 24, 230),
+            shadow_offset=(1, 1),
+        )
 
         if row.rank_overlay is not None:
             score_box_x = 523
@@ -736,18 +833,18 @@ def _draw_hero_usage_block(
                 image.paste(billboard_chip, (bx, stat_chip_y), billboard_chip)
                 billboard_text = _truncate_mixed_text_to_width(
                     draw,
-                    f"{billboard.province}#{billboard.rank_num}{STR_RANK_SUFFIX}",
+                    f"#{billboard.rank_num}{STR_RANK_SUFFIX}",
                     billboard_chip_width - 12,
                     label_font=fonts["font_cn_small"],
-                    number_font=fonts["font_cn_small"],
+                    number_font=fonts["font_num_medium"],
                 )
-                _draw_mixed_text(
+                _draw_mixed_text_centered_in_row(
                     draw,
-                    bx + 6,
-                    802 + index * 43,
+                    bx + billboard_chip_width / 2,
+                    stat_chip_y + stat_chip_height / 2,
                     billboard_text,
                     label_font=fonts["font_cn_small"],
-                    number_font=fonts["font_cn_small"],
+                    number_font=fonts["font_num_medium"],
                     fill="#1c2238",
                 )
 
@@ -860,12 +957,16 @@ def _draw_recent_match_timeline(image: Any, config: Dict[str, Any], matches: Seq
 
     for index, item in enumerate(list(matches)[:24]):
         bg = _load_match_bar_template()
-        bgdraw = ImageDraw.Draw(bg)
+        map_info = _find_map(config, item.get("mapGuid"))
         match_type = _recent_match_type(item)
+        mode_label = _recent_match_mode_label(item, match_type)
+        mode_end_x = int(round(322 + _measure_font_length(fonts["font_en_match"], mode_label) + 12))
+        _draw_recent_match_map_background(bg, map_info, fade_end_x=min(522, mode_end_x))
+        bgdraw = ImageDraw.Draw(bg)
         mode_bar_color = _recent_match_type_color(item, match_type)
         bgdraw.rectangle((0, 0, 8, bg.height), fill=mode_bar_color)
 
-        map_name = _map_name(config, item.get("mapGuid"))
+        map_name = str(map_info.get("name") or item.get("mapName") or item.get("mapGuid") or STR_UNKNOWN_MAP)
         begin_ts = _safe_int(item.get("beginTs"))
         if begin_ts > 10_000_000_000:
             begin_ts //= 1000
@@ -953,7 +1054,7 @@ def _draw_recent_match_type(bg: Any, bgdraw: Any, item: Dict[str, Any], match_ty
                 shadow_fill=(255, 255, 255, 76),
                 shadow_offset=(0, 1),
             )
-            badge = _build_rank_icon(_safe_int(get_rank_score(rank_info)), str(get_rank_sub_tier(rank_info) or ""), fonts["font_rank_tier_recent"], (86, 28), tier_vertical_offset=16)
+            badge = _build_rank_icon(_safe_int(get_rank_score(rank_info)), str(get_rank_sub_tier(rank_info) or ""), fonts["font_rank_tier_recent"], (86, 28), tier_vertical_offset=16, rank_name=str(get_rank_name(rank_info) or ""))
             if badge is not None:
                 bg.paste(badge, (430, 4), badge)
         else:
@@ -983,7 +1084,7 @@ def _draw_recent_match_type(bg: Any, bgdraw: Any, item: Dict[str, Any], match_ty
     )
     rank_info = item.get("rankInfo")
     if isinstance(rank_info, dict) and _safe_int(get_rank_score(rank_info)) > 0:
-        badge = _build_rank_icon(_safe_int(get_rank_score(rank_info)), str(get_rank_sub_tier(rank_info) or ""), fonts["font_rank_tier_recent"], (86, 28), tier_vertical_offset=16)
+        badge = _build_rank_icon(_safe_int(get_rank_score(rank_info)), str(get_rank_sub_tier(rank_info) or ""), fonts["font_rank_tier_recent"], (86, 28), tier_vertical_offset=16, rank_name=str(get_rank_name(rank_info) or ""))
         if badge is not None:
             bg.paste(badge, (430, 4), badge)
 
@@ -1048,6 +1149,19 @@ def _recent_match_type(item: Dict[str, Any]) -> str:
     return instance_type or "COMPETITIVE"
 
 
+def _recent_match_mode_label(item: Dict[str, Any], match_type: str) -> str:
+    if match_type == "IT_UNRANKED":
+        return "UNRANKED"
+    if match_type == "STADIUM QP":
+        return "STADIUM QP"
+    if match_type == "STADIUM COMP":
+        return "STADIUM COMP"
+    if match_type == "IT_RULESET":
+        rank_info = item.get("rankInfo")
+        return "COMP 6V6" if isinstance(rank_info, dict) and _safe_int(get_rank_score(rank_info)) > 0 else "UNR 6V6"
+    return "COMPETITIVE"
+
+
 def _recent_match_type_color(item: Dict[str, Any], match_type: str) -> tuple[int, int, int, int]:
     if match_type == "IT_UNRANKED":
         return (29, 92, 255, 255)
@@ -1063,12 +1177,20 @@ def _recent_match_type_color(item: Dict[str, Any], match_type: str) -> tuple[int
     return hex_to_rgba(COLOR_COMPETITIVE)
 
 
-def _build_rank_icon(score: int, tier: str, tier_font: Any, size: tuple[int, int], *, tier_vertical_offset: float = 0.0) -> Any | None:
+def _build_rank_icon(
+    score: int,
+    tier: str,
+    tier_font: Any,
+    size: tuple[int, int],
+    *,
+    tier_vertical_offset: float = 0.0,
+    rank_name: str = "",
+) -> Any | None:
     from PIL import Image, ImageDraw
 
     if score <= 0:
         return None
-    rank_index = _rank_level_from_score(score)
+    rank_index = _rank_level_from_score(score, rank_name=rank_name)
     path = RESOURCE_DIR / "rank_flat" / f"{rank_index}.png"
     if not path.exists():
         return None
@@ -1123,8 +1245,11 @@ def _load_rank_pure_icon(rank_level: int) -> Any | None:
         return None
 
 
-def _rank_level_from_score(score: int) -> int:
-    return raw_rank_score_to_icon_level(score)
+def _rank_level_from_score(score: int, *, rank_name: str = "") -> int:
+    named_level = rank_name_to_icon_level(rank_name)
+    if named_level > 0:
+        return named_level
+    return rank_info_to_icon_level({"rankScore": score})
 
 
 def _hero_level_tier(hero_level: int) -> int:
@@ -1134,7 +1259,14 @@ def _hero_level_tier(hero_level: int) -> int:
         return 2
     if 50 <= hero_level < 75:
         return 3
-    return 4
+    if 75 <= hero_level < 100:
+        return 4
+    return 5
+
+
+def _hero_level_display_text(hero_level: int) -> str:
+    level = max(0, _safe_int(hero_level))
+    return f"{level}{STR_LEVEL_SUFFIX}" if level > 0 else "--"
 
 
 def _load_level_tier_icon(level_tier: int) -> Any | None:
@@ -1163,6 +1295,41 @@ def _load_match_bar_template() -> Any:
     draw.line((12, 1, width - 14, 1), fill=(255, 255, 255, 42), width=1)
     draw.line((18, height - 2, width - 18, height - 2), fill=(10, 15, 25, 110), width=1)
     return fallback
+
+
+def _crop_center_to_size(image: Any, size: tuple[int, int]) -> Any:
+    target_width, target_height = size
+    source_width, source_height = image.size
+    scale = max(target_width / max(1, source_width), target_height / max(1, source_height))
+    resized_width = max(target_width, int(round(source_width * scale)))
+    resized_height = max(target_height, int(round(source_height * scale)))
+    resized = _resize_image(image, (resized_width, resized_height))
+    left = (resized_width - target_width) // 2
+    top = (resized_height - target_height) // 2
+    return resized.crop((left, top, left + target_width, top + target_height))
+
+
+def _draw_recent_match_map_background(bg: Any, map_info: Dict[str, Any], *, fade_end_x: int = 522) -> None:
+    icon_url = str(map_info.get("icon") or "").strip()
+    if not icon_url:
+        return
+    local_path = _find_cached_asset_path(icon_url, category="maps")
+    if local_path is None or not local_path.exists():
+        return
+    try:
+        from PIL import Image, ImageDraw
+
+        fade_width = max(1, min(bg.width, int(fade_end_x)))
+        map_image = Image.open(local_path).convert("RGBA")
+        map_image = _crop_center_to_size(map_image, (fade_width, bg.height))
+        mask = Image.new("L", (fade_width, bg.height), 0)
+        mask_draw = ImageDraw.Draw(mask)
+        for x in range(fade_width):
+            alpha = int(132 * (1.0 - x / max(1, fade_width - 1)))
+            mask_draw.line((x, 0, x, bg.height), fill=alpha)
+        bg.paste(map_image, (0, 0), mask)
+    except Exception:
+        return
 
 
 def _draw_avatar(image: Any, avatar_bytes: bytes | None, pos: tuple[int, int], size: tuple[int, int]) -> None:
@@ -1287,11 +1454,16 @@ def _find_hero(config: Dict[str, Any], hero_guid: str) -> Dict[str, Any]:
 
 
 def _map_name(config: Dict[str, Any], map_guid: Any) -> str:
+    map_info = _find_map(config, map_guid)
+    return str(map_info.get("name") or map_guid or STR_UNKNOWN_MAP)
+
+
+def _find_map(config: Dict[str, Any], map_guid: Any) -> Dict[str, Any]:
     target = str(map_guid or "")
     for item in config.get("mapList", []) or []:
-        if str(item.get("guid") or "") == target:
-            return str(item.get("name") or target)
-    return target or STR_UNKNOWN_MAP
+        if isinstance(item, dict) and str(item.get("guid") or "") == target:
+            return item
+    return {}
 
 
 def _hero_ring_color(config: Dict[str, Any], hero_name: str) -> tuple[int, int, int, int]:
@@ -1486,6 +1658,69 @@ def _draw_centered_mixed_text_with_shadow(
         shadow_offset=shadow_offset,
         number_fill=number_fill,
         shadow_number_fill=shadow_number_fill,
+    )
+
+
+def _draw_centered_mixed_text(
+    draw: Any,
+    center_x: float,
+    y: int,
+    text: str,
+    *,
+    label_font: Any,
+    number_font: Any,
+    fill: Any,
+    number_fill: Any | None = None,
+) -> None:
+    width = _measure_mixed_text(draw, text, label_font=label_font, number_font=number_font)
+    _draw_mixed_text(
+        draw,
+        int(round(center_x - width / 2)),
+        y,
+        text,
+        label_font=label_font,
+        number_font=number_font,
+        fill=fill,
+        number_fill=number_fill,
+    )
+
+
+def _draw_mixed_text_centered_in_row(
+    draw: Any,
+    center_x: float,
+    center_y: float,
+    text: str,
+    *,
+    label_font: Any,
+    number_font: Any,
+    fill: Any,
+    number_fill: Any | None = None,
+) -> None:
+    text = str(text or "")
+    vertical_bounds = []
+    for font in (label_font, number_font):
+        try:
+            box = draw.textbbox((0, 0), text, font=font)
+        except Exception:
+            continue
+        vertical_bounds.append((box[1], box[3]))
+
+    if vertical_bounds:
+        top = min(item[0] for item in vertical_bounds)
+        bottom = max(item[1] for item in vertical_bounds)
+        y = int(round(center_y - (top + bottom) / 2))
+    else:
+        y = int(round(center_y))
+
+    _draw_centered_mixed_text(
+        draw,
+        center_x,
+        y,
+        text,
+        label_font=label_font,
+        number_font=number_font,
+        fill=fill,
+        number_fill=number_fill,
     )
 
 

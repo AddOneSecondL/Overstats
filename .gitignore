@@ -39,3 +39,5 @@ api_test_data.json
 !/test/test_risk_status.py
 !/test/test_rank_emerald.py
 !/test/test_personal_data_percentile.py
+!/test/test_font_resolver.py
+!/test/test_dashen_profile_render.py

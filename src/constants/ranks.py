@@ -74,8 +74,7 @@ _RANK_NAME_TO_STRENGTH_BASE = {
     for raw_rank_id, base in RAW_RANK_ID_TO_STRENGTH_BASE.items()
 }
 
-# Local assets retain their original ids.  Emerald temporarily uses asset 9,
-# which is a copy of the Platinum artwork.
+# Local assets retain their original ids.  Emerald uses the dedicated asset 9.
 RANK_NAME_TO_ICON_LEVEL = {
     "Bronze": 1,
     "Silver": 2,
@@ -160,6 +159,10 @@ def get_rank_name(rank_info: Mapping[str, Any] | None, default: Any = "") -> Any
     return default
 
 
+def rank_name_to_icon_level(value: Any) -> int:
+    return RANK_NAME_TO_ICON_LEVEL.get(canonical_rank_name(value), 0)
+
+
 def raw_rank_score_parts(value: Any) -> Optional[tuple[int, int]]:
     """Return ``(raw rank id, division)`` for Dashen's compact rankScore."""
     score = _safe_int(value)
@@ -210,6 +213,13 @@ def raw_rank_score_to_icon_level(value: Any) -> int:
     return RANK_NAME_TO_ICON_LEVEL[RAW_RANK_ID_TO_NAME[parts[0]]]
 
 
+def rank_info_to_icon_level(rank_info: Mapping[str, Any] | None) -> int:
+    named_level = rank_name_to_icon_level(get_rank_name(rank_info))
+    if named_level > 0:
+        return named_level
+    return raw_rank_score_to_icon_level(get_rank_score(rank_info))
+
+
 def strength_score_rank_name(value: Any) -> str:
     score = _safe_int(value)
     if score is None or score < RANK_STRENGTH_SPANS[0][0]:
@@ -252,7 +262,9 @@ __all__ = [
     "get_rank_sub_tier",
     "normalize_raw_rank_bucket",
     "rank_info_score_to_strength",
+    "rank_info_to_icon_level",
     "rank_name_cn",
+    "rank_name_to_icon_level",
     "raw_rank_score_parts",
     "raw_rank_score_to_icon_level",
     "raw_rank_score_to_strength",

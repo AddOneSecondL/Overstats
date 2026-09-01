@@ -7,9 +7,9 @@ import time
 from typing import Any, Awaitable, Callable, Dict, Optional, Sequence
 
 try:
-    from overstats.src.constants.ranks import get_rank_score, get_rank_sub_tier
+    from overstats.src.constants.ranks import get_rank_name, get_rank_score, get_rank_sub_tier
 except ModuleNotFoundError:
-    from src.constants.ranks import get_rank_score, get_rank_sub_tier
+    from src.constants.ranks import get_rank_name, get_rank_score, get_rank_sub_tier
 
 try:
     from overstats.src.modules.risk_status import RiskStatus, parse_risk_status
@@ -85,6 +85,8 @@ class RolePanelEntry:
     max_tier: str
     match_sum: int
     win_sum: int
+    rank_name: str = ""
+    max_rank_name: str = ""
     is_history: bool = False
     history_season: str = ""
 
@@ -301,6 +303,8 @@ def build_role_panel_entries(
                 max_tier=str(get_rank_sub_tier(max_rank_info) or ""),
                 match_sum=match_sum,
                 win_sum=int(match_sum * win_rate / 100) if match_sum > 0 else 0,
+                rank_name=str(get_rank_name(last_rank_info) or ""),
+                max_rank_name=str(get_rank_name(max_rank_info) or ""),
                 is_history=is_history,
                 history_season=history_season,
             )
