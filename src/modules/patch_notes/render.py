@@ -167,7 +167,7 @@ def _draw_patch_notes_content(
         if intro:
             y = _draw_text_card(
                 draw,
-                title="姒傝",
+                title="概览",
                 body_lines=intro,
                 fonts=fonts,
                 y=y,
@@ -181,12 +181,12 @@ def _draw_patch_notes_content(
         for general_update in section.get("general_updates") or []:
             lines = []
             lines.extend(general_update.get("paragraphs") or [])
-            lines.extend(f"鈥?{item}" for item in (general_update.get("bullets") or []))
+            lines.extend(f"• {item}" for item in (general_update.get("bullets") or []))
             if general_update.get("dev_note"):
-                lines.append(f"寮€鍙戣€呰鏄庯細{general_update.get('dev_note')}")
+                lines.append(f"开发者说明：{general_update.get('dev_note')}")
             y = _draw_text_card(
                 draw,
-                title=general_update.get("title", "琛ヤ竵鏉＄洰"),
+                title=general_update.get("title", "补丁条目"),
                 body_lines=lines,
                 fonts=fonts,
                 y=y,
@@ -251,13 +251,8 @@ def render_patch_fallback(candidate: Mapping[str, Any], *, summary_text: str) ->
 
 
 def _draw_header_card(draw: Any | None, candidate: Mapping[str, Any], summary_text: str, fonts: Mapping[str, Any], y: int) -> int:
-    title_lines = _wrap_text(str(candidate.get("title") or "补丁说明"), fonts["headline"], CANVAS_WIDTH - CANVAS_MARGIN * 2 - 40)
-    summary_lines = []
-    for line in str(summary_text or "").splitlines():
-        wrapped = _wrap_text(line, fonts["small"], CANVAS_WIDTH - CANVAS_MARGIN * 2 - 40)
-        summary_lines.extend(wrapped or [""])
     content_width = CANVAS_WIDTH - CANVAS_MARGIN * 2 - _px(40)
-    title_lines = _wrap_text(str(candidate.get("title") or "琛ヤ竵璇存槑"), fonts["headline"], content_width)
+    title_lines = _wrap_text(str(candidate.get("title") or "补丁说明"), fonts["headline"], content_width)
     summary_lines = []
     for line in str(summary_text or "").splitlines():
         wrapped = _wrap_text(line, fonts["small"], content_width)
@@ -300,10 +295,8 @@ def _draw_header_card(draw: Any | None, candidate: Mapping[str, Any], summary_te
 
 def _draw_section_title(draw: Any | None, title: str, fonts: Mapping[str, Any], y: int) -> int:
     if draw is not None:
-        draw.text((CANVAS_MARGIN, y), str(title or "Patch Section"), font=fonts["section"], fill=TEXT_ACCENT)
+        draw.text((CANVAS_MARGIN, y), str(title or "补丁章节"), font=fonts["section"], fill=TEXT_ACCENT)
     return y + _px(54)
-    draw.text((CANVAS_MARGIN, y), str(title or "补丁章节"), font=fonts["section"], fill=TEXT_ACCENT)
-    return y + 54
 
 
 def _draw_text_card(

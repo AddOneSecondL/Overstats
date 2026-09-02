@@ -495,11 +495,6 @@ def _draw_stats_block(
         (STR_STAT_CURE, summary.get("aveCure", 0), recent.get("aveCure", 0), server.get("cure", 0), (server.get("maxCure") or 1) * 1.1),
         (STR_STAT_RESIST, summary.get("aveResistDamage", 0), recent.get("aveResistDamage", 0), server.get("resistDamage", 0), (server.get("maxResistDamage") or 1) * 1.1),
     ]
-    if not quick_mode:
-        labels.append(
-            (STR_STAT_DEATH, summary.get("aveDeath", 0), recent.get("aveDeath", 0), server.get("death", 0), (server.get("maxDeath") or 1) * 1.5)
-        )
-
     curr_y = 415
     for label, val_ave, val_recent, val_server, val_max in labels:
         _draw_ow_stat_group(draw, curr_y, label, val_ave, val_recent, val_server, val_max, fonts)
