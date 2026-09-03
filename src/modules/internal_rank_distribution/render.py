@@ -191,9 +191,11 @@ def _draw_rank_bars(
         rank_total = sum(int(counts.get((rank_bucket, division), 0) or 0) for division in range(1, 6))
         bars_left = group_left + (group_width - total_bar_width) // 2
 
-        for division in range(1, 6):
+        # Overwatch rank divisions are displayed from 5 down to 1 within
+        # every major rank, matching the in-game reading order.
+        for display_index, division in enumerate(range(5, 0, -1)):
             count = int(counts.get((rank_bucket, division), 0) or 0)
-            bar_x = int(bars_left + (division - 1) * (bar_width + bar_gap))
+            bar_x = int(bars_left + display_index * (bar_width + bar_gap))
             bar_y = plot_bottom
             if count > 0:
                 bar_y = plot_bottom - max(2 * scale, int(plot_height * count / chart_max))
