@@ -134,7 +134,6 @@ class DashenQuickStrengthModule:
                 message="No quick matches found for the requested player.",
                 status_code=404,
                 details={
-                    "customer_token": query.customer_token,
                     "bnet_id": query.bnet_id,
                 },
             )
@@ -214,14 +213,33 @@ class DashenQuickStrengthModule:
         query: DashenQuickStrengthQuery,
     ) -> tuple[DashenQuickStrengthQuery, Optional[BnetSearchResult]]:
         if query.customer_token:
+            normalized_token = str(query.customer_token).strip()
+            normalized_bnet_id = str(query.bnet_id or "").strip()
+            try:
+                card_payload = await self.requests.api_client.query_card(normalized_token)
+            except Exception:
+                card_payload = {}
+            card_data = card_payload.get("data") if isinstance(card_payload, dict) else None
+            resolved_bnet = None
+            if isinstance(card_data, dict):
+                full_id = str(card_data.get("name") or normalized_bnet_id).strip()
+                bnet_id = str(card_data.get("bnetId") or "").strip()
+                if full_id or bnet_id:
+                    identity_data = dict(card_data)
+                    identity_data["customerToken"] = normalized_token
+                    resolved_bnet = BnetSearchResult(
+                        query=full_id or bnet_id or "customer_token",
+                        payload={"data": identity_data, "_identity_source": "query_card"},
+                    )
+                    normalized_bnet_id = full_id or normalized_bnet_id
             return (
                 DashenQuickStrengthQuery(
-                    customer_token=query.customer_token,
-                    bnet_id=query.bnet_id,
+                    customer_token=normalized_token,
+                    bnet_id=normalized_bnet_id,
                     limit=normalize_limit(query.limit),
                     include_previous_season=bool(query.include_previous_season),
                 ),
-                None,
+                resolved_bnet,
             )
 
         if not query.bnet_id:
@@ -273,11 +291,17 @@ class DashenQuickStrengthModule:
         customer_token: str,
     ) -> tuple[Optional[bytes], Optional[RiskStatus]]:
         icon_url = str(resolved_bnet.icon_url or "").strip() if resolved_bnet else ""
-        try:
-            payload = await self.requests.api_client.query_card(customer_token)
-        except Exception as exc:
-            print(f"[overstats] failed to fetch quick-strength profile card: {exc}")
-            payload = {}
+        payload = (
+            resolved_bnet.payload
+            if resolved_bnet and resolved_bnet.payload.get("_identity_source") == "query_card"
+            else None
+        )
+        if payload is None:
+            try:
+                payload = await self.requests.api_client.query_card(customer_token)
+            except Exception as exc:
+                print(f"[overstats] failed to fetch quick-strength profile card: {exc}")
+                payload = {}
 
         risk_status = parse_risk_status(payload)
         data = payload.get("data") if isinstance(payload, dict) else None

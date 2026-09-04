@@ -54,7 +54,6 @@ class DashenProfileModule:
                 details={
                     "upstream_code": profile_card.get("code"),
                     "upstream_msg": profile_card.get("msg"),
-                    "customer_token": query.customer_token,
                 },
             )
 

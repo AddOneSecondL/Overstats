@@ -53,6 +53,7 @@ except ModuleNotFoundError:
 
 SAMEPLAY_CACHE_TTL = 1800
 SAMEPLAY_CACHE_MAX = 256
+UNKNOWN_PLAYER_LABEL = "未知玩家"
 _CACHE_LOCK = threading.RLock()
 _SAMEPLAY_LIST_CACHE: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
 
@@ -98,13 +99,6 @@ def _text_reply(text: str) -> Dict[str, Any]:
 
 def _meta_reply(meta_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
     return {"type": "meta", "meta_type": meta_type, "data": data}
-
-
-def _token_preview(value: str) -> str:
-    token = str(value or "").strip()
-    if not token:
-        return "unknown"
-    return token[:8]
 
 
 def _is_competitive_mode(match: Dict[str, Any]) -> bool:
@@ -162,7 +156,7 @@ class ResolvedSameplayPlayer:
 
     @property
     def display_name(self) -> str:
-        return str(self.full_id or self.query or f"token:{_token_preview(self.customer_token)}").strip()
+        return str(self.full_id or self.query or UNKNOWN_PLAYER_LABEL).strip()
 
     def to_dict(self) -> Dict[str, Any]:
         result = {
@@ -365,6 +359,7 @@ class DashenSameplayModule:
                 source_match=source_match,
                 query_full_id=player1.full_id,
                 query_bnet_id=player1.bnet_id,
+                query_customer_token=player1.customer_token,
             )
             main_header_kwargs: Dict[str, Any] = {"bnet_id": player1.bnet_id, "subtitle": "同玩对局主战绩"}
             if player1.risk_status is not None:
@@ -396,6 +391,7 @@ class DashenSameplayModule:
                 detail.match_id,
                 query_full_id=focus_player.full_id,
                 query_bnet_id=focus_player.bnet_id,
+                query_customer_token=focus_player.customer_token,
             )
             if all_player_details:
                 waterfall_image = render_all_players_waterfall(
@@ -543,10 +539,9 @@ class DashenSameplayModule:
             resolved_token = str(card.get("customerToken") or explicit_customer_token).strip() or explicit_customer_token
             full_id = str(card.get("name") or explicit_bnet_id or "").strip()
             resolved_bnet_id = str(card.get("bnetId") or "").strip()
-            token_label = f"token:{_token_preview(resolved_token)}"
             return ResolvedSameplayPlayer(
-                query=explicit_bnet_id or full_id or token_label,
-                full_id=full_id or explicit_bnet_id or token_label,
+                query=explicit_bnet_id or full_id or UNKNOWN_PLAYER_LABEL,
+                full_id=full_id or explicit_bnet_id or UNKNOWN_PLAYER_LABEL,
                 bnet_id=resolved_bnet_id or explicit_bnet_id,
                 customer_token=resolved_token,
                 risk_status=parse_risk_status(card_payload),
@@ -572,10 +567,9 @@ class DashenSameplayModule:
                 customer_token=resolved_query.customer_token,
                 risk_status=risk_status,
             )
-        token_label = f"token:{_token_preview(resolved_query.customer_token)}"
         return ResolvedSameplayPlayer(
-            query=explicit_bnet_id or token_label,
-            full_id=explicit_bnet_id or token_label,
+            query=explicit_bnet_id or UNKNOWN_PLAYER_LABEL,
+            full_id=explicit_bnet_id or UNKNOWN_PLAYER_LABEL,
             bnet_id=explicit_bnet_id,
             customer_token=resolved_query.customer_token,
             risk_status=risk_status,
@@ -906,6 +900,7 @@ class DashenSameplayModule:
             detail_root,
             query_full_id=player.full_id,
             query_bnet_id=player.bnet_id,
+            query_customer_token=player.customer_token,
         )
         focus_detail = {
             "heroList": detail_root.get("heroList") or (focus_player.get("heroList") if focus_player else []) or [],

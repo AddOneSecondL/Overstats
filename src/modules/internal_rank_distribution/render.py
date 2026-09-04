@@ -46,6 +46,7 @@ def render_rank_distribution(
     season: int,
     total_count: int,
     rows: Sequence[Mapping[str, Any]],
+    mode_summary: Mapping[str, Any] | None = None,
 ) -> RenderedImage:
     try:
         from PIL import Image, ImageDraw
@@ -68,7 +69,12 @@ def render_rank_distribution(
 
     counts = _collect_counts(rows)
     _draw_rank_bars(draw, canvas, counts=counts, total_count=total_count, fonts=fonts, scale=scale)
-    _draw_status_comparison(draw, counts=counts, total_count=total_count, fonts=fonts, scale=scale)
+    _draw_status_comparison(
+        draw,
+        mode_summary=mode_summary,
+        fonts=fonts,
+        scale=scale,
+    )
 
     output = BytesIO()
     resampling = getattr(Image, "Resampling", Image)
@@ -257,26 +263,40 @@ def _draw_rank_bars(
 def _draw_status_comparison(
     draw: Any,
     *,
-    counts: Mapping[tuple[str, int], int],
-    total_count: int,
+    mode_summary: Mapping[str, Any] | None,
     fonts: Mapping[str, Any],
     scale: int,
 ) -> None:
-    ranked_count = sum(int(counts.get((rank_bucket, division), 0) or 0) for rank_bucket in RANKS for division in range(1, 6))
-    unranked_count = int(counts.get(("Unranked", 0), 0) or 0)
-    population = max(int(total_count or 0), ranked_count + unranked_count, 1)
-    ranked_percent = ranked_count / population * 100
-    unranked_percent = unranked_count / population * 100
+    mode_summary = mode_summary or {}
+
+    def count(*keys: str) -> int:
+        for key in keys:
+            if key in mode_summary:
+                try:
+                    return max(0, int(mode_summary.get(key) or 0))
+                except (TypeError, ValueError):
+                    return 0
+        return 0
+
+    quick_count = count(
+        "pure_quick_player_count", "pureQuickPlayerCount", "quick_count", "quickCount"
+    )
+    competitive_count = count(
+        "competitive_player_count", "competitivePlayerCount", "competitive_count", "competitiveCount"
+    )
+    eligible_count = quick_count + competitive_count
+    quick_percent = quick_count / eligible_count * 100 if eligible_count else 0.0
+    competitive_percent = competitive_count / eligible_count * 100 if eligible_count else 0.0
 
     draw.text(
         (92 * scale, 974 * scale),
-        f"未定级  {unranked_percent:.1f}%",
+        f"纯快速  {quick_percent:.1f}%",
         font=fonts["comparison"],
         fill=(186, 201, 220, 255),
     )
     draw.text(
         (830 * scale, 974 * scale),
-        f"定级  {ranked_percent:.1f}%",
+        f"竞技  {competitive_percent:.1f}%",
         font=fonts["comparison"],
         fill=(205, 235, 255, 255),
     )
@@ -298,10 +318,10 @@ def _draw_status_comparison(
 
     # Fill the complete track with two adjacent segments.  Normalizing here
     # prevents a stale/over-counted total from leaving an unpainted section.
-    share_total = max(unranked_percent + ranked_percent, 0.0)
+    share_total = max(quick_percent + competitive_percent, 0.0)
     if share_total > 0:
-        unranked_share = max(0.0, min(unranked_percent / share_total, 1.0))
-        split_x = int(round(bar_left + (bar_right - bar_left) * unranked_share))
+        quick_share = max(0.0, min(quick_percent / share_total, 1.0))
+        split_x = int(round(bar_left + (bar_right - bar_left) * quick_share))
         if split_x > bar_left:
             draw.rounded_rectangle(
                 (bar_left, bar_top, split_x, bar_bottom),

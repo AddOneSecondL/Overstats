@@ -37,6 +37,7 @@ class RankDistributionOutput:
     season: int
     total_count: int
     rows: tuple[RankDistributionRow, ...]
+    mode_summary: Mapping[str, int]
     image: RenderedImage | None = None
 
     def to_dict(self) -> Dict[str, object]:
@@ -45,6 +46,7 @@ class RankDistributionOutput:
             "season": self.season,
             "total_count": self.total_count,
             "rows": [row.to_dict() for row in self.rows],
+            "mode_summary": dict(self.mode_summary),
         }
 
 
@@ -92,6 +94,31 @@ def _normalize_rows(rows: Sequence[Mapping[str, Any]] | None) -> tuple[RankDistr
     )
 
 
+def _normalize_mode_summary(raw: Mapping[str, Any] | None) -> dict[str, int]:
+    raw = raw or {}
+
+    def value(*keys: str) -> int:
+        for key in keys:
+            if key in raw:
+                return max(0, _safe_int(raw.get(key)))
+        return 0
+
+    return {
+        "pure_quick_player_count": value(
+            "pure_quick_player_count", "pureQuickPlayerCount", "quick_count", "quickCount"
+        ),
+        "competitive_player_count": value(
+            "competitive_player_count", "competitivePlayerCount", "competitive_count", "competitiveCount"
+        ),
+        "unknown_player_count": value(
+            "unknown_player_count", "unknownPlayerCount", "unknown_count", "unknownCount"
+        ),
+        "total_player_count": value(
+            "total_player_count", "totalPlayerCount", "total_count", "totalCount"
+        ),
+    }
+
+
 class InternalRankDistributionModule:
     """Private renderer endpoint; it is intentionally not registered in web UI."""
 
@@ -104,6 +131,7 @@ class InternalRankDistributionModule:
         try:
             season = _safe_int(query.season)
             rows = _normalize_rows(query.rows)
+            mode_summary = _normalize_mode_summary(query.mode_summary)
         except Exception as exc:
             raise ModuleError(
                 error="invalid_rank_distribution",
@@ -125,11 +153,13 @@ class InternalRankDistributionModule:
                 season=season,
                 total_count=total_count,
                 rows=[row.to_dict() for row in rows],
+                mode_summary=mode_summary,
             )
         return RankDistributionOutput(
             season=season,
             total_count=total_count,
             rows=rows,
+            mode_summary=mode_summary,
             image=image,
         )
 

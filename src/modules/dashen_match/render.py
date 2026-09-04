@@ -212,6 +212,7 @@ def render_match_detail(
     source_match: Dict[str, Any] | None = None,
     query_full_id: str = "",
     query_bnet_id: str = "",
+    query_customer_token: str = "",
 ) -> RenderedImage:
     try:
         from PIL import Image, ImageDraw
@@ -227,6 +228,9 @@ def render_match_detail(
             config,
             title=title,
             source_match=source_match,
+            query_full_id=query_full_id,
+            query_bnet_id=query_bnet_id,
+            query_customer_token=query_customer_token,
         )
 
     return _render_scoreboard_match_detail(
@@ -236,6 +240,7 @@ def render_match_detail(
         source_match=source_match,
         query_full_id=query_full_id,
         query_bnet_id=query_bnet_id,
+        query_customer_token=query_customer_token,
     )
 
 
@@ -245,8 +250,9 @@ def _render_scoreboard_match_detail(
     *,
     title: str,
     source_match: Dict[str, Any],
-    query_full_id: str,
-    query_bnet_id: str,
+    query_full_id: str = "",
+    query_bnet_id: str = "",
+    query_customer_token: str = "",
 ) -> RenderedImage:
     from PIL import Image, ImageDraw
 
@@ -313,6 +319,7 @@ def _render_scoreboard_match_detail(
         party_list=teammate_parties,
         query_full_id=query_full_id,
         query_bnet_id=query_bnet_id,
+        query_customer_token=query_customer_token,
     )
     _draw_scoreboard_players(
         draw,
@@ -325,6 +332,7 @@ def _render_scoreboard_match_detail(
         party_list=enemy_parties,
         query_full_id=query_full_id,
         query_bnet_id=query_bnet_id,
+        query_customer_token=query_customer_token,
     )
 
     output = BytesIO()
@@ -434,7 +442,11 @@ def _is_query_player(
     *,
     query_full_id: str,
     query_bnet_id: str,
+    query_customer_token: str = "",
 ) -> bool:
+    player_customer_token = str(player.get("customerToken") or player.get("customer_token") or "").strip()
+    if query_customer_token and player_customer_token and player_customer_token == str(query_customer_token).strip():
+        return True
     player_bnet_id = str(player.get("bnetId") or "").strip()
     if query_bnet_id and player_bnet_id and player_bnet_id == str(query_bnet_id).strip():
         return True
@@ -454,9 +466,15 @@ def _resolve_query_party_index(
     *,
     query_full_id: str,
     query_bnet_id: str,
+    query_customer_token: str = "",
 ) -> int:
     for player in players:
-        if not isinstance(player, dict) or not _is_query_player(player, query_full_id=query_full_id, query_bnet_id=query_bnet_id):
+        if not isinstance(player, dict) or not _is_query_player(
+            player,
+            query_full_id=query_full_id,
+            query_bnet_id=query_bnet_id,
+            query_customer_token=query_customer_token,
+        ):
             continue
         return _party_index_for_player(player, party_list)
     return -1
@@ -524,6 +542,9 @@ def _render_fight_match_detail(
     *,
     title: str,
     source_match: Dict[str, Any],
+    query_full_id: str = "",
+    query_bnet_id: str = "",
+    query_customer_token: str = "",
 ) -> RenderedImage:
     from PIL import Image, ImageDraw
 
@@ -591,7 +612,20 @@ def _render_fight_match_detail(
                 draw.text((left_w + 28, sep_y + 4), "ALLY  VS  ENEMY", font=font_en, fill=(245, 247, 250, 255))
                 row_y += team_separator_h
             team_color = (76, 211, 128, 255) if player_index < len(allies) else (225, 92, 96, 255)
-            _draw_fight_player_row(draw, img, config, data, player, row_y, team_color, font_sm, font_tiny)
+            _draw_fight_player_row(
+                draw,
+                img,
+                config,
+                data,
+                player,
+                row_y,
+                team_color,
+                font_sm,
+                font_tiny,
+                query_full_id=query_full_id,
+                query_bnet_id=query_bnet_id,
+                query_customer_token=query_customer_token,
+            )
             row_y += row_h
         y += round_h + round_gap
 
@@ -734,6 +768,7 @@ def _draw_scoreboard_players(
     party_list: Sequence[Sequence[int] | int],
     query_full_id: str,
     query_bnet_id: str,
+    query_customer_token: str = "",
 ) -> None:
     if not players:
         return
@@ -742,7 +777,13 @@ def _draw_scoreboard_players(
     font_num_small = _font_num_small(max(int(15 * row_h / 82), 10))
     font_cn_sm = _font_chinese(max(int(15 * row_h / 82), 8))
     team_final_hit = sum(_safe_int(player.get("finalHit")) for player in players)
-    me_party_index = _resolve_query_party_index(players, party_list, query_full_id=query_full_id, query_bnet_id=query_bnet_id)
+    me_party_index = _resolve_query_party_index(
+        players,
+        party_list,
+        query_full_id=query_full_id,
+        query_bnet_id=query_bnet_id,
+        query_customer_token=query_customer_token,
+    )
 
     for index, player in enumerate(players):
         y = start_y + index * row_h
@@ -796,7 +837,12 @@ def _draw_scoreboard_players(
         battletag, battlenum = _split_battletag(player)
         name_y = y + row_h * 0.35
         num_y = y + row_h * 0.70
-        is_me = _is_query_player(player, query_full_id=query_full_id, query_bnet_id=query_bnet_id)
+        is_me = _is_query_player(
+            player,
+            query_full_id=query_full_id,
+            query_bnet_id=query_bnet_id,
+            query_customer_token=query_customer_token,
+        )
         is_my_teammate = bool(not is_me and me_party_index != -1 and party_index == me_party_index)
         name_color, num_color = _scoreboard_name_colors(is_me=is_me, is_my_teammate=is_my_teammate)
         name_is_ascii = bool(re.match(r"^[a-zA-Z0-9_\\-]+$", battletag))
@@ -903,6 +949,10 @@ def _draw_fight_player_row(
     team_color: tuple[int, int, int, int],
     font: Any,
     font_tiny: Any,
+    *,
+    query_full_id: str = "",
+    query_bnet_id: str = "",
+    query_customer_token: str = "",
 ) -> None:
     font_stat = _font_num_small(max(15, int(getattr(font, "size", 16))))
     name_map = {str(k): v for k, v in (data.get("nameMap") or {}).items()}
@@ -948,11 +998,18 @@ def _draw_fight_player_row(
         font_name,
         name_width_limit,
     )
+    is_me = _is_query_player(
+        player,
+        query_full_id=query_full_id,
+        query_bnet_id=query_bnet_id,
+        query_customer_token=query_customer_token,
+    )
+    name_fill = (255, 215, 0, 255) if is_me else (245, 247, 250, 255)
     draw.text(
         (386, y + 7),
         rendered_name,
         font=font_name,
-        fill=(245, 247, 250, 255),
+        fill=name_fill,
     )
     if risk_width:
         rendered_name_width = _text_width(draw, rendered_name, font_name)

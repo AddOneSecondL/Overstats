@@ -42,3 +42,4 @@ api_test_data.json
 !/test/test_font_resolver.py
 !/test/test_dashen_profile_render.py
 !/test/test_internal_rank_distribution.py
+!/test/test_customer_token_identity.py

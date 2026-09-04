@@ -164,10 +164,12 @@ def _coerce_optional_int(payload: Dict[str, object], *keys: str) -> Optional[int
 
 def _build_internal_rank_distribution_query(payload: Dict[str, object]) -> RankDistributionQuery:
     raw_rows = payload.get("rows")
+    raw_mode_summary = payload.get("mode_summary", payload.get("modeSummary", {}))
     return RankDistributionQuery(
         season=payload.get("season", 0),
         total_count=payload.get("total_count", payload.get("totalCount", 0)),
         rows=raw_rows if isinstance(raw_rows, list) else [],
+        mode_summary=raw_mode_summary if isinstance(raw_mode_summary, dict) else {},
     )
 
 
