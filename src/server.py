@@ -1489,6 +1489,9 @@ class OverstatsCoreService:
         )
 
     async def _handle_dashen_summary(self, payload: Dict[str, object], *, scope: str = "today") -> Dict[str, object]:
+        if scope == "season":
+            from .modules.dashen_summary.season_report import query_season_report
+            return await query_season_report(payload)
         bnet_id = str(payload.get("bnet_id") or payload.get("bnetId") or "").strip()
         full_id = str(payload.get("full_id") or payload.get("fullId") or "").strip()
         customer_token = str(payload.get("customer_token") or payload.get("customerToken") or "").strip()
@@ -1528,6 +1531,9 @@ class OverstatsCoreService:
         )
 
     async def _handle_dashen_summary_image(self, payload: Dict[str, object], *, scope: str = "today") -> tuple[bytes, str]:
+        if scope == "season":
+            from .modules.dashen_summary.season_report import query_season_report
+            return await query_season_report(payload, render=True)
         bnet_id = str(payload.get("bnet_id") or payload.get("bnetId") or "").strip()
         full_id = str(payload.get("full_id") or payload.get("fullId") or "").strip()
         customer_token = str(payload.get("customer_token") or payload.get("customerToken") or "").strip()
@@ -2004,6 +2010,15 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
 
             if path == "/api/v2/ow-guess/replies":
                 self._handle_ow_guess_replies_post()
+                return
+
+            # Season report is API-only until its layout is approved.
+            if path == "/api/v2/dashen-summary/season/image":
+                self._handle_dashen_summary_image_post(scope="season")
+                return
+
+            if path == "/api/v2/dashen-summary/season":
+                self._handle_dashen_summary_post(scope="season")
                 return
 
             if path == "/api/v2/dashen-summary/week/image":
