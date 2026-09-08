@@ -10,6 +10,7 @@ import httpx
 from .engine import SUMMARY_SEMAPHORE
 from ..season_config import get_dashen_current_season
 from ..errors import ModuleError
+from .season_report_ranks import classify_ranks, enrich_rank_queues
 
 RESOURCE_DIR = Path(__file__).resolve().parents[3] / "res"
 
@@ -117,6 +118,7 @@ def parse_report(payload):
                 if stat not in unique:
                     unique.append(stat)
             hero["stat_map"] = unique
+    classify_ranks(report["ranks"])
     return report
 
 
@@ -149,6 +151,9 @@ async def fetch_report(token, role_id, season=None):
                     own_token = own_match_token(mapping(recent_payload.get("data")), role_id)
                 except (httpx.HTTPError, ValueError, AttributeError):
                     pass
+            if own_token and report["ranks"]:
+                await enrich_rank_queues(client, report["ranks"], customer_token=own_token,
+                                         token=token, role_id=role_id, season=selected_season, dts=REPORT_YEAR)
             if not report["player_name"] and own_token:
                 try:
                     card_response = await client.get(CARD_ENDPOINT, params={"token": own_token}, headers={

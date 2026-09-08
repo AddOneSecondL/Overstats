@@ -501,7 +501,7 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
     HTTPUIModuleSpec(
         id="ow-hero-wiki",
         title="英雄百科",
-        description="查看英雄维基资料卡，或结合当前英雄资料进行问答。",
+        description="查看英雄图文百科，检索技能数值、威能与机制，并附资料引用。",
         json_endpoint="/api/v2/ow_hero_wiki",
         image_endpoint="/api/v2/ow_hero_wiki/image",
         requires_target=False,
@@ -518,7 +518,7 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
                 label="问题",
                 payload_key="question",
                 placeholder="可选，例如：闪现最多有几层？",
-                help_text="留空时返回结构化资料卡；填写后返回资料并附带问答结果。",
+                help_text="留空查看完整百科；填写后优先展示回答、相关技能和来源。未配置模型时也可检索原文片段。",
             ),
         ),
     ),

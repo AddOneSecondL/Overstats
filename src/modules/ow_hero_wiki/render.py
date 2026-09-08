@@ -60,10 +60,9 @@ def render_hero_wiki_overview(
     except ModuleNotFoundError as exc:
         raise RuntimeError("render.py requires Pillow to output images") from exc
 
-    del image_url
 
     scale = 2
-    base_width = 1500
+    base_width = 1200
     canvas_width = base_width * scale
     fonts = _load_fonts(scale)
 
@@ -74,15 +73,23 @@ def render_hero_wiki_overview(
     answer = str(payload.get("answer") or "").strip()
     accent = _to_rgba(accent_color, alpha=255)
 
-    padding = 50 * scale
+    padding = 32 * scale
     header_top = 36 * scale
     header_height = 292 * scale
     content_width = canvas_width - padding * 2
     section_gap = 22 * scale
 
+    citations = list(payload.get("citations") or [])
+    if question:
+        related = {(hit.get("section"), hit.get("card_index")) for hit in citations}
+        abilities = [card for i, card in enumerate(abilities) if ("abilities", i) in related]
+        perks = [card for i, card in enumerate(perks) if ("perks", i) in related]
+    hero_name = str(payload.get("hero_cn") or "")
+    abilities = [dict(card, hero_cn=hero_name) for card in abilities]
+    perks = [dict(card, hero_cn=hero_name) for card in perks]
     section_images = [
         _render_overview_panel(
-            payload,
+            dict(payload, image_url=image_url),
             width=content_width,
             fonts=fonts,
             scale=scale,
@@ -104,6 +111,12 @@ def render_hero_wiki_overview(
         section_images.extend(_render_group_sections("技能", abilities, width=content_width, fonts=fonts, scale=scale))
     if perks:
         section_images.extend(_render_group_sections("威能", perks, width=content_width, fonts=fonts, scale=scale))
+
+    source = payload.get("source") or {}
+    source_lines = ["资料来源：" + str(source.get("fandom_url") or "Wiki 来源暂缺"),
+                    "中文名称与简介参考本地英雄配置；数值及机制以 Wiki 资料为准。"]
+    source_lines.extend(f"[{hit['id']}] {hit['title']}\n{hit['url']}" for hit in citations)
+    section_images.append(_render_text_panel("资料与引用", "\n".join(source_lines), content_width, fonts, scale, accent))
 
     total_height = header_top + header_height + 28 * scale
     total_height += sum(image.height for image in section_images)
@@ -495,12 +508,18 @@ def _render_overview_panel(
     overview = str(payload.get("overview") or "暂无英雄简介")
     temp = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
     temp_draw = ImageDraw.Draw(temp)
-    lines = _wrap_text(temp_draw, overview, fonts["body"], width - 44 * scale, max_lines=10)
+    portrait = _open_cached_or_remote_rgba(payload.get("image_url"), categories=("heroes", "misc"))
+    portrait_w = 180 * scale if portrait is not None else 0
+    lines = _wrap_text(temp_draw, overview, fonts["body"], width - 44 * scale - portrait_w, max_lines=None)
     line_h = _measure(temp_draw, "A", fonts["body"])[1] + 8 * scale
-    height = 72 * scale + max(line_h * len(lines), 38 * scale) + 18 * scale
+    height = max(72 * scale + max(line_h * len(lines), 38 * scale) + 18 * scale, 210 * scale if portrait is not None else 0)
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image, "RGBA")
     _draw_card_shell(draw, (0, 0, width, height), radius=12 * scale)
+    if portrait is not None:
+        from PIL import ImageOps
+        portrait = ImageOps.contain(portrait, (portrait_w - 12 * scale, height - 70 * scale))
+        image.alpha_composite(portrait, (width - portrait_w, height - portrait.height - 12 * scale))
     draw.text((22 * scale, 18 * scale), "英雄概览", font=fonts["section_title"], fill=TEXT_MAIN)
     draw.line((22 * scale, 48 * scale, width - 22 * scale, 48 * scale), fill=_with_alpha(accent, 120), width=max(1, scale))
     _draw_multiline(draw, 22 * scale, 62 * scale, lines, fonts["body"], TEXT_SUB, line_gap=8 * scale)
@@ -520,15 +539,15 @@ def _render_question_panel(
 
     temp = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
     temp_draw = ImageDraw.Draw(temp)
-    question_lines = _wrap_text(temp_draw, question, fonts["body"], width - 44 * scale, max_lines=6)
-    answer_lines = _wrap_text(temp_draw, answer, fonts["body"], width - 44 * scale, max_lines=14)
+    question_lines = _wrap_text(temp_draw, question, fonts["body"], width - 44 * scale, max_lines=None)
+    answer_lines = _wrap_text(temp_draw, answer, fonts["body"], width - 44 * scale, max_lines=None)
     line_h = _measure(temp_draw, "A", fonts["body"])[1] + 8 * scale
     block_gap = 14 * scale
-    height = 94 * scale + line_h * (len(question_lines) + len(answer_lines)) + block_gap
+    height = 142 * scale + line_h * (len(question_lines) + len(answer_lines)) + block_gap
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image, "RGBA")
     _draw_card_shell(draw, (0, 0, width, height), radius=12 * scale)
-    draw.text((22 * scale, 18 * scale), "维基问答", font=fonts["section_title"], fill=TEXT_MAIN)
+    draw.text((22 * scale, 18 * scale), "定向查询 · 资料问答", font=fonts["section_title"], fill=TEXT_MAIN)
     draw.line((22 * scale, 48 * scale, width - 22 * scale, 48 * scale), fill=_with_alpha(accent, 120), width=max(1, scale))
     draw.text((22 * scale, 62 * scale), "问题", font=fonts["small_title"], fill=TEXT_MAIN)
     y = _draw_multiline(draw, 22 * scale, 86 * scale, question_lines, fonts["body"], TEXT_SUB, line_gap=8 * scale)
@@ -589,7 +608,7 @@ def _render_group_panel(
     inner_width = width - outer_pad * 2
 
     if len(cards) == 1:
-        card_images = [_render_wide_hero_card(cards[0], width=inner_width, fonts=fonts, scale=scale)]
+        card_images = [_render_compact_hero_card(cards[0], width=inner_width, fonts=fonts, scale=scale)]
         placements = [(card_images[0], outer_pad, outer_pad + top_area_h)]
         content_h = card_images[0].height
     else:
@@ -753,9 +772,11 @@ def _render_compact_hero_card(card: Mapping[str, Any], *, width: int, fonts: Dic
     accent = _to_rgba(card.get("accent") or (96, 191, 255), alpha=255)
 
     pad = 16 * scale
-    title_lines = _wrap_text(temp_draw, title, fonts["card_title"], width - pad * 2, max_lines=2)
-    subtitle_lines = _wrap_text(temp_draw, subtitle, fonts["meta"], width - pad * 2, max_lines=1) if subtitle and subtitle != title else []
-    desc_lines = _wrap_text(temp_draw, description, fonts["card_body"], width - pad * 2, max_lines=8) if description else []
+    icon = _load_card_icon(card)
+    title_x = pad + (62 * scale if icon is not None else 0)
+    title_lines = _wrap_text(temp_draw, title, fonts["card_title"], width - title_x - pad, max_lines=None)
+    subtitle_lines = _wrap_text(temp_draw, subtitle, fonts["meta"], width - title_x - pad, max_lines=None) if subtitle and subtitle != title else []
+    desc_lines = _wrap_text(temp_draw, description, fonts["card_body"], width - pad * 2, max_lines=None) if description else []
     pills = [text for text in (key_cn, category_cn) if text]
     stat_image = _render_stat_grid(stats, width - pad * 2, fonts=fonts, scale=scale, columns=2)
 
@@ -779,7 +800,7 @@ def _render_compact_hero_card(card: Mapping[str, Any], *, width: int, fonts: Dic
     pills_h = _layout_pills(temp_draw, pills, fonts["pill"], width - pad * 2, scale=scale)[1] if pills else 0
     tags_h = _layout_pills(temp_draw, tags, fonts["pill"], width - pad * 2, scale=scale)[1] if tags else 0
 
-    total_h = pad + 8 * scale + len(title_lines) * line_h_title
+    total_h = pad + 8 * scale + len(title_lines) * line_h_title + 32 * scale
     if subtitle_lines:
         total_h += 4 * scale + len(subtitle_lines) * line_h_meta
     if pills_h:
@@ -807,11 +828,16 @@ def _render_compact_hero_card(card: Mapping[str, Any], *, width: int, fonts: Dic
     )
     draw.rounded_rectangle((0, 0, width, 8 * scale), radius=12 * scale, fill=accent)
 
+    if icon is not None:
+        from PIL import ImageOps
+        icon = ImageOps.contain(icon, (50 * scale, 50 * scale))
+        image.alpha_composite(icon, (pad, pad))
     current_y = pad
-    current_y = _draw_multiline(draw, pad, current_y, title_lines, fonts["card_title"], TEXT_MAIN, line_gap=6 * scale)
+    current_y = _draw_multiline(draw, title_x, current_y, title_lines, fonts["card_title"], TEXT_MAIN, line_gap=6 * scale)
     if subtitle_lines:
         current_y += 4 * scale
-        current_y = _draw_multiline(draw, pad, current_y, subtitle_lines, fonts["meta"], TEXT_DIM, line_gap=5 * scale)
+        current_y = _draw_multiline(draw, title_x, current_y, subtitle_lines, fonts["meta"], TEXT_DIM, line_gap=5 * scale)
+    current_y = max(current_y, pad + 54 * scale)
     if pills:
         current_y += 8 * scale
         current_y = _draw_pill_row(draw, pills, x=pad, y=current_y, font=fonts["pill"], max_width=width - pad * 2, scale=scale)
@@ -838,6 +864,41 @@ def _render_compact_hero_card(card: Mapping[str, Any], *, width: int, fonts: Dic
     return image
 
 
+def _load_card_icon(card: Mapping[str, Any]) -> Any | None:
+    from PIL import Image
+
+    root = Path(__file__).resolve().parents[3] / "ow_guess_assets" / "shared" / "hero_icons"
+    category = "Perks" if card.get("category") == "perk" else "Abilities"
+    hero = str(card.get("hero_cn") or "")
+    name = str(card.get("name_cn") or "")
+    if not hero or not name:
+        return None
+    path = (root / hero / category / (name + ".png")).resolve()
+    if not path.is_relative_to(root.resolve()):
+        return None
+    try:
+        with Image.open(path) as raw:
+            return raw.convert("RGBA")
+    except (OSError, ValueError):
+        return None
+
+
+def _render_text_panel(title: str, text: str, width: int, fonts: Dict[str, Any], scale: int, accent: Any) -> Any:
+    from PIL import Image, ImageDraw
+
+    draw = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    lines = _wrap_text(draw, text, fonts["meta"], width - 44 * scale)
+    line_h = _measure(draw, "A", fonts["meta"])[1] + 8 * scale
+    height = 78 * scale + len(lines) * line_h
+    image = Image.new("RGBA", (width, height))
+    draw = ImageDraw.Draw(image)
+    _draw_card_shell(draw, (0, 0, width, height), radius=12 * scale)
+    draw.text((22 * scale, 18 * scale), title, font=fonts["section_title"], fill=TEXT_MAIN)
+    draw.line((22 * scale, 48 * scale, width - 22 * scale, 48 * scale), fill=_with_alpha(accent, 120), width=scale)
+    _draw_multiline(draw, 22 * scale, 62 * scale, lines, fonts["meta"], TEXT_SUB, line_gap=8 * scale)
+    return image
+
+
 def _render_stat_grid(
     stats: Sequence[Mapping[str, Any]],
     width: int,
@@ -861,7 +922,7 @@ def _render_stat_grid(
     for item in items:
         label = str(item.get("label") or "")
         value = str(item.get("value") or "")
-        value_lines = _wrap_text(temp_draw, value, fonts["stat_value"], chip_width - 22 * scale, max_lines=3)
+        value_lines = _wrap_text(temp_draw, value, fonts["stat_value"], chip_width - 22 * scale, max_lines=None)
         label_h = _measure(temp_draw, label, fonts["tiny"])[1]
         value_h = _measure(temp_draw, "A", fonts["stat_value"])[1] + 4 * scale
         chip_h = 10 * scale + label_h + 6 * scale + len(value_lines) * value_h + 10 * scale
@@ -976,11 +1037,11 @@ def _load_fonts(scale: int) -> Dict[str, Any]:
         "module_value": load_font(30 * scale, prefer_cjk=True, bold=True),
         "body": load_font(17 * scale, prefer_cjk=True),
         "card_title": load_font(19 * scale, prefer_cjk=True, bold=True),
-        "card_body": load_font(16 * scale, prefer_cjk=True),
-        "meta": load_font(14 * scale, prefer_cjk=True),
+        "card_body": load_font(18 * scale, prefer_cjk=True),
+        "meta": load_font(15 * scale, prefer_cjk=True),
         "tiny": load_font(12 * scale, prefer_cjk=True),
         "pill": load_font(13 * scale, prefer_cjk=True),
-        "stat_value": load_font(14 * scale, prefer_cjk=True),
+        "stat_value": load_font(16 * scale, prefer_cjk=True),
         "module_meta": load_font(13 * scale, prefer_cjk=True),
         "fallback": load_font(28 * scale, prefer_cjk=True, bold=True),
     }
@@ -989,7 +1050,7 @@ def _load_fonts(scale: int) -> Dict[str, Any]:
 def _measure(draw: Any, text: str, font: Any) -> tuple[int, int]:
     try:
         bbox = draw.textbbox((0, 0), str(text or ""), font=font)
-        return int(bbox[2] - bbox[0]), int(bbox[3] - bbox[1])
+        return int(bbox[2] - bbox[0]), max(int(bbox[3] - bbox[1]), int(getattr(font, "size", 0)))
     except Exception:
         return (0, 0)
 
@@ -1002,7 +1063,10 @@ def _wrap_text(draw: Any, text: str, font: Any, max_width: int, *, max_lines: in
             if words:
                 words.append("\n")
             continue
-        words.extend(_split_tokens(stripped))
+        if words and words[-1] != "\n":
+            words.append("\n")
+        for token in _split_tokens(stripped):
+            words.extend(list(token) if _measure(draw, token, font)[0] > max_width else [token])
 
     if not words:
         return []

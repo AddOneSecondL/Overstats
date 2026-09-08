@@ -14,6 +14,7 @@ from .engine import _load_runtime
 from .season_report import RESOURCE_DIR, fmt, mapping, mode_name, number, rows
 from ...constants.ranks import get_rank_name, get_rank_sub_tier, rank_name_cn, rank_name_to_icon_level
 from ..dashen_match.render import _perk_guid_candidates, _perk_lookup
+from .season_report_ranks import QUEUE_LABELS, ROLE_LABELS
 
 WHITE = (240, 246, 254)
 MUTED = (158, 175, 197)
@@ -64,6 +65,17 @@ def rank_label(info):
         return ""
     tier = get_rank_sub_tier(info)
     return f"{rank_name_cn(name)}{tier if tier else ''}"
+
+
+def stadium_rank(label):
+    value = str(label or "").replace("\u200c", "").strip()
+    names = ("菜鸟", "新秀", "斗士", "精英", "专家", "全明星", "传奇")
+    english = ("Bronze", "Silver", "Gold", "Platinum", "Diamond", "Master", "Grandmaster")
+    base = re.sub(r"\d+\s*$", "", value).strip()
+    for level, (cn, en) in enumerate(zip(names, english), 1):
+        if base.casefold() in {cn, en.casefold()}:
+            return level, value.replace(base, cn, 1)
+    return 0, value or "—"
 
 
 async def render_report(report, role_id):
@@ -181,7 +193,16 @@ async def render_report(report, role_id):
         except (OSError, ValueError):
             pass
 
-    def badge(label, x, y, size=72):
+    def badge(label, x, y, size=72, queue_type=None):
+        if queue_type == "unknown":
+            return
+        if queue_type == "stadium":
+            level, _ = stadium_rank(label)
+            if level:
+                local_icon(RESOURCE_DIR / "rank_flat" / f"f{level}_pure.png", x, y, size, size)
+                return
+            if str(label or "").strip() not in {"未完成定级", "未定级", "Unranked", "None"}:
+                return
         level = rank_name_to_icon_level(re.sub(r"\d+\s*$", "", str(label or "")).strip())
         unranked = str(label or "").strip() in {"未完成定级", "未定级", "Unranked", "None"}
         if level or unranked:
@@ -242,21 +263,29 @@ async def render_report(report, role_id):
     for i, row in enumerate(ranks):
         ry = y + 79 + i * 152
         guids = rank_heroes(row)
-        role = s._role_label(guids[0]) if guids else "Unknown"
-        role_label = {"Tank": "重装", "Damage": "输出", "Support": "支援"}.get(role, "其他职责")
-        badge(row.get("final_rank_level"), 75, ry, 78)
-        icon_name = {"Tank": "tank.png", "Damage": "dps.png", "Support": "healer.png"}.get(role)
+        role = row.get("role_type")
+        queue_type = row.get("queue_type", "unknown")
+        role_label = ROLE_LABELS.get(role)
+        queue_label = QUEUE_LABELS.get(queue_type, QUEUE_LABELS["unknown"])
+        label = queue_label + (f" · {role_label}" if role_label else "")
+        current = row.get("final_rank_level") or "—"
+        highest = row.get("max_rank_level") or "—"
+        if queue_type == "stadium":
+            current, highest = stadium_rank(current)[1], stadium_rank(highest)[1]
+        badge(row.get("final_rank_level"), 75, ry + 8, 78, queue_type)
+        icon_name = {"tank": "tank.png", "dps": "dps.png", "healer": "healer.png"}.get(role)
         if icon_name:
-            local_icon(RESOURCE_DIR / icon_name, 175, ry + 5, 22, 22)
-        text(208, ry, f"{role_label} · {row.get('final_rank_level') or '—'}", 25, WHITE, 420, True)
-        text(175, ry + 39, f"最高 {row.get('max_rank_level') or '—'}   {fmt(row.get('match_cnt'))} 场   {fmt(row.get('win_rate'), 1, '%')}", 17, MUTED, 460)
+            local_icon(RESOURCE_DIR / icon_name, 175, ry + 3, 19, 19)
+        text(202 if icon_name else 175, ry, label, 17, BLUE, 435, True)
+        text(175, ry + 25, current, 25, WHITE, 420, True)
+        text(175, ry + 61, f"最高 {highest}   {fmt(row.get('match_cnt'))} 场   {fmt(row.get('win_rate'), 1, '%')}", 17, MUTED, 460)
         for j, guid in enumerate(guids[:3]):
-            await picture(s._hero_icon_url(guid), 175 + j * 43, ry + 72, 32, 32, 16)
+            await picture(s._hero_icon_url(guid), 175 + j * 43, ry + 88, 32, 32, 16)
         region = str(row.get("ip_province") or "").strip()
         position = number(row.get("player_rank"))
         parts = ([region] if region else []) + ([f"第 {fmt(position)} 名"] if position is not None and position > 0 else [])
         if parts:
-            text(175, ry + 114, " · ".join(parts), 17, BLUE, 460)
+            text(320, ry + 95, " · ".join(parts), 17, BLUE, 320)
 
     panel(705, y, 645, h, "赛季足迹", GREEN)
     metric(735, y + 82, "活跃天数", fmt(overview.get("active_day_cnt")))

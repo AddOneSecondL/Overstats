@@ -18,6 +18,7 @@ except ModuleNotFoundError:
     from src.modules.query_tool import load_query_tool
 
 from .render import RenderedImage, render_hero_wiki_overview
+from .retrieval import retrieve, evidence_context, extractive_answer
 from .cache_store import IMAGE_CACHE_DIR, STRUCTURED_CACHE_DIR, build_cache_file_path, hash_text, read_bytes_file, read_json_file, write_bytes_atomic, write_json_atomic
 from .requests import (
     OWHeroWikiPage,
@@ -33,8 +34,8 @@ HERO_WIKI_UNAVAILABLE_MESSAGE = "当前暂时无法获取英雄维基资料。"
 QUESTION_UNAVAILABLE_MESSAGE = "当前问答不可用，请稍后重试。"
 STRUCTURED_CACHE_TTL_SECONDS = PAGE_CACHE_TTL_SECONDS
 STRUCTURED_CACHE_VERSION = 1
-STRUCTURED_PAYLOAD_VERSION = "v2"
-RENDER_CACHE_VERSION = "v3"
+STRUCTURED_PAYLOAD_VERSION = "v4"
+RENDER_CACHE_VERSION = "v4"
 FANDOM_TITLE_OVERRIDES = {
     "junkerqueen": "Junker_Queen",
     "wreckingball": "Wrecking_Ball",
@@ -241,6 +242,8 @@ class OWHeroWikiOutput:
     source: Dict[str, Any]
     question: str = ""
     answer: str = ""
+    citations: Sequence[Dict[str, Any]] = ()
+    answer_mode: str = ""
     accent_color: Sequence[int] = (96, 191, 255)
     icon_url: str = ""
     image_url: str = ""
@@ -259,10 +262,14 @@ class OWHeroWikiOutput:
             "abilities": [dict(item) for item in self.abilities],
             "perks": [dict(item) for item in self.perks],
             "source": dict(self.source),
+            "icon_url": self.icon_url,
+            "image_url": self.image_url,
         }
         if self.question:
             payload["question"] = self.question
             payload["answer"] = self.answer
+            payload["citations"] = [dict(item) for item in self.citations]
+            payload["answer_mode"] = self.answer_mode
         return payload
 
 
@@ -320,16 +327,26 @@ class OWHeroWikiModule:
         )
 
         answer = ""
+        citations = []
+        answer_mode = ""
         if resolved_query.question:
+            citations = retrieve(structured_payload, resolved_query.question)
+            answer = extractive_answer(citations, resolved_query.question)
+            answer_mode = "extractive" if citations else "insufficient_evidence"
             try:
-                answer = await self._answer_question(
+                generated = await self._answer_question(
                     hero_context=hero_context,
                     structured_payload=structured_payload,
                     question=resolved_query.question,
-                )
+                    hits=citations,
+                ) if citations else ""
+                # Require valid citations before presenting model prose as grounded.
+                ids = {int(value) for value in re.findall(r"\[(\d+)\]", generated)}
+                if generated and ids and ids <= {hit["id"] for hit in citations}:
+                    answer = generated
+                    answer_mode = "generated"
             except Exception as exc:
-                print(f"[overstats] hero wiki question answering failed: {type(exc).__name__}: {exc}")
-                answer = QUESTION_UNAVAILABLE_MESSAGE
+                print(f"[overstats] hero wiki question answering failed: {type(exc).__name__}")
 
         output = OWHeroWikiOutput(
             hero=hero_context.hero_cn,
@@ -344,6 +361,8 @@ class OWHeroWikiModule:
             source=dict(structured_payload.get("source") or {}),
             question=resolved_query.question,
             answer=answer,
+            citations=tuple(citations),
+            answer_mode=answer_mode,
             accent_color=tuple(structured_payload.get("accent_color") or hero_context.accent_color),
             icon_url=str(structured_payload.get("icon_url") or hero_context.icon_url),
             image_url=str(structured_payload.get("image_url") or ""),
@@ -376,6 +395,8 @@ class OWHeroWikiModule:
             source=output.source,
             question=output.question,
             answer=output.answer,
+            citations=output.citations,
+            answer_mode=output.answer_mode,
             accent_color=output.accent_color,
             icon_url=output.icon_url,
             image_url=output.image_url,
@@ -504,6 +525,7 @@ class OWHeroWikiModule:
                 "fandom_page_id": page.page_id,
                 "fandom_url": page.source_url,
                 "image_url": page.image_url,
+                "content_hash": page.wikitext_hash,
             },
             "accent_color": hero_context.accent_color,
             "icon_url": hero_context.icon_url,
@@ -522,8 +544,13 @@ class OWHeroWikiModule:
             for index, card in enumerate(list(payload.get(section_name) or [])):
                 if not isinstance(card, dict):
                     continue
+                if not card.get("name_cn") and _needs_translation(card.get("name_en")):
+                    targets.append(((section_name, index, "name_cn"), str(card["name_en"])))
                 if _needs_translation(card.get("description")):
                     targets.append(((section_name, index, "description"), str(card.get("description") or "")))
+                for stat_index, stat in enumerate(card.get("stats") or []):
+                    if re.search(r"[A-Za-z]{3,}", str(stat.get("value") or "")):
+                        targets.append(((section_name, index, "stats", stat_index, "value"), str(stat["value"])))
                 for note_index, note in enumerate(list(card.get("notes") or [])):
                     if _needs_translation(note):
                         targets.append(((section_name, index, "notes", note_index), str(note or "")))
@@ -543,7 +570,10 @@ class OWHeroWikiModule:
         if not translated_texts:
             return
 
-        for (path, _), translated_text in zip(targets, translated_texts):
+        for (path, original), translated_text in zip(targets, translated_texts):
+            if "stats" in path:
+                if re.findall(r"\d+(?:\.\d+)?", original) != re.findall(r"\d+(?:\.\d+)?", translated_text):
+                    continue
             _set_nested_value(payload, path, _clean_localized_text(translated_text))
 
     async def _answer_question(
@@ -552,9 +582,10 @@ class OWHeroWikiModule:
         hero_context: _HeroContext,
         structured_payload: Mapping[str, Any],
         question: str,
+        hits: list[Dict[str, Any]],
     ) -> str:
         glossary = _build_translation_glossary(structured_payload)
-        context_text = _build_question_context(structured_payload)
+        context_text = evidence_context(hits)
         answer = await self.requests.answer_question(
             hero_cn=hero_context.hero_cn,
             hero_en=str(structured_payload.get("hero_en") or hero_context.hero_en),
@@ -632,6 +663,8 @@ class OWHeroWikiModule:
             "perks": [dict(item) for item in output.perks],
             "question": output.question,
             "answer": output.answer,
+            "citations": list(output.citations),
+            "answer_mode": output.answer_mode,
             "accent_color": list(output.accent_color),
             "icon_url": output.icon_url,
             "image_url": output.image_url,
@@ -694,7 +727,13 @@ class OWHeroWikiModule:
         perks = [item for item in list(hero_context.hero_config.get("Perks") or []) if isinstance(item, dict)]
         localized_cards = []
         for index, card in enumerate(cards):
-            matched_item = perks[index] if index < len(perks) else {}
+            wiki_name = _normalize_query_key(card.get("ability_name"))
+            # Local configuration and Wiki can have different perk sets/order.
+            # Only explicit name matches are safe; do not infer by list position.
+            matched_item = next((item for item in perks if wiki_name and any(
+                _normalize_query_key(item.get(key)) == wiki_name
+                for key in ("Name", "NameEN", "name_en", "WikiName")
+            )), {})
             name_cn = _clean_query_tool_text(matched_item.get("Name")) if isinstance(matched_item, dict) else ""
             description_cn = _clean_query_tool_text(matched_item.get("Description")) if isinstance(matched_item, dict) else ""
             if _contains_placeholder(description_cn):
@@ -1248,11 +1287,12 @@ def _build_card_stats(fields: Mapping[str, Any]) -> list[Dict[str, str]]:
             continue
         items.append(
             {
+                "key": key,
                 "label": FIELD_LABELS.get(key, key),
                 "value": _localize_inline_text(value.replace("\n", " / ")),
             }
         )
-    return items[:14]
+    return items
 
 
 def _build_card_notes(fields: Mapping[str, Any]) -> list[str]:
@@ -1269,7 +1309,8 @@ def _build_card_notes(fields: Mapping[str, Any]) -> list[str]:
             lowered = cleaned.lower()
             if not cleaned or "calcdps" in lowered or "damage per second" in lowered or "healing per second" in lowered:
                 continue
-            notes.append(_localize_inline_text(cleaned))
+            prefix = "PvE / 合作模式：" if source_key == "coop_details" else ""
+            notes.append(prefix + _localize_inline_text(cleaned))
     return _dedupe_strings(notes)
 
 
