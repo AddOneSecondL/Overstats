@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ...constants.backgrounds import build_random_map_background
-from ...constants.ranks import RANK_LABELS_CN, strength_score_to_icon_level
+from ...constants.ranks import RANK_LABELS_CN, RANK_ORDER, strength_score_to_icon_level
 
 from .engine import score_to_rank
 
@@ -59,6 +59,11 @@ COMPETITIVE_STRENGTH_THEME = {
     "avatar_badge_text": "CS",
 }
 TOP_TIER_ICON_LEVELS = {6, 7, 8}
+RANK_DISTRIBUTION_COLORS = (
+    (207, 120, 86), (196, 201, 200), (217, 164, 59),
+    (149, 213, 179), (92, 211, 156), (93, 163, 241),
+    (140, 230, 94), (135, 115, 249), (108, 92, 199),
+)
 
 
 @dataclass(frozen=True)
@@ -88,7 +93,7 @@ def render_quick_strength(
 
     scale = 2
     base_width = 1500
-    base_height = 980
+    base_height = 1076
     width = base_width * scale
     height = base_height * scale
     canvas = Image.new("RGBA", (width, height), (11, 17, 28, 255))
@@ -114,7 +119,7 @@ def render_quick_strength(
     )
     _draw_panel(
         draw,
-        (36 * scale, 872 * scale, width - 36 * scale, height - 24 * scale),
+        (36 * scale, 968 * scale, width - 36 * scale, height - 24 * scale),
         fill=(13, 20, 33, 225),
         outline=(47, 62, 88, 255),
         radius=14 * scale,
@@ -145,6 +150,7 @@ def render_quick_strength(
         theme=active_theme,
         chart_title_text=chart_title_text,
     )
+    _draw_rank_distribution(draw, matches=matches, fonts=fonts, scale=scale)
     _draw_footer(draw, fonts=fonts, scale=scale, theme=active_theme)
 
     output = BytesIO()
@@ -666,9 +672,55 @@ def _draw_chart(
         )
 
 
+def _rank_distribution_counts(matches: Sequence[Dict[str, Any]]) -> List[int]:
+    # Count each observed participant's role rank, matching the main chart.
+    counts = [0] * (len(RANK_ORDER) * 5)
+    for match in matches:
+        for side in ("team_scores", "enemy_scores"):
+            for score in match.get(side) or []:
+                try:
+                    value = int(score)
+                except (TypeError, ValueError, OverflowError):
+                    continue
+                if value >= 500:
+                    counts[min((value - 500) // 100, len(counts) - 1)] += 1
+    return counts
+
+
+def _draw_rank_distribution(
+    draw: Any, *, matches: Sequence[Dict[str, Any]], fonts: Dict[str, Any], scale: int,
+) -> None:
+    _draw_panel(
+        draw, (36 * scale, 872 * scale, 1464 * scale, 956 * scale),
+        fill=(13, 20, 33, 225), outline=(47, 62, 88, 255), radius=14 * scale,
+    )
+    counts = _rank_distribution_counts(matches)
+    peak = max(max(counts), 1)
+    group_width = (1428 - 72) / len(RANK_ORDER)
+    bar_step = group_width / 5
+    bar_half_width = (bar_step - 6) / 2
+    baseline = 932 * scale
+    for rank_index, rank in enumerate(RANK_ORDER):
+        color = (*RANK_DISTRIBUTION_COLORS[rank_index], 255)
+        center = (72 + (rank_index + 0.5) * group_width) * scale
+        for division_index in range(5):
+            index = rank_index * 5 + division_index
+            x = center + (division_index - 2) * bar_step * scale
+            left, right = round(x - bar_half_width * scale), round(x + bar_half_width * scale)
+            if counts[index]:
+                bar_height = max(1, round(48 * scale * counts[index] / peak))
+                draw.rectangle((left, baseline - bar_height, right, baseline), fill=color)
+            else:
+                draw.line((left, baseline, right, baseline), fill=color, width=2 * scale)
+        draw.text(
+            (round(center), 936 * scale), RANK_LABELS_CN[rank],
+            font=fonts["font_axis"], fill=color, anchor="mt",
+        )
+
+
 def _draw_footer(draw: Any, *, fonts: Dict[str, Any], scale: int, theme: Dict[str, Any]) -> None:
     x1 = 72 * scale
-    y1 = 898 * scale
+    y1 = 994 * scale
     range_legend_color = tuple(theme.get("range_color") or DEFAULT_STRENGTH_THEME["range_color"])
     legend_items = [
         (
