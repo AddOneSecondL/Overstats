@@ -27,19 +27,21 @@ src/modules/dashen_summary/runtime/cache/
 ow_guess_assets/
 
 # Test artifacts
+test/
+tests/
+test_*.py
+*_test.py
 test_*.json
 test_*.md
 test_report_*.md
 api_test_data.json
-/test/*
-!/test/test_blizzard_player_search.py
-!/test/test_blizzard_profile.py
-!/test/test_ow_guess_catalog.py
-!/test/test_ow_hero_leaderboard_service.py
-!/test/test_risk_status.py
-!/test/test_rank_emerald.py
-!/test/test_personal_data_percentile.py
-!/test/test_font_resolver.py
-!/test/test_dashen_profile_render.py
-!/test/test_internal_rank_distribution.py
-!/test/test_customer_token_identity.py
+
+# SCF source and deployment hygiene
+accounts*.json
+**/accounts*.json
+scf-update-*.json
+build-*.log
+benchmark-*.log
+smoke-*
+*.tar
+/cache/

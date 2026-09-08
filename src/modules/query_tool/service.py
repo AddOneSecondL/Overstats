@@ -158,6 +158,9 @@ def cache_query_tool_asset_bytes(url: str, data: bytes, category: str = "misc") 
 
 
 def ensure_query_tool_assets(config: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    if os.environ.get("OVERSTATS_SCF_FROZEN_QUERY_TOOL") == "1":
+        return {"checked": 0, "cached": 0, "downloaded": 0, "failed": 0,
+                "asset_dir": str(QUERY_TOOL_ASSET_DIR), "skipped": True}
     config = config or read_query_tool(default={})
     assets = list(_iter_unique_asset_urls(config))
     QUERY_TOOL_ASSET_DIR.mkdir(parents=True, exist_ok=True)
@@ -255,6 +258,15 @@ class QueryToolModule:
 
     def refresh(self, *, force: bool = False) -> Dict[str, Any]:
         global _CONFIG_CACHE, _CONFIG_UPDATED
+        if os.environ.get("OVERSTATS_SCF_FROZEN_QUERY_TOOL") == "1":
+            with _CONFIG_LOCK:
+                if _CONFIG_CACHE is None:
+                    local_config = read_query_tool(default={})
+                    if not local_config:
+                        raise RuntimeError("SCF image is missing packaged query_tool.json; rebuild image")
+                    _CONFIG_CACHE = normalize_query_tool_config(local_config)
+                    _CONFIG_UPDATED = True
+                return _CONFIG_CACHE
         if _CONFIG_UPDATED and not force and _CONFIG_CACHE is not None:
             return _CONFIG_CACHE
 

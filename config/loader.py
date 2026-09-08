@@ -6,6 +6,14 @@ from typing import Any, Optional, Tuple
 
 from . import config
 
+_EXTERNAL_ACCOUNTS = None
+
+
+def set_external_accounts(accounts: list) -> None:
+    """Install the validated pool before importing the core service."""
+    global _EXTERNAL_ACCOUNTS
+    _EXTERNAL_ACCOUNTS = tuple(dict(account) for account in accounts)
+
 
 def _read_bool_env(name: str, default: bool) -> bool:
     raw = os.getenv(name)
@@ -96,8 +104,21 @@ class DashenClientConfig:
     ow_esports_api_key: str
 
 
+def _configured_accounts() -> Any:
+    if _EXTERNAL_ACCOUNTS is not None:
+        return _EXTERNAL_ACCOUNTS
+    role_id = os.getenv("OVERSTATS_DASHEN_ROLE_ID")
+    token = os.getenv("OVERSTATS_DASHEN_TOKEN")
+    if role_id is None and token is None:
+        return getattr(config, "DASHEN_ACCOUNTS", [])
+    # Never mix a function-specific account with credentials baked into code.
+    if not role_id or not role_id.strip() or not token or not token.strip():
+        raise ValueError("OVERSTATS_DASHEN_ROLE_ID and OVERSTATS_DASHEN_TOKEN must both be set and non-empty.")
+    return [{"name": "environment-account", "role_id": role_id, "token": token}]
+
+
 def _normalize_accounts() -> Tuple[DashenCredentialConfig, ...]:
-    raw_accounts = getattr(config, "DASHEN_ACCOUNTS", [])
+    raw_accounts = _configured_accounts()
     normalized_accounts = []
     used_names = set()
     default_dts = _as_positive_int(getattr(config, "DASHEN_DTS", 2026), "DASHEN_DTS")
@@ -133,7 +154,7 @@ def _normalize_accounts() -> Tuple[DashenCredentialConfig, ...]:
 
 
 def _default_dashen_max_accepted_requests() -> int:
-    raw_accounts = getattr(config, "DASHEN_ACCOUNTS", [])
+    raw_accounts = _configured_accounts()
     if not isinstance(raw_accounts, (list, tuple)):
         return 4
     return max(1, len(raw_accounts) * 4)
