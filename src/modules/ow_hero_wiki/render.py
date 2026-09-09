@@ -5,9 +5,11 @@ from io import BytesIO
 from pathlib import Path
 import hashlib
 import math
+import time
 from typing import Any, Dict, Iterable, Mapping, Sequence
 
 import httpx
+from .cache_store import IMAGE_CACHE_DIR, build_cache_file_path, read_bytes_file, write_bytes_atomic
 
 from ...constants.backgrounds import build_random_map_background
 
@@ -55,110 +57,10 @@ def render_hero_wiki_overview(
     icon_url: str = "",
     image_url: str = "",
 ) -> RenderedImage:
-    try:
-        from PIL import Image, ImageDraw
-    except ModuleNotFoundError as exc:
-        raise RuntimeError("render.py requires Pillow to output images") from exc
+    from .editorial import render_guide
 
-
-    scale = 2
-    base_width = 1200
-    canvas_width = base_width * scale
-    fonts = _load_fonts(scale)
-
-    stats = payload.get("stats") or {}
-    abilities = [item for item in list(payload.get("abilities") or []) if isinstance(item, dict)]
-    perks = [item for item in list(payload.get("perks") or []) if isinstance(item, dict)]
-    question = str(payload.get("question") or "").strip()
-    answer = str(payload.get("answer") or "").strip()
-    accent = _to_rgba(accent_color, alpha=255)
-
-    padding = 32 * scale
-    header_top = 36 * scale
-    header_height = 292 * scale
-    content_width = canvas_width - padding * 2
-    section_gap = 22 * scale
-
-    citations = list(payload.get("citations") or [])
-    if question:
-        related = {(hit.get("section"), hit.get("card_index")) for hit in citations}
-        abilities = [card for i, card in enumerate(abilities) if ("abilities", i) in related]
-        perks = [card for i, card in enumerate(perks) if ("perks", i) in related]
-    hero_name = str(payload.get("hero_cn") or "")
-    abilities = [dict(card, hero_cn=hero_name) for card in abilities]
-    perks = [dict(card, hero_cn=hero_name) for card in perks]
-    section_images = [
-        _render_overview_panel(
-            dict(payload, image_url=image_url),
-            width=content_width,
-            fonts=fonts,
-            scale=scale,
-            accent=accent,
-        )
-    ]
-    if question:
-        section_images.append(
-            _render_question_panel(
-                question=question,
-                answer=answer or "当前问答不可用",
-                width=content_width,
-                fonts=fonts,
-                scale=scale,
-                accent=accent,
-            )
-        )
-    if abilities:
-        section_images.extend(_render_group_sections("技能", abilities, width=content_width, fonts=fonts, scale=scale))
-    if perks:
-        section_images.extend(_render_group_sections("威能", perks, width=content_width, fonts=fonts, scale=scale))
-
-    source = payload.get("source") or {}
-    source_lines = ["资料来源：" + str(source.get("fandom_url") or "Wiki 来源暂缺"),
-                    "中文名称与简介参考本地英雄配置；数值及机制以 Wiki 资料为准。"]
-    source_lines.extend(f"[{hit['id']}] {hit['title']}\n{hit['url']}" for hit in citations)
-    section_images.append(_render_text_panel("资料与引用", "\n".join(source_lines), content_width, fonts, scale, accent))
-
-    total_height = header_top + header_height + 28 * scale
-    total_height += sum(image.height for image in section_images)
-    total_height += max(0, len(section_images) - 1) * section_gap
-    total_height += 42 * scale
-
-    canvas = Image.new("RGBA", (canvas_width, total_height), (9, 13, 19, 255))
-    background = build_random_map_background(
-        (canvas_width, total_height),
-        blur_radius=42,
-        overlay=(5, 8, 14, 166),
-        brightness=0.78,
-        color=0.86,
-    )
-    if background is not None:
-        canvas.alpha_composite(background)
-    canvas.alpha_composite(_gradient_overlay((canvas_width, total_height)))
-
-    draw = ImageDraw.Draw(canvas, "RGBA")
-    header_box = (padding, header_top, canvas_width - padding, header_top + header_height)
-    _draw_card_shell(draw, header_box, radius=12 * scale)
-    _draw_header(
-        canvas,
-        draw,
-        payload=payload,
-        bounds=header_box,
-        fonts=fonts,
-        scale=scale,
-        accent=accent,
-        icon_url=icon_url,
-        stats=stats,
-    )
-
-    current_y = header_box[3] + 24 * scale
-    for section_image in section_images:
-        canvas.alpha_composite(section_image, dest=(padding, current_y))
-        current_y += section_image.height + section_gap
-
-    output = BytesIO()
-    canvas = canvas.resize((base_width, int(total_height / scale)), Image.LANCZOS)
-    canvas.save(output, format="PNG")
-    return RenderedImage(content=output.getvalue())
+    return render_guide(payload, accent_color=accent_color,
+                        icon_url=icon_url, image_url=image_url)
 
 
 def render_hero_wiki_error(title: str, message: str) -> RenderedImage:
@@ -867,6 +769,10 @@ def _render_compact_hero_card(card: Mapping[str, Any], *, width: int, fonts: Dic
 def _load_card_icon(card: Mapping[str, Any]) -> Any | None:
     from PIL import Image
 
+    if card.get("icon_url"):
+        remote = _open_cached_or_remote_rgba(card["icon_url"], categories=("misc",))
+        if remote is not None:
+            return remote
     root = Path(__file__).resolve().parents[3] / "ow_guess_assets" / "shared" / "hero_icons"
     category = "Perks" if card.get("category") == "perk" else "Abilities"
     hero = str(card.get("hero_cn") or "")
@@ -1178,6 +1084,13 @@ def _open_cached_or_remote_rgba(url: Any, *, categories: Sequence[str]) -> Any |
             pass
 
     cached_bytes = _REMOTE_IMAGE_CACHE.get(text)
+    disk_path = build_cache_file_path(IMAGE_CACHE_DIR / "assets", text, extension=".bin", label="wiki-asset")
+    if cached_bytes is None:
+        try:
+            if time.time() - disk_path.stat().st_mtime < 86400:
+                cached_bytes = read_bytes_file(disk_path)
+        except OSError:
+            pass
     if cached_bytes is None:
         try:
             response = httpx.get(text, timeout=10.0, follow_redirects=True)
@@ -1185,6 +1098,10 @@ def _open_cached_or_remote_rgba(url: Any, *, categories: Sequence[str]) -> Any |
             cached_bytes = response.content
             if cached_bytes:
                 _REMOTE_IMAGE_CACHE[text] = cached_bytes
+                try:
+                    write_bytes_atomic(disk_path, cached_bytes)
+                except OSError:
+                    pass
         except Exception:
             return None
     if not cached_bytes:

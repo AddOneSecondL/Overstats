@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import html
 import json
@@ -23,7 +23,8 @@ from .cache_store import ANSWER_CACHE_DIR, PAGE_CACHE_DIR, build_cache_file_path
 WIKI_API_URL = "https://overwatch.fandom.com/api.php"
 WIKI_TIMEOUT_SECONDS = 20.0
 ANALYSIS_TIMEOUT_SECONDS = 120.0
-PAGE_CACHE_TTL_SECONDS = 86400.0
+# This is a revision-check interval, not an expiry for the cached body.
+PAGE_CACHE_TTL_SECONDS = 300.0
 ANSWER_CACHE_TTL_SECONDS = 86400.0
 WIKI_PAGE_CACHE_VERSION = 1
 QUESTION_ANSWER_CACHE_VERSION = 1
@@ -53,6 +54,8 @@ class OWHeroWikiPage:
     source_url: str
     image_url: str = ""
     wikitext_hash: str = ""
+    revision_id: str = ""
+    modified_at: str = ""
 
 
 @dataclass
@@ -164,6 +167,8 @@ def _build_translation_prompt(texts: Sequence[str], glossary: Sequence[tuple[str
         "3. 只输出 JSON 字符串数组，顺序必须与输入完全一致，不要输出额外解释。",
         "4. 保留数字、倍率、单位、百分比和技能专名的准确含义。",
         "5. 没把握的专名保留英文，不要臆造翻译。",
+        "6. 输入可能中英混合：保留已有中文，翻译英文说明、括号注释、机制标签与单位。",
+        "7. 数字保持原顺序和写法，不改变数值、正负号、范围、百分号及适用条件；不要换算单位或合并数值。",
     ]
     if glossary:
         prompt_lines.append("术语表：")
@@ -212,6 +217,48 @@ def _build_question_prompt(
 
 
 class WikiRequests:
+    def translation_profile(self) -> str:
+        base_url, api_key = _analysis_ready()
+        if not base_url or not api_key:
+            return ""
+        return _hash_text(base_url + "|" + _analysis_model_for_base_url(base_url))
+
+    async def fetch_file_urls(self, filenames: Sequence[str]) -> Dict[str, str]:
+        def title(value: str) -> str:
+            return "File:" + re.sub(r"^(?:File|Image):", "", value.strip(), flags=re.I).replace("_", " ")
+
+        requested = {value: title(value) for value in filenames if value.strip() and "|" not in value}
+        resolved: Dict[str, str] = {}
+        titles = list(dict.fromkeys(requested.values()))
+        async with httpx.AsyncClient(headers=REQUEST_HEADERS, timeout=self.timeout_seconds, follow_redirects=True) as client:
+            for offset in range(0, len(titles), 50):
+                response = await client.get(WIKI_API_URL, params={
+                    "action": "query", "format": "json", "formatversion": "2", "redirects": "1",
+                    "titles": "|".join(titles[offset:offset+50]), "prop": "imageinfo",
+                    "iiprop": "url", "iiurlwidth": "128",
+                })
+                response.raise_for_status()
+                data = response.json()
+                if data.get("error"):
+                    raise RuntimeError("Wiki image lookup failed")
+                query = data.get("query") or {}
+                aliases = {item["from"]: item["to"] for field in ("normalized", "redirects")
+                           for item in query.get(field) or []}
+                urls = {}
+                for page in query.get("pages") or []:
+                    info = (page.get("imageinfo") or [{}])[0]
+                    url = str(info.get("thumburl") or info.get("url") or "")
+                    if url.startswith("https://"):
+                        urls[page["title"]] = html.unescape(url)
+                for filename, initial in requested.items():
+                    canonical, seen = initial, set()
+                    while canonical in aliases and canonical not in seen:
+                        seen.add(canonical)
+                        canonical = aliases[canonical]
+                    if canonical in urls:
+                        resolved[filename] = urls[canonical]
+        return resolved
+
     def __init__(
         self,
         *,
@@ -252,15 +299,41 @@ class WikiRequests:
             "redirects": "1",
             "titles": normalized_title,
             "prop": "revisions|pageimages",
-            "rvprop": "content",
+            "rvprop": "ids|timestamp|content",
             "rvslots": "main",
             "piprop": "thumbnail",
             "pithumbsize": "1200",
         }
         async with httpx.AsyncClient(headers=REQUEST_HEADERS, timeout=self.timeout_seconds, follow_redirects=True) as client:
+            if cached_page is not None and cached_page.revision_id:
+                response = await client.get(WIKI_API_URL, params={**params, "rvprop": "ids|timestamp"})
+                response.raise_for_status()
+                metadata = response.json()
+                if metadata.get("error"):
+                    raise RuntimeError("Wiki revision check failed")
+                metadata_pages = (metadata.get("query") or {}).get("pages") or []
+                latest = metadata_pages[0] if metadata_pages else {}
+                if "missing" in latest or int(latest.get("pageid") or -1) < 0:
+                    raise ValueError(f"Fandom page not found for {normalized_title}")
+                revisions = latest.get("revisions") or []
+                revision = revisions[0] if revisions else {}
+                if (str(revision.get("revid") or "") == cached_page.revision_id
+                        and str(latest.get("pageid") or "") == cached_page.page_id):
+                    page_title = str(latest.get("title") or cached_page.page_title)
+                    reused = replace(cached_page, page_title=page_title,
+                                     source_url=f"https://overwatch.fandom.com/wiki/{page_title.replace(' ', '_')}",
+                                     modified_at=str(revision.get("timestamp") or cached_page.modified_at),
+                                     image_url=html.unescape(str((latest.get("thumbnail") or {}).get("source") or "")))
+                    expires_at = now + self.page_cache_ttl
+                    self._store_page_in_disk_cache(normalized_title, reused, expires_at=expires_at,
+                                                   created_at=cached_created_at, validated_at=now)
+                    self._page_cache[normalized_title] = _CacheEntry(value=reused, expires_at=expires_at)
+                    return reused
             response = await client.get(WIKI_API_URL, params=params)
             response.raise_for_status()
             payload = response.json()
+        if payload.get("error"):
+            raise RuntimeError("Wiki page query failed")
 
         query = payload.get("query") if isinstance(payload, dict) else {}
         pages = query.get("pages") if isinstance(query, dict) else []
@@ -297,6 +370,8 @@ class WikiRequests:
             source_url=f"https://overwatch.fandom.com/wiki/{page_title.replace(' ', '_')}",
             image_url=image_url,
             wikitext_hash=wikitext_hash,
+            revision_id=str(revision.get("revid") or ""),
+            modified_at=str(revision.get("timestamp") or ""),
         )
         expires_at = now + self.page_cache_ttl
         if cached_page is not None and cached_page.wikitext_hash and cached_page.wikitext_hash == wikitext_hash:
@@ -308,6 +383,8 @@ class WikiRequests:
                 source_url=page.source_url or cached_page.source_url,
                 image_url=page.image_url or cached_page.image_url,
                 wikitext_hash=cached_page.wikitext_hash,
+                revision_id=page.revision_id,
+                modified_at=page.modified_at,
             )
             self._store_page_in_disk_cache(
                 normalized_title,
@@ -349,10 +426,13 @@ class WikiRequests:
             source_url=str(payload.get("source_url") or ""),
             image_url=str(payload.get("image_url") or ""),
             wikitext_hash=str(payload.get("wikitext_hash") or _hash_text(wikitext)),
+            revision_id=str(payload.get("revision_id") or ""),
+            modified_at=str(payload.get("modified_at") or ""),
         )
         return (
             page,
-            float(payload.get("expires_at") or 0.0),
+            min(float(payload.get("expires_at") or 0.0),
+                float(payload.get("validated_at") or 0.0) + self.page_cache_ttl) if page.revision_id else 0.0,
             float(payload.get("created_at") or 0.0),
         )
 
@@ -374,6 +454,8 @@ class WikiRequests:
                 "page_title": page.page_title,
                 "wikitext": page.wikitext,
                 "wikitext_hash": page.wikitext_hash or _hash_text(page.wikitext),
+                "revision_id": page.revision_id,
+                "modified_at": page.modified_at,
                 "source_url": page.source_url,
                 "image_url": page.image_url,
                 "created_at": float(created_at),
