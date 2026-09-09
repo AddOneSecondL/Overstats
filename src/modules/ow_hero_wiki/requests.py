@@ -158,6 +158,10 @@ def _analysis_ready() -> tuple[str, str]:
     return base_url, api_key
 
 
+def _wiki_proxy() -> str:
+    return str(getattr(app_config, "PATCH_NOTES_INTERNATIONAL_PROXY", "") or "").strip()
+
+
 def _build_translation_prompt(texts: Sequence[str], glossary: Sequence[tuple[str, str]]) -> str:
     prompt_lines = [
         "你是守望先锋维基资料的本地化编辑。",
@@ -230,7 +234,12 @@ class WikiRequests:
         requested = {value: title(value) for value in filenames if value.strip() and "|" not in value}
         resolved: Dict[str, str] = {}
         titles = list(dict.fromkeys(requested.values()))
-        async with httpx.AsyncClient(headers=REQUEST_HEADERS, timeout=self.timeout_seconds, follow_redirects=True) as client:
+        async with build_analysis_async_client(
+            headers=REQUEST_HEADERS,
+            timeout=self.timeout_seconds,
+            follow_redirects=True,
+            proxy_url=_wiki_proxy(),
+        ) as client:
             for offset in range(0, len(titles), 50):
                 response = await client.get(WIKI_API_URL, params={
                     "action": "query", "format": "json", "formatversion": "2", "redirects": "1",
@@ -304,7 +313,12 @@ class WikiRequests:
             "piprop": "thumbnail",
             "pithumbsize": "1200",
         }
-        async with httpx.AsyncClient(headers=REQUEST_HEADERS, timeout=self.timeout_seconds, follow_redirects=True) as client:
+        async with build_analysis_async_client(
+            headers=REQUEST_HEADERS,
+            timeout=self.timeout_seconds,
+            follow_redirects=True,
+            proxy_url=_wiki_proxy(),
+        ) as client:
             if cached_page is not None and cached_page.revision_id:
                 response = await client.get(WIKI_API_URL, params={**params, "rvprop": "ids|timestamp"})
                 response.raise_for_status()
