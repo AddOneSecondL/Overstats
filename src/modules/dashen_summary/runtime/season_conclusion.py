@@ -10,6 +10,7 @@ import threading
 import time
 from collections import Counter, OrderedDict, defaultdict
 from functools import partial
+from math import ceil
 from io import BytesIO
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -29,6 +30,8 @@ from .dashen import (
 )
 from .match_awards import rates as _award_rates, select_awards, record_key as _award_key, grade as _award_grade, METRICS as AWARD_METRICS
 from .season_baseline import parse_count_info, hero_baseline, number as _baseline_number
+from .period_activity import hourly_activity, stacked_activity
+from .summary_typography import SummaryDraw
 from .db import IDPoolDB
 from .ow_config import load_ow_config
 from .perf_log import append_perf_log
@@ -1637,6 +1640,205 @@ def _draw_metric(draw, x, y, label, value, color=(255, 210, 105)):
 def _draw_small_metric(draw, x, y, label, value, color=(246, 248, 255)):
     draw.text((x, y), str(value), font=_load_font(25, bold=True), fill=color)
     draw.text((x, y + 30), label, font=_load_font(15), fill=(180, 190, 205))
+
+
+def _summary_draw(canvas, mode="RGBA"):
+    return SummaryDraw(canvas, mode, numeric_font_path=RESOURCE_DIR / "GrotaRoundedExtraBold.otf")
+
+
+def _overall_metrics(stats, matches, detail_pairs, target):
+    definitions = [
+        ("击杀", "kill"), ("助攻", "assist"), ("死亡", "death"), ("伤害", "heroDamage"),
+        ("治疗", "cure"), ("阻挡", "resistDamage"), ("受到治疗", "healingTaken"), ("受到伤害", "damageTaken"),
+        ("夺点时间", "targetCompetingTime"), ("被赞", "received"), ("点赞", "given"), ("游玩时间", "gameTimeSec"),
+    ]
+    details = {str(m.get("matchId") or m.get("beginTs")):d for m,d in detail_pairs}
+    samples=[]
+    seen=set()
+    for match in matches:
+        key=str(match.get("matchId") or match.get("beginTs"))
+        if key in seen: continue
+        seen.add(key)
+        root=_detail_root(details.get(key))
+        _,me,_=_find_me(root,target)
+        merged=dict(match)
+        if me:
+            merged.update({k:v for k,v in me.items() if v is not None})
+            if isinstance(me.get("endorserBnetIds"),list):
+                merged["received"]=len(me["endorserBnetIds"])
+            players=(root.get("teammateList") or [])+(root.get("enemyList") or [])
+            if players and all(isinstance(p.get("endorserBnetIds"),list) for p in players):
+                merged["given"]=sum(str(me.get("bnetId")) in {str(v) for v in p["endorserBnetIds"]} for p in players if str(p.get("bnetId"))!=str(me.get("bnetId")))
+        if root.get("gameTimeSec") is not None:
+            merged["gameTimeSec"]=root["gameTimeSec"]
+        samples.append(merged)
+    rows=[]
+    for label,key in definitions:
+        values=[n for sample in samples if (n:=_baseline_number(sample.get(key))) is not None]
+        total=sum(values) if values else None
+        average=total/len(values) if values else None
+        rows.append({"label":label,"total":total,"average":average,"count":len(values),"time":key in {"targetCompetingTime","gameTimeSec"}})
+    return rows
+
+
+def _period_role_time(detail_pairs, target):
+    totals={"Tank":0.0,"Damage":0.0,"Support":0.0}
+    seen=set()
+    for match,detail in detail_pairs:
+        key=str(match.get("matchId") or match.get("beginTs") or "")
+        if key in seen: continue
+        seen.add(key)
+        me=_resolve_me_player_detail(detail,target) or {}
+        heroes=me.get("heroList") or []
+        game_time=_num(_detail_root(detail).get("gameTimeSec"))
+        portions=[]
+        for hero in heroes:
+            hero_id=hero.get("heroGuid") or hero.get("heroId")
+            role=_role_label(_canonical_hero_guid(hero_id))
+            stat_map=hero.get("statMap") or {}
+            seconds=_baseline_number(hero.get("userTimeSec"))
+            if seconds is None or seconds<=0:
+                seconds=_baseline_number(_get_stat_value(stat_map,GAME_TIME_GUID,None))
+            if (seconds is None or seconds<=0) and len(heroes)==1:
+                seconds=game_time
+            if seconds and seconds>0:
+                portions.append((role,seconds))
+        duration=sum(seconds for _,seconds in portions)
+        scale=min(1.0,game_time/duration) if game_time>0 and duration>0 else 1.0
+        for role,seconds in portions:
+            if role in totals:
+                totals[role]+=seconds*scale
+    return totals
+
+
+def _draw_role_time_share(canvas,draw,totals,x=820,y=181,w=500):
+    roles=[("Tank","重装",(125,180,235),"tank.png"),
+           ("Damage","输出",(237,155,133),"dps.png"),
+           ("Support","支援",(131,211,177),"healer.png")]
+    total=sum(totals.values())
+    draw.text((x,y),"职责游玩时间",font=_load_font(16),fill=(189,204,221))
+    if total<=0:
+        draw.rounded_rectangle((x,y+61,x+w,y+83),radius=11,fill=(45,58,75))
+        draw.text((x,y+34),"暂无英雄时长",font=_load_font(13),fill=(145,167,191))
+        return
+    # Legend stays legible even when one role has only a very narrow segment.
+    for i,(role,label,color,asset) in enumerate(roles):
+        xx=x+i*(w/3)
+        _paste_summary_asset(canvas,asset,(int(xx),y+32,22,22))
+        share=totals[role]/total
+        draw.text((xx+29,y+33),f"{label} {share:.0%}",font=_load_font(14),fill=color)
+    bar=Image.new("RGBA",(int(w),24),(45,58,75,255))
+    bar_draw=ImageDraw.Draw(bar)
+    active=[(totals[role],color) for role,_,color,_ in roles if totals[role]>0]
+    edges=[(0.0,0.0,0.0)]
+    cumulative=0.0
+    for (left_value,_),(right_value,_) in zip(active,active[1:]):
+        cumulative+=left_value
+        boundary=cumulative*w/total
+        slant=min(5.0,min(left_value,right_value)*w/total*.25)
+        half_gap=min(2.0,min(left_value,right_value)*w/total*.15)
+        edges.append((boundary,slant,half_gap))
+    edges.append((float(w),0.0,0.0))
+    for idx,(_,color) in enumerate(active):
+        left,ls,lg=edges[idx]
+        right,rs,rg=edges[idx+1]
+        bar_draw.polygon([(left+ls+lg,0),(right+rs-rg,0),
+                          (right-rs-rg,23),(left-ls+lg,23)],fill=(*color,255))
+    canvas.paste(bar,(int(x),y+66),_rounded_mask(bar.size,12))
+
+
+def _draw_overall_metrics(draw, rows, x, y):
+    for idx,row in enumerate(rows):
+        xx,yy=x+(idx%4)*148,y+(idx//4)*94
+        if row["total"] is None:
+            total,average="—","—"
+        elif row["time"]:
+            total=_fmt_time(row["total"])
+            seconds=int(round(row["average"]))
+            average=f"{seconds//60}m {seconds%60:02d}s"
+        else:
+            total=_fmt_int(row["total"])
+            average=f'{row["average"]:,.1f}'
+        font=_fit_text_font(draw,total,137,26,17,bold=True)
+        draw.text((xx,yy),total,font=font,fill=(241,246,253))
+        small=f"/ {average} 场均"
+        small_font=_fit_text_font(draw,small,137,11,9)
+        draw.text((xx,yy+34),small,font=small_font,fill=(137,166,192))
+        draw.text((xx,yy+59),row["label"],font=_load_font(15),fill=(185,200,216))
+
+
+def _draw_activity_chart(draw, data, x, y, w, h):
+    palette=[(108,202,228),(241,189,115),(150,216,168),(183,161,229),(237,151,164),(132,169,234),(219,199,142)]
+    weekly=data["weekly"]
+    draw.line((x,y-12,x+w,y-12),fill=(66,86,110),width=1)
+    draw.text((x,y),"24小时游戏时间",font=_load_font(18,bold=True),fill=(238,242,248))
+    caption="7日累计 · 分层" if weekly else "本次对局"
+    draw.text((x+w-128,y+3),caption,font=_load_font(12),fill=(149,173,198))
+    if weekly:
+        for idx,(day,_) in enumerate(data["series"]):
+            xx=x+idx*(w/7)
+            draw.line((xx,y+42,xx+11,y+42),fill=palette[idx],width=3)
+            draw.text((xx+16,y+32),f"{day:%m/%d}",font=_load_font(11),fill=palette[idx])
+    chart_top=y+(78 if weekly else 57)
+    chart_bottom=y+h-36
+    chart_left,chart_right=x+36,x+w-12
+    series=data["series"]
+    layers, totals = stacked_activity(series)
+    maximum=max(totals, default=0) if weekly else max((max(values) for _,values in series),default=0)
+    upper=max(30,ceil(maximum/15)*15)
+    for tick in (0,upper/2,upper):
+        yy=chart_bottom-(chart_bottom-chart_top)*tick/upper
+        draw.line((chart_left,yy,chart_right,yy),fill=(51,69,91),width=1)
+        draw.text((x,yy-8),f"{tick:g}",font=_load_font(10),fill=(139,163,187))
+    draw.text((x,chart_top-22),"累计分钟 / 小时" if weekly else "分钟 / 小时",font=_load_font(10),fill=(139,163,187))
+    for hour in range(0,25,4):
+        xx=chart_left+(chart_right-chart_left)*hour/24
+        draw.line((xx,chart_top,xx,chart_bottom),fill=(35,50,69),width=1)
+        label=f"{hour:02d}"
+        tw=_text_size(draw,label,_load_font(11))[0]
+        draw.text((xx-tw/2,chart_bottom+9),label,font=_load_font(11),fill=(149,173,198))
+    if not data["valid"]:
+        draw.text((chart_left+80,chart_top+30),"暂无有效对局时长",font=_load_font(16),fill=(160,180,202))
+        return
+    def curve(values):
+        points=[(chart_left,chart_bottom-(chart_bottom-chart_top)*values[0]/upper)]
+        points.extend((chart_left+(chart_right-chart_left)*(hour+.5)/24,chart_bottom-(chart_bottom-chart_top)*value/upper) for hour,value in enumerate(values))
+        points.append((chart_right,chart_bottom-(chart_bottom-chart_top)*values[-1]/upper))
+        smooth=[]
+        for p1,p2 in zip(points,points[1:]):
+            for step in range(8):
+                t=step/8; eased=t*t*(3-2*t)
+                smooth.append((p1[0]+(p2[0]-p1[0])*t,p1[1]+(p2[1]-p1[1])*eased))
+        smooth.append(points[-1])
+        return smooth
+
+    if weekly:
+        boundaries=[]
+        for index,(_,lower,upper_values) in enumerate(layers):
+            if not any(high>low for low,high in zip(lower,upper_values)):
+                continue
+            lower_curve,upper_curve=curve(lower),curve(upper_values)
+            color=palette[index % len(palette)]
+            fill=tuple(int(channel*.55+background*.45) for channel,background in zip(color,(18,24,34)))
+            draw.polygon([*lower_curve,*reversed(upper_curve)],fill=fill)
+            boundaries.append((upper_curve,color))
+        for boundary,color in boundaries:
+            draw.line(boundary,fill=color,width=2,joint="curve")
+        if any(totals):
+            draw.line(curve(totals),fill=(235,242,251),width=2,joint="curve")
+    else:
+        values=series[0][1]
+        smooth=curve(values)
+        draw.polygon([(chart_left,chart_bottom),*smooth,(chart_right,chart_bottom)],fill=(24,47,63))
+        if any(values):
+            draw.line(smooth,fill=palette[0],width=3,joint="curve")
+            for hour,value in enumerate(values):
+                if value>0:
+                    xx=chart_left+(chart_right-chart_left)*(hour+.5)/24
+                    yy=chart_bottom-(chart_bottom-chart_top)*value/upper
+                    draw.ellipse((xx-2,yy-2,xx+2,yy+2),fill=palette[0])
+    if data["valid"]<data["total"]:
+        draw.text((x+w-135,y+h-10),f'时长完整 {data["valid"]}/{data["total"]} 场',font=_load_font(10),fill=(127,151,177))
 
 
 def _draw_bar(draw, x, y, w, h, ratio, fill, bg=(54, 62, 76, 210)):
@@ -3272,7 +3474,7 @@ async def _render_period_image(
     hero_other_height = 48 + other_hero_rows * 62 if other_heroes else 0
 
     width = 1400
-    measure_draw = ImageDraw.Draw(Image.new("RGBA", (width, 320), (0, 0, 0, 0)))
+    measure_draw = _summary_draw(Image.new("RGBA", (width, 320), (0, 0, 0, 0)))
     name_font = _load_font(44, bold=True)
     title_font = _load_font(22, bold=True)
     risk_badge_font = _load_font(16, bold=True)
@@ -3305,7 +3507,7 @@ async def _render_period_image(
             player_titles,
             badge_start_x,
             badge_center_y,
-            width - 30,
+            785,
             badge_height=34,
             badge_gap=10,
             max_badge_width=140,
@@ -3326,7 +3528,7 @@ async def _render_period_image(
     hero_card_h = max(308, 78 + len(hero_top_rows) * 64 + hero_other_height + 24)
     stats_highlight_rows = (len(stat_highlights) + 2) // 3 if stat_highlights else 0
     stats_highlight_h = 38 + stats_highlight_rows * 94 if stat_highlights else 0
-    stats_card_h = max(290, 250 + stats_highlight_h)
+    stats_card_h = max(405, 390 + stats_highlight_h)
     top_section_h = max(hero_card_h, stats_card_h)
 
     mid_y1 = top_y1 + top_section_h + 30
@@ -3362,8 +3564,10 @@ async def _render_period_image(
         weather_total_weeks = max(1, (weather_total_days + 6) // 7)
     else:
         weather_total_weeks = 6
-    weather_panel_h = 120 + weather_total_weeks * 36
-    bottom_h = max(428, 96 + highlight_rows_total * 52, weather_panel_h + 54)
+    weather_panel_h = max(286, 54 + weather_total_weeks * 36)
+    activity_height = 280 if period_scope_text == "本周" else 252
+    activity_offset = 67 + weather_panel_h + 25
+    bottom_h = max(428, 96 + highlight_rows_total * 52, activity_offset + activity_height + 24)
     footer_y = bottom_y1 + bottom_h + 18
 
     height = footer_y + 30
@@ -3394,7 +3598,7 @@ async def _render_period_image(
     _render_step("ASSET_PREFETCH_DONE", extra=f"url_candidates={len(prefetch_urls)}")
 
     canvas = await _make_period_background((width, height), matches)
-    draw = ImageDraw.Draw(canvas, "RGBA")
+    draw = _summary_draw(canvas)
     _render_step("BACKGROUND_DONE")
 
     avatar = await _load_summary_image(resolved_target.get("icon_url"))
@@ -3423,7 +3627,7 @@ async def _render_period_image(
             player_titles,
             badge_start_x,
             badge_center_y,
-            width - 30,
+            785,
             badge_height=34,
             badge_gap=10,
             max_badge_width=140,
@@ -3442,13 +3646,15 @@ async def _render_period_image(
     label_w = _text_size(draw, profile_label, _load_font(24))[0]
     draw.text((name_x + label_w, profile_y), profile_tag, font=_load_font(24), fill=(255, 215, 0))
     draw.text((name_x, period_y), period_text, font=_load_font(20), fill=(165, 178, 198))
-    header_line = _truncate_to_width(draw, header_line, _load_font(18), 1110)
+    header_line = _truncate_to_width(draw, header_line, _load_font(18), 590)
     draw.text((name_x, header_line_y), header_line, font=_load_font(18), fill=(165, 178, 198))
 
     metric_y = 72
     _draw_metric(draw, 820, metric_y, "总场次", stats["total"], (139, 216, 255))
     _draw_metric(draw, 980, metric_y, "胜率", _fmt_pct(stats["wins"], stats["total"]), _summary_winrate_color(stats["total"], stats["wins"]))
     _draw_metric(draw, 1150, metric_y, "KDA", f"{kda:.2f}", (165, 235, 185))
+    role_time = _period_role_time(detail_pairs, resolved_target)
+    _draw_role_time_share(canvas, draw, role_time)
     _render_step("HEADER_DONE")
 
     _card(draw, (50, top_y1, 665, top_y1 + top_section_h), f"{visual_title_text[:2]}常用英雄排行")
@@ -3515,23 +3721,9 @@ async def _render_period_image(
     _render_step("HERO_CARD_DONE", extra=f"top={len(hero_top_rows)}; other={len(other_heroes)}")
 
     _card(draw, (705, top_y1, 1350, top_y1 + top_section_h), "总体数据")
-    metrics = [
-        ("击杀", _fmt_int(stats["total_kill"])),
-        ("助攻", _fmt_int(stats["total_assist"])),
-        ("死亡", _fmt_int(stats["total_death"])),
-        ("伤害", _fmt_int(stats["total_damage"])),
-        ("治疗", _fmt_int(stats["total_healing"])),
-        ("阻挡", _fmt_int(stats["total_blocked"])),
-        ("夺点时间", _fmt_time(stats["total_objective_time"])),
-        ("被赞", sum(stats["endorse_received"].values())),
-        ("点赞", sum(stats["endorse_given"].values())),
-        ("游玩时间", _fmt_time(stats["total_time"])),
-    ]
-    for idx, (label, value) in enumerate(metrics):
-        x = 735 + (idx % 5) * 118
-        y = top_y1 + 76 + (idx // 5) * 76
-        _draw_small_metric(draw, x, y, label, value)
-    stats_highlight_y = top_y1 + 238
+    overall_rows = _overall_metrics(stats, matches, detail_pairs, resolved_target)
+    _draw_overall_metrics(draw, overall_rows, 735, top_y1+73)
+    stats_highlight_y = top_y1 + 378
     if stat_highlights:
         draw.text((735, stats_highlight_y), "亮眼表现", font=_load_font(15, bold=True), fill=(255, 218, 117))
         cell_w = 188
@@ -3600,6 +3792,8 @@ async def _render_period_image(
     if contact_rows:
         for idx, (kind, name, data) in enumerate(contact_rows):
             row_y = team_table_y + idx * 28
+            row_fill = (29, 41, 57, 255) if idx % 2 == 0 else (20, 29, 42, 255)
+            draw.rounded_rectangle((727, row_y - 1, 1324, row_y + 26), radius=4, fill=row_fill)
             is_friend = kind == "好友"
             badge_color = (117, 223, 174, 230) if is_friend else (139, 216, 255, 220)
             draw.rounded_rectangle((735, row_y + 3, 775, row_y + 21), radius=4, fill=badge_color)
@@ -3756,12 +3950,16 @@ async def _render_period_image(
             value = _fmt_time(entry["game_time"])
         draw.text((132, row_y + 10), label, font=_load_font(16, bold=True), fill=(246, 248, 255))
         draw.text((260, row_y + 11), _short_name(_map_name(entry.get("map_guid")), 12), font=_load_font(15), fill=(218, 228, 242))
-        draw.text((450, row_y + 11), value, font=_load_font(15), fill=(255, 218, 117))
-        draw.text((565, row_y + 11), result_text, font=_load_font(15), fill=color)
+        value_font = _fit_text_font(draw, value, 133, 15, 11)
+        draw.text((450, row_y + 11), value, font=value_font, fill=(255, 218, 117))
+        draw.text((595, row_y + 11), result_text, font=_load_font(15), fill=color)
     _render_step("HIGHLIGHT_CARD_DONE", extra=f"rows={len(highlight_rows)}")
 
     _card(draw, (705, bottom_y1, 1350, bottom_y1 + bottom_h), "胜率晴雨表")
     _draw_period_weather_calendar(draw, weather_source_matches, 735, bottom_y1 + 67, 585, weather_panel_h)
+    durations = {str(m.get("matchId") or m.get("beginTs") or ""):_detail_root(d).get("gameTimeSec") for m,d in detail_pairs if _detail_root(d).get("gameTimeSec") is not None}
+    activity = hourly_activity(matches, durations, weekly=period_scope_text=="本周")
+    _draw_activity_chart(draw, activity, 735, bottom_y1 + activity_offset, 585, activity_height)
     _render_step(
         "WEATHER_DONE",
         extra=f"source_matches={len(weather_source_matches or [])}; weeks={weather_total_weeks}",
@@ -3806,7 +4004,7 @@ def _render_calendar(draw, stats, x, y, w):
 def _render_season_image(stats, resolved_target):
     width = height = 1400
     canvas = _make_background((width, height))
-    draw = ImageDraw.Draw(canvas, "RGBA")
+    draw = _summary_draw(canvas)
 
     display_name = str(resolved_target.get("full_id") or "Unknown Player")
     season_info = OW_CONFIG.get("seasonList", {}).get(str(season), {})
