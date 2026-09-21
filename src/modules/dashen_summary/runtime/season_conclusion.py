@@ -15,7 +15,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 from ....constants.backgrounds import build_random_map_background
-from ....constants.ranks import get_rank_score, normalize_raw_rank_bucket, raw_rank_score_to_strength
+from ....constants.ranks import get_rank_score, normalize_raw_rank_bucket, raw_rank_score_to_strength, get_rank_name, get_rank_sub_tier, rank_name_cn, rank_info_to_icon_level, strength_score_to_rank
 
 from .dashen import (
     dashen_api_client,
@@ -27,6 +27,8 @@ from .dashen import (
     ranking_dist2,
     season,
 )
+from .match_awards import rates as _award_rates, select_awards, record_key as _award_key, grade as _award_grade, METRICS as AWARD_METRICS
+from .season_baseline import parse_count_info, hero_baseline, number as _baseline_number
 from .db import IDPoolDB
 from .ow_config import load_ow_config
 from .perf_log import append_perf_log
@@ -2740,6 +2742,341 @@ def _build_period_highlights(detail_pairs, resolved_target):
     return highlights
 
 
+def _award_record(match, detail, target, period_start):
+    root = _detail_root(detail)
+    me = _resolve_me_player_detail(detail, target)
+    if not me:
+        return None
+    if not str(match.get("gameMode") or match.get("_seasonSummaryMode") or ""):
+        return None
+    seconds = _num(root.get("gameTimeSec"))
+    hero = _canonical_hero_guid(me.get("heroGuid") or match.get("heroGuid"))
+    hero_list = me.get("heroList") or []
+    hero_items = sorted(hero_list, key=lambda h: _num(h.get("userTimeSec")), reverse=True)
+    heroes = list(dict.fromkeys(_canonical_hero_guid(h.get("heroGuid") or h.get("heroId")) for h in hero_items))
+    heroes = [h for h in heroes if h]
+    if hero_items and _num(hero_items[0].get("userTimeSec")) > 0 and heroes:
+        hero = heroes[0]
+    if hero and hero not in heroes:
+        heroes.insert(0, hero)
+    used_heroes = {_canonical_hero_guid(h.get("heroGuid") or h.get("heroId")) for h in hero_list}
+    used_heroes.discard("")
+    if not hero and len(used_heroes) == 1:
+        hero = next(iter(used_heroes))
+    role = _role_label(hero)
+    values = _award_rates(me, seconds)
+    if not values or role not in {"Tank", "Damage", "Support"} or _is_fight(match):
+        return None
+    peers = []
+    for player in (root.get("teammateList") or []) + (root.get("enemyList") or []):
+        if (me.get("bnetId") is not None and str(player.get("bnetId")) == str(me.get("bnetId"))) or player == me:
+            continue
+        if _role_label(player.get("heroGuid")) == role:
+            peers.append({"rates": _award_rates(player, seconds)})
+    return {"match": match, "hero_guid": hero, "map_guid": match.get("mapGuid") or root.get("mapGuid"),
+            "role": role, "heroes": heroes, "hero_details": hero_list, "rank_info": me.get("rankInfo") or me.get("rank_info") or match.get("rankInfo") or {}, "rates": values, "peers": peers, "seconds": seconds,
+            "result": _int(match.get("matchRet")), "timestamp": _num(match.get("beginTs")),
+            "period_start": period_start, "mode": _mode_label(match),
+            "single_hero": len(used_heroes) == 1 and hero in used_heroes}
+
+
+_AWARD_SEASON_CACHE = OrderedDict()
+
+
+async def _fetch_award_season_counts(customer_token, records):
+    requests = {( "sport" if _is_comp(r["match"]) else "leisure", _int(r["match"].get("_dashenSeason")) or int(season)) for r in records}
+    async def fetch(mode, season_id):
+        key = (str(customer_token), mode, season_id)
+        cached = _AWARD_SEASON_CACHE.get(key)
+        if cached and cached[0] > time.time():
+            return (mode,season_id), cached[1]
+        try:
+            payload = await asyncio.wait_for(_limited_call(lambda: dashen_api_client.query_count_info(customer_token, mode, season=None if season_id==int(season) else season_id)), timeout=12)
+            parsed = parse_count_info(payload)
+            # Normalize the same hero aliases used by detail and list endpoints.
+            parsed = {queue:{_canonical_hero_guid(h):data for h,data in heroes.items()} for queue,heroes in parsed.items()}
+            if parsed:
+                _AWARD_SEASON_CACHE[key]=(time.time()+300,parsed)
+                while len(_AWARD_SEASON_CACHE)>128:
+                    _AWARD_SEASON_CACHE.popitem(last=False)
+            return (mode,season_id), parsed
+        except Exception:
+            return (mode,season_id), {}
+    return dict(await asyncio.gather(*(fetch(mode,season_id) for mode,season_id in sorted(requests))))
+
+
+def _season_feature_evidence(record, parsed):
+    evidence=[]
+    for hero in record.get("hero_details",[]):
+        guid=_canonical_hero_guid(hero.get("heroGuid") or hero.get("heroId"))
+        baseline=hero_baseline(parsed, record["match"], guid)
+        if not baseline:
+            continue
+        stat_map=hero.get("statMap") or {}
+        seconds=_num(hero.get("userTimeSec")) or _num(_get_stat_value(stat_map,GAME_TIME_GUID,0))
+        if seconds<180:
+            continue
+        metadata={}
+        for alias in _hero_aliases(guid):
+            metadata.update(HERO_ATTRS_BY_HERO.get(alias,{}) or {})
+        for key,raw in stat_map.items():
+            key=str(key); attr=metadata.get(key,{})
+            name=str(attr.get("valueText") or "")
+            if attr.get("valueType") != "特色数据" or not name or any(word in name for word in ("死亡","阵亡","受到伤害","未命中")):
+                continue
+            current=_baseline_number(raw)
+            if current is None:
+                continue
+            ratio=_is_hero_avg_percent_stat(name)
+            unit="ratio" if ratio else "per10"
+            ref=baseline["units"]["per10"]["stats"].get(key)
+            if ref is None:
+                if not record.get("single_hero") and not ratio:
+                    continue
+                ref=baseline["units"]["per_game"]["stats"].get(key)
+                unit="ratio" if ratio else "per_game"
+            if ref is None or ref<=0:
+                continue
+            if ratio:
+                current=current/100 if current>1 else current
+                ref=ref/100 if ref>1 else ref
+                if not 0<=current<=1 or not 0<ref<=1:
+                    continue
+            elif unit=="per10":
+                current=current*600/seconds
+            change=(current-ref)/ref
+            evidence.append({"label":name,"hero_guid":guid,"value":current,"baseline":ref,"unit":unit,
+                             "score":max(10,min(90,50+40*change)),"change":change,"sample_count":baseline["sample_count"]})
+    # Show distinctive improvements first; don't promote tiny changes in tiny baselines.
+    return sorted([e for e in evidence if e["change"]>0],key=lambda e:e["score"],reverse=True)[:3]
+
+
+async def _build_match_awards(customer_token, matches, detail_pairs, target, all_matches):
+    start = min((_num(m.get("beginTs")) for m in matches), default=0)
+    records = [r for m, d in detail_pairs if (r := _award_record(m, d, target, start))]
+    # Bound upstream work; only previous sessions, deduplicated, from the last 30 days.
+    history_matches, seen = [], set()
+    eligible = {(r["hero_guid"], r["mode"]) for r in records if r["single_hero"]}
+    for m in sorted(all_matches or [], key=lambda x: _num(x.get("beginTs")), reverse=True):
+        ts, mid = _num(m.get("beginTs")), str(m.get("matchId") or "")
+        if not mid or mid in seen or not start - 30 * 86400000 <= ts < start or _is_fight(m):
+            continue
+        if (_canonical_hero_guid(m.get("heroGuid")), _mode_label(m)) not in eligible:
+            continue
+        seen.add(mid)
+        history_matches.append(m)
+        if len(history_matches) >= 30:
+            break
+    pairs, counts = await asyncio.gather(
+        _fetch_details(customer_token, history_matches),
+        _fetch_award_season_counts(customer_token, records),
+        return_exceptions=True,
+    )
+    if isinstance(pairs, Exception):
+        pairs = []
+    if isinstance(counts, Exception):
+        counts = {}
+    history = [r for m, d in pairs if (r := _award_record(m, d, target, start))]
+    for record in records:
+        mode = "sport" if _is_comp(record["match"]) else "leisure"
+        season_id = _int(record["match"].get("_dashenSeason")) or int(season)
+        parsed = counts.get((mode,season_id), {})
+        record["season_baseline"] = hero_baseline(parsed,record["match"],record["hero_guid"])
+        record["feature_evidence"] = _season_feature_evidence(record,parsed)
+    return select_awards(records, history)
+
+
+def _paste_summary_asset(canvas, filename, box):
+    """Use the same shipped icons as match and rank-history renders."""
+    path = RESOURCE_DIR / filename
+    key = f"local:{path}"
+    image = _get_cached_summary_image_copy(key)
+    if image is None:
+        try:
+            with Image.open(path) as raw:
+                image = raw.convert("RGBA")
+            _put_summary_image_cache(key, image)
+        except (OSError, ValueError):
+            return False
+    x, y, w, h = box
+    image.thumbnail((w, h), Image.Resampling.LANCZOS)
+    canvas.alpha_composite(image, (int(x+(w-image.width)/2), int(y+(h-image.height)/2)))
+    return True
+
+
+def _draw_mode_badge(draw, x, y, match, compact=False, canvas=None):
+    competitive = _is_comp(match)
+    color = (239, 184, 103) if competitive else (112, 204, 226)
+    label = ("竞技" if competitive else "快速") + ("乱斗" if _is_fight(match) else "")
+    unknown = not str(match.get("gameMode") or match.get("_seasonSummaryMode") or "")
+    if unknown:
+        label, color = "未知", (165, 178, 198)
+    w = 22 if compact else 27 + _text_size(draw, label, _load_font(13))[0]
+    draw.rounded_rectangle((x, y, x + w, y + 24), radius=6, fill=(24,34,48))
+    asset = "fight.png" if _is_fight(match) else "comp.png" if competitive else None
+    pasted = canvas is not None and asset and _paste_summary_asset(canvas, asset, (x+2,y+2,20,20))
+    if not pasted:
+        if unknown:
+            draw.text((x+6,y+2), "?", font=_load_font(14), fill=color)
+        elif competitive:
+            draw.polygon([(x+11,y+4),(x+17,y+12),(x+11,y+20),(x+5,y+12)], outline=color)
+        else:
+            draw.polygon([(x+12,y+3),(x+6,y+13),(x+10,y+13),(x+8,y+21),(x+17,y+10),(x+12,y+10)], fill=color)
+    if not compact:
+        draw.text((x+24,y+3), label, font=_load_font(13), fill=color)
+    return w
+
+
+def _draw_summary_role(canvas, draw, role, x, y, size=20, label=False):
+    file = {"Tank":"tank.png", "Damage":"dps.png", "Support":"healer.png"}.get(role)
+    if file:
+        _paste_summary_asset(canvas, file, (x,y,size,size))
+    if label or not file:
+        text = {"Tank":"重装", "Damage":"输出", "Support":"支援"}.get(role, "未知职责")
+        draw.text((x+size+5,y+2),text,font=_load_font(13),fill=(203,215,230))
+
+
+async def _paste_summary_hero(canvas, draw, hero, box):
+    x,y,w,h = box
+    image = await _load_summary_image(_hero_icon_url(hero))
+    if image:
+        image = _cover_fit(image,(w,h))
+        canvas.paste(image,(x,y),_rounded_mask((w,h),8))
+    else:
+        draw.rounded_rectangle((x,y,x+w,y+h),radius=8,fill=(40,54,73))
+        draw.text((x+4,y+h//3),_hero_name(hero)[:2] if hero else "?",font=_load_font(max(10,min(w//3,20))),fill=(196,213,232))
+
+
+def _award_source_text(entry):
+    source = entry.get("evaluation_source", entry.get("source", "lobby"))
+    count = entry.get("sample_count",0)
+    return {
+        "lobby": f"本场同职责 {count} 人参照",
+        "session": f"本次同英雄同模式 {count} 场参照",
+        "season": f"个人赛季同英雄同模式 · {count} 场",
+        "history": f"此前同英雄同模式 {count} 场参照",
+        "session_progress": f"本次此前同英雄同模式 {count} 场参照",
+    }.get(source,"数据不足")
+
+
+async def _draw_award_card(canvas, draw, box, title, entry, breakthrough=False):
+    x,y,right,bottom = box
+    color = (126,220,213) if breakthrough else (243,203,126)
+    if breakthrough and entry:
+        if entry.get("source") == "season":
+            title = "最大突破 · 相较赛季"
+        elif entry.get("source") == "session_progress":
+            title = "本次进步 · 无历史基准"
+        elif entry.get("source") == "spotlight":
+            title = "当场亮点 · 突破备选"
+    _card(draw, box, title)
+    if entry is None:
+        draw.text((x+25,y+96),"暂无足够数据进行评选",font=_load_font(24,bold=True),fill=color)
+        draw.text((x+25,y+145),"需至少 3 分钟及包含死亡的三项有效指标",font=_load_font(17),fill=(164,181,202))
+        return
+    await _paste_remote_cover(canvas,(x+2,y+53,right-2,bottom-2),_map_icon_url(entry["map_guid"]),radius=8,tint=(9,17,29,195))
+    draw.rounded_rectangle((x+1,y+18,x+5,bottom-18),radius=2,fill=color)
+    hero = entry["hero_guid"]
+    await _paste_summary_hero(canvas,draw,hero,(x+25,y+76,82,82))
+    draw.rounded_rectangle((x+24,y+75,x+108,y+159),radius=9,outline=color,width=2)
+    label = _truncate_to_width(draw,_hero_name(hero),_load_font(26,bold=True),305)
+    draw.text((x+124,y+76),label,font=_load_font(26,bold=True),fill=(244,248,255))
+    _draw_summary_role(canvas,draw,entry["role"],x+125,y+116,20,label=True)
+    _draw_mode_badge(draw,right-106,y+77,entry["match"],canvas=canvas)
+    dt = datetime.datetime.fromtimestamp(entry["timestamp"]/1000)
+    result,result_color = _result_color(entry["result"])
+    map_name = _truncate_to_width(draw,_map_name(entry["map_guid"]),_load_font(18),330)
+    draw.text((x+25,y+177),map_name,font=_load_font(18),fill=(226,235,245))
+    draw.text((x+25,y+207),f'{dt:%m-%d %H:%M} · {_fmt_time(entry["seconds"])} · {result}',font=_load_font(15),fill=result_color)
+    draw.text((right-118,y+143),_award_grade(entry["score"]),font=_load_font(56,bold=True),fill=color)
+    draw.text((right-118,y+208),"综合评价",font=_load_font(14),fill=(197,211,229))
+    if _is_comp(entry["match"]):
+        _draw_summary_rank(canvas,draw,entry.get("rank_info") or entry["match"].get("rankInfo"),x+238,y+116,22)
+    heroes = [h for h in entry.get("heroes",[hero]) if h != hero]
+    draw.text((x+25,y+250),"本局还使用" if heroes else "本局主英雄",font=_load_font(13),fill=(173,193,215))
+    for i,h in enumerate((heroes or [hero])[:8]):
+        await _paste_summary_hero(canvas,draw,h,(x+115+i*39,y+239,32,32))
+    if len(heroes)>8:
+        draw.text((x+430,y+249),f"+{len(heroes)-8}",font=_load_font(13),fill=color)
+    feature_rows = entry.get("feature_evidence",[])[:2]
+    for i,ev in enumerate(feature_rows):
+        name=_truncate_to_width(draw,ev["label"],_load_font(16),245)
+        if ev["unit"]=="ratio":
+            text=f'{name} {ev["value"]:.0%} · +{(ev["value"]-ev["baseline"])*100:.1f} 个百分点'
+        else:
+            unit=" / 10分钟" if ev["unit"]=="per10" else " / 场"
+            text=f'{name} {ev["value"]:.1f}{unit} · +{ev["change"]:.0%}'
+        draw.text((x+25,y+286+i*28),text,font=_load_font(16),fill=(151,235,214))
+    for i,ev in enumerate(entry["evidence"][:3-len(feature_rows)]):
+        unit=" / 场" if ev.get("unit")=="per_game" else " / 10分钟"
+        text=f'{AWARD_METRICS[ev["key"]][0]} {ev["value"]:.1f}{unit} · 参照 {ev["baseline"]:.1f}'
+        draw.text((x+25,y+286+(i+len(feature_rows))*28),text,font=_load_font(16),fill=(225,234,246))
+    draw.line((x+25,bottom-65,right-25,bottom-65),fill=(79,101,127),width=1)
+    draw.text((x+25,bottom-49),_award_source_text(entry),font=_load_font(14),fill=(181,201,222))
+    if feature_rows:
+        draw.text((x+25,bottom-27),"特色提升对比个人赛季同英雄数据",font=_load_font(12),fill=(154,177,204))
+
+
+def _draw_summary_rank(canvas,draw,rank_info,x,y,size=18):
+    rank_info=rank_info or {}
+    name=get_rank_name(rank_info)
+    tier=get_rank_sub_tier(rank_info)
+    raw_strength=raw_rank_score_to_strength(get_rank_score(rank_info))
+    label=f"{rank_name_cn(name)}{tier}" if name else strength_score_to_rank(raw_strength,chinese=True) if raw_strength is not None else "段位未知"
+    level=rank_info_to_icon_level(rank_info)
+    if level:
+        _paste_summary_asset(canvas,f"rank_flat/{level}.png",(x,y,size,size))
+    draw.text((x+size+3,y+2),label,font=_load_font(12 if size<=18 else 14),fill=(220,224,240))
+
+
+
+def _performance_style(entry):
+    if not entry:
+        return "—", (90,109,133)
+    grade=_award_grade(entry["score"])
+    return grade, {"S":(243,195,109),"A":(153,219,163),"B":(105,198,204),"C":(164,147,203),"D":(187,146,149)}[grade]
+
+
+async def _draw_match_timeline(canvas,draw,box,matches,streak_text,awards=None):
+    x,y,right,bottom=box
+    _card(draw,box,"对局时间线")
+    _draw_mode_badge(draw,right-192,y+17,{"gameMode":"QuickPlay"},canvas=canvas)
+    _draw_mode_badge(draw,right-104,y+17,{"gameMode":"Sport"},canvas=canvas)
+    for i,(label,color) in enumerate([("S",(243,195,109)),("A",(153,219,163)),("B",(105,198,204)),("C",(164,147,203)),("D",(187,146,149))]):
+        xx=x+235+i*90
+        draw.rounded_rectangle((xx,y+24,xx+12,y+36),radius=3,outline=color,width=2)
+        draw.text((xx+19,y+20),label,font=_load_font(13),fill=(180,197,217))
+    awards=awards or {}
+    evaluated={_award_key(r):r for r in awards.get("evaluated",[])}
+    records={_award_key(r):r for r in awards.get("records",[])}
+    for i,match in enumerate(matches):
+        row,col=divmod(i,8)
+        left,top=x+24+col*158,y+65+row*174
+        key=str(match.get("matchId") or match.get("beginTs") or "")
+        entry=evaluated.get(key)
+        record=records.get(key) or entry or {}
+        label,border=_performance_style(entry)
+        draw.rounded_rectangle((left,top,left+148,top+158),radius=10,fill=(22,33,48))
+        await _paste_remote_cover(canvas,(left+2,top+2,left+146,top+86),_map_icon_url(match.get("mapGuid")),radius=8,tint=(8,15,26,105))
+        hero=record.get("hero_guid") or match.get("heroGuid")
+        await _paste_summary_hero(canvas,draw,hero,(left+10,top+37,43,43))
+        dt=datetime.datetime.fromtimestamp(_num(match.get("beginTs"))/1000)
+        draw.text((left+10,top+9),f'{dt:%H:%M}',font=_load_font(16,bold=True),fill=(246,249,255))
+        _draw_mode_badge(draw,left+117,top+7,match,compact=True,canvas=canvas)
+        _draw_summary_role(canvas,draw,record.get("role") or _role_label(hero),left+119,top+55,18)
+        name=_truncate_to_width(draw,_map_name(match.get("mapGuid")),_load_font(14),128)
+        draw.text((left+10,top+92),name,font=_load_font(14),fill=(220,231,245))
+        result,color=_result_color(match.get("matchRet"))
+        draw.text((left+10,top+116),result,font=_load_font(14),fill=color)
+        draw.text((left+89,top+112),label,font=_load_font(20,bold=True),fill=border)
+        if _is_comp(match):
+            _draw_summary_rank(canvas,draw,record.get("rank_info") or match.get("rankInfo"),left+10,top+137,16)
+        else:
+            draw.text((left+10,top+139),f'{dt:%m/%d}',font=_load_font(11),fill=(142,164,190))
+        draw.rounded_rectangle((left,top,left+148,top+158),radius=10,outline=border,width=2 if entry else 1)
+    draw.text((x+25,bottom-29),streak_text,font=_load_font(13),fill=(166,186,208))
+
+
 async def _paste_remote_cover(canvas, box, url, radius=8, tint=(8, 12, 20, 125)):
     x1, y1, x2, y2 = box
     width = int(x2 - x1)
@@ -2876,6 +3213,7 @@ async def _render_period_image(
     title_text,
     all_matches=None,
     quick_dist_data=None,
+    match_awards=None,
     render_stage_log=None,
 ):
     def _render_step(stage, extra=None):
@@ -3007,10 +3345,10 @@ async def _render_period_image(
 
     timeline_y1 = mid_y1 + mid_section_h + 30
     sorted_matches = sorted(matches, key=lambda item: item.get("beginTs") or 0)
-    timeline_rows = max(1, (len(sorted_matches) + 14) // 15) if sorted_matches else 1
-    timeline_h = 126 + timeline_rows * 88
+    timeline_rows = max(1, (len(sorted_matches) + 7) // 8) if sorted_matches else 1
+    timeline_h = 105 + timeline_rows * 174
     quick_dist_y1 = timeline_y1 + timeline_h + 30
-    quick_dist_h = 220
+    quick_dist_h = 455
     bottom_y1 = quick_dist_y1 + quick_dist_h + 30
     highlight_rows_total = 5 + max(1, len(data_king_text))
     weather_source_matches = all_matches if all_matches else matches
@@ -3050,6 +3388,8 @@ async def _render_period_image(
         prefetch_urls.append(_map_icon_url(entry.get("map_guid")))
     for entry in (stats.get("top3_strongest") or []) + (stats.get("top3_worst") or []):
         prefetch_urls.append(_hero_icon_url(entry.get("heroGuid")))
+    for record in (match_awards or {}).get("records", []):
+        prefetch_urls.extend(_hero_icon_url(hero) for hero in record.get("heroes", []))
     await _prefetch_summary_images(prefetch_urls)
     _render_step("ASSET_PREFETCH_DONE", extra=f"url_candidates={len(prefetch_urls)}")
 
@@ -3358,38 +3698,11 @@ async def _render_period_image(
         ),
     )
 
-    _card(draw, (50, timeline_y1, 1350, timeline_y1 + timeline_h), "对局时间线")
-    if sorted_matches:
-        start_x, end_x = 90, 1310
-        row_gap = 88
-        for row_idx in range(timeline_rows):
-            row_matches = sorted_matches[row_idx * 15:(row_idx + 1) * 15]
-            line_y = timeline_y1 + 98 + row_idx * row_gap
-            draw.line((start_x, line_y, end_x, line_y), fill=(93, 112, 140, 145), width=2)
-            step = (end_x - start_x) / (len(row_matches) + 1)
-            for idx, match in enumerate(row_matches):
-                x = start_x + (idx + 1) * step
-                _, color = _result_color(match.get("matchRet"))
-                draw.ellipse((x - 7, line_y - 7, x + 7, line_y + 7), fill=color)
-                dt = datetime.datetime.fromtimestamp(_num(match.get("beginTs")) / 1000)
-                map_label = _short_name(_map_name(match.get("mapGuid")), 6)
-                time_label = dt.strftime("%m-%d %H:%M") if period_scope_text == "本周" else dt.strftime("%H:%M")
-                map_w = _text_size(draw, map_label, _load_font(13))[0]
-                time_w = _text_size(draw, time_label, _load_font(12))[0]
-                draw.text((x - map_w / 2, line_y - 36), map_label, font=_load_font(13), fill=(218, 228, 242))
-                draw.text((x - time_w / 2, line_y + 20), time_label, font=_load_font(12), fill=(165, 178, 198))
-        streak_y = timeline_y1 + 98 + (timeline_rows - 1) * row_gap + 38
-        draw.text((75, streak_y), streak_text, font=_load_font(13), fill=(190, 204, 222))
-    else:
-        draw.text((75, timeline_y1 + 72), "暂无时间线数据", font=_load_font(18), fill=(145, 155, 170))
-    _render_step("TIMELINE_DONE", extra=f"matches={len(sorted_matches)}; rows={timeline_rows}")
-
-    _card(draw, (50, quick_dist_y1, 1350, quick_dist_y1 + quick_dist_h), "快速强度分布图")
-    _draw_quick_strength_distribution(draw, (50, quick_dist_y1 + 52, 1350, quick_dist_y1 + quick_dist_h - 10), quick_dist_data)
-    _render_step(
-        "QUICK_DIST_DONE",
-        extra=f"points={len((quick_dist_data or {}).get('sampled_matches') or [])}",
-    )
+    await _draw_match_timeline(canvas, draw, (50, timeline_y1, 1350, timeline_y1 + timeline_h), sorted_matches, streak_text, match_awards)
+    awards = match_awards or {}
+    await _draw_award_card(canvas, draw, (50, quick_dist_y1, 685, quick_dist_y1 + quick_dist_h), f"{period_scope_text}最佳表现", awards.get("best"))
+    await _draw_award_card(canvas, draw, (715, quick_dist_y1, 1350, quick_dist_y1 + quick_dist_h), f"{period_scope_text}最大突破", awards.get("breakthrough"), breakthrough=True)
+    _render_step("MATCH_AWARDS_DONE")
 
     _card(draw, (50, bottom_y1, 665, bottom_y1 + bottom_h), "高光数据")
     highlight_rows = [
@@ -3742,16 +4055,8 @@ async def render_period_conclusion(
         ),
     )
 
-    detail_task = asyncio.create_task(_fetch_details(customer_token, matches))
-    quick_dist_task = asyncio.create_task(_build_quick_strength_distribution_data(customer_token, matches))
-    detail_pairs, quick_dist_data = await asyncio.gather(detail_task, quick_dist_task)
-    _period_stage_log(
-        "DETAIL_AND_QUICK_DIST_DONE",
-        extra=(
-            f"detail_count={len(detail_pairs)}; "
-            f"quick_dist_points={len((quick_dist_data or {}).get('sampled_matches') or [])}"
-        ),
-    )
+    detail_pairs = await _fetch_details(customer_token, matches)
+    match_awards = await _build_match_awards(customer_token, matches, detail_pairs, resolved_target, all_matches)
     stats = _build_stats(matches, detail_pairs, resolved_target)
     _period_stage_log("STATS_DONE")
     _period_stage_log("RENDER_QUEUE_START")
@@ -3764,7 +4069,7 @@ async def render_period_conclusion(
             detail_pairs,
             title_text,
             all_matches=all_matches,
-            quick_dist_data=quick_dist_data,
+            match_awards=match_awards,
             render_stage_log=_period_render_stage_log,
         ),
     )

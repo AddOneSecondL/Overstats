@@ -38,10 +38,10 @@ QUERY_TOOL_ASSET_DIR = RESOURCE_DIR / "query_tool_assets"
 HISTORY_SUBTITLE = "历史段位"
 ROLE_ORDER = {"tank": 0, "dps": 1, "healer": 2, "open": 3}
 ROLE_LABELS = {
-    "tank": "TANK",
-    "dps": "DAMAGE",
-    "healer": "SUPPORT",
-    "open": "OPEN",
+    "tank": "重装",
+    "dps": "输出",
+    "healer": "支援",
+    "open": "开放",
 }
 ROLE_ICON_FILENAMES = {
     "tank": "tank.png",
@@ -130,7 +130,7 @@ def render_rank_history(
 def _render_season_card(item: Dict[str, Any], config: Dict[str, Any]) -> Any:
     from PIL import Image, ImageDraw
 
-    rect = Image.new("RGBA", (500, 1000), (255, 255, 255, 180))
+    rect = Image.new("RGBA", (500, 1000), (27, 36, 49, 240))
     draw = ImageDraw.Draw(rect)
     fonts = _load_fonts()
     draw.rectangle((10, 10, 490, 990), fill=(255, 255, 255, 20))
@@ -172,47 +172,30 @@ def _render_season_card(item: Dict[str, Any], config: Dict[str, Any]) -> Any:
 
 
 def _draw_competitive_block(rect: Any, draw: Any, sport_data: Dict[str, Any], fonts: Dict[str, Any]) -> None:
-    _paste_mode_icon(rect, "comp.png", (15, 460), (60, 60))
-    draw.text((85, 480), "COMPETITIVE", font=fonts["font_en_small2"], fill=(255, 255, 255, 255))
-    role_rows = sorted(list(sport_data.get("guideCountData") or []), key=lambda row: ROLE_ORDER.get(str(row.get("roleType") or ""), 99))
-
-    inside_y = 0
-    for row in role_rows:
-        role_type = str(row.get("roleType") or "")
-        if role_type == "open" and inside_y > 0:
-            draw.line((30, 520 + inside_y * 50, 470, 520 + inside_y * 50), fill=(255, 255, 255, 120), width=2)
-        _draw_role_row(
-            rect,
-            draw,
-            row=row,
-            top_y=528 + inside_y * 50,
-            label_y=530 + inside_y * 50,
-            mode_prefix="",
-            fonts=fonts,
-        )
-        inside_y += 1
+    _draw_rank_block(rect, draw, sport_data.get("guideCountData") or [],
+                     title="竞技比赛", icon="comp.png", top=460, prefix="", fonts=fonts)
 
 
 def _draw_stadium_block(rect: Any, draw: Any, fight_data: Dict[str, Any], fonts: Dict[str, Any]) -> None:
-    _paste_mode_icon(rect, "fight.png", (15, 720), (60, 60))
-    draw.text((85, 740), "STADIUM", font=fonts["font_en_small2"], fill=(255, 255, 255, 255))
-    role_rows = sorted(list(fight_data.get("roleTypeCountData") or []), key=lambda row: ROLE_ORDER.get(str(row.get("roleType") or ""), 99))
+    _draw_rank_block(rect, draw, fight_data.get("roleTypeCountData") or [],
+                     title="角斗领域", icon="fight.png", top=720, prefix="c", fonts=fonts)
 
-    inside_y = 6
-    for row in role_rows:
-        role_type = str(row.get("roleType") or "")
-        if role_type == "open" and inside_y > 6:
-            draw.line((30, 490 + inside_y * 50, 470, 490 + inside_y * 50), fill=(255, 255, 255, 120), width=2)
-        _draw_role_row(
-            rect,
-            draw,
-            row=row,
-            top_y=498 + inside_y * 50,
-            label_y=500 + inside_y * 50,
-            mode_prefix="c",
-            fonts=fonts,
-        )
-        inside_y += 1
+
+def _draw_rank_block(rect: Any, draw: Any, rows: Sequence[Dict[str, Any]], *,
+                     title: str, icon: str, top: int, prefix: str, fonts: Dict[str, Any]) -> None:
+    _paste_mode_icon(rect, icon, (24, top), (32, 32))
+    draw.text((66, top + 5), title, font=fonts["font_cn_small"], fill="white")
+    for x, label in ((28, "职责"), (186, "当前"), (310, "最高"), (432, "胜 / 场")):
+        draw.text((x, top + 45), label, font=fonts["font_cn_small_ex"],
+                  fill=(180, 190, 205), anchor="mt" if x > 28 else "lt")
+    role_rows = sorted((row for row in rows if isinstance(row, dict)),
+                       key=lambda row: ROLE_ORDER.get(_normalize_role_type(row.get("roleType")), 99))
+    for index, row in enumerate(role_rows[:4]):
+        y = top + 72 + index * 43
+        if index:
+            draw.line((24, y - 4, 476, y - 4), fill=(255, 255, 255, 28))
+        _draw_role_row(rect, draw, row=row, top_y=y, label_y=y + 8,
+                       mode_prefix=prefix, fonts=fonts)
 
 
 def _draw_role_row(
@@ -231,16 +214,16 @@ def _draw_role_row(
     if role_icon is not None:
         rect.paste(role_icon, (28, top_y + 4), role_icon)
         label_x = 64
-    draw.text((label_x, label_y), ROLE_LABELS.get(role_type, role_type.upper()), font=fonts["font_en_small2"], fill=(255, 255, 255, 255))
+    draw.text((label_x, label_y), ROLE_LABELS.get(role_type, role_type.upper()), font=fonts["font_cn_small_ex"], fill=(255, 255, 255, 255))
     last_rank_info = row.get("lastRankInfo") if isinstance(row.get("lastRankInfo"), dict) else {}
     max_rank_info = row.get("maxRankInfo") if isinstance(row.get("maxRankInfo"), dict) else {}
     _paste_rank_bar(rect, draw, last_rank_info, x=130, y=top_y, prefix=mode_prefix, fonts=fonts)
-    _paste_rank_bar(rect, draw, max_rank_info, x=260, y=top_y, prefix=mode_prefix, fonts=fonts)
+    _paste_rank_bar(rect, draw, max_rank_info, x=254, y=top_y, prefix=mode_prefix, fonts=fonts)
 
     match_sum = _safe_int(row.get("matchSum"))
     win_rate = _safe_float(row.get("winRate"))
     win_sum = int(match_sum * win_rate / 100) if match_sum > 0 else 0
-    draw.text((390, label_y + 3), f"{win_sum} | {match_sum}", font=fonts["font_en_small2"], fill=(255, 255, 255, 255))
+    draw.text((432, label_y), f"{win_sum} / {match_sum}", font=fonts["font_cn_small_ex"], fill="white", anchor="mt")
 
 
 def _paste_rank_bar(
@@ -256,16 +239,19 @@ def _paste_rank_bar(
     score = _safe_int(get_rank_score(rank_info))
     tier = _safe_int(get_rank_sub_tier(rank_info))
     if score <= 0:
-        draw.text((x + 75, y + 5), "-", font=fonts["font_num"], fill=(0, 0, 0, 255))
+        draw.text((x + 57, y + 10), "未定级", font=fonts["font_cn_small_ex"], fill=(180, 190, 205), anchor="mt")
         return
 
     rank_level = raw_rank_score_to_icon_level(score)
     asset = RANK_FLAT_DIR / f"{prefix}{rank_level}.png"
-    if asset.exists():
+    rank_image = _load_local_rgba(asset)
+    if rank_image is not None:
         from PIL import Image
 
-        rank_image = Image.open(asset).convert("RGBA").resize((115, 37), Image.LANCZOS)
+        rank_image = rank_image.resize((115, 37), Image.Resampling.LANCZOS)
         rect.paste(rank_image, (x, y), rank_image)
+    else:
+        draw.rounded_rectangle((x, y, x + 115, y + 37), radius=6, fill=(155, 160, 168))
     draw.text((x + 75, y + 5), str(tier), font=fonts["font_num"], fill=(0, 0, 0, 255))
 
 
@@ -302,17 +288,14 @@ def _draw_top_heroes(
 
 
 def _draw_empty_mode_block(rect: Any, draw: Any, *, title: str, top: int, fonts: Dict[str, Any]) -> None:
-    from PIL import Image
-
     icon_name = "comp.png" if title == "COMPETITIVE" else "fight.png"
-    icon = _load_local_rgba(RESOURCE_DIR / icon_name)
-    if icon is not None:
-        icon = icon.resize((300, 300), Image.LANCZOS)
-        alpha = icon.getchannel("A").point(lambda pixel: int(pixel * 0.4))
-        icon.putalpha(alpha)
-        rect.paste(icon, (100, top - 20), icon)
-    draw.text((150, top + 130), "无赛季数据", font=fonts["font_cn"], fill=(255, 255, 255, 255))
-    draw.text((85, top + 20), title, font=fonts["font_en_small2"], fill=(255, 255, 255, 180))
+    label = "竞技比赛" if title == "COMPETITIVE" else "角斗领域"
+    _paste_mode_icon(rect, icon_name, (24, top), (32, 32))
+    draw.text((66, top + 5), label, font=fonts["font_cn_small"], fill="white")
+    draw.rounded_rectangle((24, top + 53, 476, top + 229), radius=12,
+                           fill=(255, 255, 255, 12))
+    draw.text((250, top + 132), "无赛季数据", font=fonts["font_cn_small"],
+              fill=(180, 190, 205), anchor="mm")
 
 
 def _draw_season_desc(draw: Any, config: Dict[str, Any], season: int, fonts: Dict[str, Any]) -> None:
@@ -324,12 +307,17 @@ def _draw_season_desc(draw: Any, config: Dict[str, Any], season: int, fonts: Dic
     end = str(season_info.get("endTime") or "").strip()
     parts = [part for part in (desc, f"{start}-{end}" if start or end else "") if part]
     if parts:
-        draw.text((15, 270), " ".join(parts), font=fonts["font_cn_small"], fill=(255, 255, 255, 255))
+        text = " ".join(parts)
+        while text and _measure_text_width(draw, text, fonts["font_cn_small_ex"]) > 470:
+            text = text[:-2] + "…"
+        draw.text((15, 270), text, font=fonts["font_cn_small_ex"], fill=(180, 190, 205))
 
 
 def _paste_season_banner(rect: Any, season: int) -> None:
-    from PIL import Image
+    from PIL import Image, ImageDraw
 
+    # Keep every season card aligned even when its artwork is unavailable.
+    ImageDraw.Draw(rect).rectangle((10, 10, 489, 179), fill=(105, 110, 118, 255))
     banner = _load_local_rgba(SEASON_LOGO_DIR / f"s{season}.png")
     if banner is None:
         return
@@ -564,13 +552,13 @@ def _load_fonts() -> Dict[str, Any]:
     return {
         "font_en_header": _font_resource("bignoodletoooblique.ttf", 32, fallback="BigNoodleToo.ttf"),
         "font_en_large": _font_resource("bignoodletoooblique.ttf", 80, fallback="BigNoodleToo.ttf"),
-        "font_player_name": _font_resource("bignoodletoooblique.ttf", 32, fallback="BigNoodleToo.ttf"),
+        "font_player_name": _font_chinese(32),
         "font_season_title": _font_resource("bignoodletoooblique.ttf", 80, fallback="BigNoodleToo.ttf"),
         "font_en_small2": _font_resource("BigNoodleToo.ttf", 30, fallback="en2.ttf"),
         "font_cn": _font_chinese(40),
         "font_cn_small": _font_chinese(25),
         "font_cn_small_ex": _font_chinese(18),
-        "font_num": _font_resource("num.ttf", 23, fallback="GrotaRoundedExtraBold.otf"),
+        "font_num": _font_chinese(23),
     }
 
 
