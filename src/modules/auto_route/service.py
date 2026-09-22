@@ -114,7 +114,7 @@ Rules:
 5. For hero_pick_rate, default to ranking + quick + all unless the user clearly asks for history or another mode/rank.
 6. For hero_perk, only pass the hero name or heroGuid.
 7. For hero_wiki, only pass hero plus an optional question about that hero.
-8. For hero_treemap, default to competitive unless the user clearly asks for quick.
+8. For hero_treemap, default to competitive unless the user clearly asks for quick. For explicit 6v6 requests use quick6v6 or competitive6v6.
 9. For patch_notes, default to latest.
 10. If the user asks for one player tool but the target is missing, still choose the best tool instead of chatting.
 11. For dashen_profile, a trailing `*` on the user's command means competitive mode.
@@ -338,7 +338,7 @@ class AutoRouteModule:
                         "type": "object",
                         "properties": {
                             "target": {"type": "string"},
-                            "mode": {"type": "string", "enum": ["quick", "competitive"]},
+                            "mode": {"type": "string", "enum": ["quick", "competitive", "quick6v6", "competitive6v6"]},
                         },
                         "additionalProperties": False,
                     },
@@ -602,7 +602,8 @@ class AutoRouteModule:
 
     def _build_hero_treemap_selection(self, arguments: Dict[str, Any]) -> AutoRouteSelection:
         payload = _require_target_payload(arguments.get("target"))
-        payload["mode"] = _normalize_tool_mode(arguments.get("mode"), default="competitive")
+        from ..dashen_hero_treemap.requests import normalize_treemap_mode
+        payload["mode"] = normalize_treemap_mode(arguments.get("mode"))
         return AutoRouteSelection(
             tool_name="hero_treemap",
             module_name="dashen_hero_treemap",

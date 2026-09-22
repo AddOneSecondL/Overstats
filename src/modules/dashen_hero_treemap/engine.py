@@ -14,7 +14,8 @@ except ModuleNotFoundError:
     from src.modules.dashen_profile.requests import DashenProfileBundle
     from src.modules.risk_status import RiskStatus, parse_risk_status
 
-from .requests import MODE_QUICK
+from .requests import MODE_QUICK, is_quick, hero_queue_keys
+from ..dashen_summary.runtime.season_baseline import number, stat_values
 
 
 ROLE_OPEN = "open"
@@ -74,6 +75,10 @@ class DashenHeroTreemapHero:
     game_time_sec: float
     game_time_text: str
     icon_url: str = ""
+    kda: Optional[float] = None
+    combat: tuple = ()
+    special_stats: tuple = ()
+    recent_perks: tuple = ()
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -89,6 +94,10 @@ class DashenHeroTreemapHero:
             "game_time_sec": float(self.game_time_sec),
             "game_time_text": self.game_time_text,
             "icon_url": self.icon_url,
+            "kda": self.kda,
+            "combat": list(self.combat),
+            "special_stats": list(self.special_stats),
+            "recent_perks": list(self.recent_perks),
         }
 
 
@@ -132,6 +141,48 @@ def _readable_playtime(game_time_sec: float) -> str:
     return f"{int(game_time_sec / 3600)}H"
 
 
+def cloud_summary(heroes):
+    """Short, deterministic labels about play time; no inferred skill/personality."""
+    rows=[h.to_dict() if hasattr(h,"to_dict") else h for h in heroes]
+    total=sum(float(h.get("game_time_sec") or 0) for h in rows)
+    if total<=0:return "初探英雄池"
+    rows.sort(key=lambda h:-float(h.get("game_time_sec") or 0))
+    roles={role:sum(float(h.get("game_time_sec") or 0) for h in rows if h.get("hero_role")==role) for role in ("tank","dps","healer")}
+    role=max(roles,key=roles.get)
+    role_word={"tank":"重装主场","dps":"输出主场","healer":"支援主场"}[role] if roles[role]/total>=.55 else "多职轮换"
+    share=float(rows[0].get("game_time_sec") or 0)/total
+    concentration="本命专精" if share>=.5 else "三核轮转" if sum(float(h.get("game_time_sec") or 0) for h in rows[:3])/total>=.7 else "广谱英雄池"
+    return f"{role_word} · {concentration}"
+
+
+def _hero_details(item, hero_guid, config):
+    average = stat_values(item.get("statAveCount"))
+    per10 = stat_values(item.get("statPerTenMinCount"))
+    combat = []
+    kda = number(item.get("kda"))
+    for values, unit in ((average, "场均"), (per10, "每10分钟")):
+        numbers = []
+        for guid, aliases in (("603482350067646495", ("kill", "aveKill")), ("603482350067648392", ("assist", "aveAssist")), ("603482350067646506", ("death", "aveDeath"))):
+            numbers.append(next((values[k] for k in (guid, *aliases) if k in values), None))
+        if all(v is not None for v in numbers):
+            if kda is None:
+                kda = (numbers[0]+numbers[1])/numbers[2] if numbers[2] else (None)
+            combat = [dict(label=label, value=value, unit=unit) for label,value in zip(("消灭","助攻","阵亡"),numbers)]
+            break
+    stats=[]
+    for attr in config.get("heroAttrList", []):
+        if str(attr.get("heroGuid")) != hero_guid or attr.get("valueType") != "特色数据":
+            continue
+        key=str(attr.get("valueGuid")); label=str(attr.get("valueText") or "")
+        if not label:
+            continue
+        for values, unit in ((per10,"每10分钟"),(average,"场均")):
+            if key in values:
+                stats.append(dict(label=label,value=values[key],unit=unit))
+                break
+    return dict(kda=kda,combat=tuple(combat),special_stats=tuple(stats))
+
+
 class DashenHeroTreemapEngine:
     def __init__(self, *, config_loader: Optional[Callable[[], Dict[str, Any]]] = None) -> None:
         self.config_loader = config_loader or load_query_tool
@@ -146,7 +197,7 @@ class DashenHeroTreemapEngine:
         config = self._load_ow_config()
         hero_lookup = self._build_hero_lookup(config)
         card_data = _payload_data(bundle.profile_card)
-        payload = _payload_data(bundle.leisure if mode == MODE_QUICK else bundle.sport)
+        payload = _payload_data(bundle.leisure if is_quick(mode) else bundle.sport)
         hero_rows = self._resolve_hero_payload_rows(payload, mode=mode)
 
         heroes: list[DashenHeroTreemapHero] = []
@@ -181,6 +232,7 @@ class DashenHeroTreemapEngine:
                     game_time_sec=game_time_sec,
                     game_time_text=_readable_playtime(game_time_sec),
                     icon_url=self._hero_icon_url(hero_info) or str(item.get("heroIcon") or "").strip(),
+                    **_hero_details(item, hero_guid, config),
                 )
             )
 
@@ -227,21 +279,7 @@ class DashenHeroTreemapEngine:
         return lookup
 
     def _resolve_hero_payload_rows(self, payload_data: Dict[str, Any], *, mode: str) -> list[Dict[str, Any]]:
-        if mode == MODE_QUICK:
-            hero_rows = (
-                _list_dicts(payload_data.get("presetsHeroUseSummaryList"))
-                or _list_dicts(payload_data.get("presetsyList"))
-                or _list_dicts(payload_data.get("v6HeroUseSummaryList"))
-                or _list_dicts(payload_data.get("openHeroUseSummaryList"))
-                or _list_dicts(payload_data.get("openHeroList"))
-            )
-        else:
-            hero_rows = (
-                _list_dicts(payload_data.get("presetsHeroUseSummaryList"))
-                or _list_dicts(payload_data.get("presetsHeroList"))
-                or _list_dicts(payload_data.get("openHeroUseSummaryList"))
-                or _list_dicts(payload_data.get("openHeroList"))
-            )
+        hero_rows = next((_list_dicts(payload_data.get(key)) for key in hero_queue_keys(mode) if payload_data.get(key)), [])
         hero_rows.sort(
             key=lambda item: (-_safe_float(item.get("gameTime")), str(item.get("heroGuid") or item.get("heroId") or "")),
         )

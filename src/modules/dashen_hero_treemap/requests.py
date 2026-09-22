@@ -25,7 +25,15 @@ except ModuleNotFoundError:
 
 MODE_COMPETITIVE = "competitive"
 MODE_QUICK = "quick"
-SUPPORTED_TREEMAP_MODES = (MODE_COMPETITIVE, MODE_QUICK)
+SUPPORTED_TREEMAP_MODES = (MODE_COMPETITIVE, MODE_QUICK, "quick6v6", "competitive6v6")
+
+def is_quick(mode):
+    return mode in (MODE_QUICK, "quick6v6")
+
+def hero_queue_keys(mode):
+    if mode.endswith("6v6"):
+        return ("v6HeroUseSummaryList",)
+    return ("presetsHeroUseSummaryList", "presetsyList" if is_quick(mode) else "presetsHeroList")
 
 
 @dataclass(frozen=True)
@@ -39,6 +47,8 @@ class DashenHeroTreemapQuery:
 
 def normalize_treemap_mode(value: Any) -> str:
     normalized = str(value or "").strip().lower()
+    if normalized in {"quick6v6", "competitive6v6"}:
+        return normalized
     if normalized in {"competitive", "comp", "ranked"}:
         return MODE_COMPETITIVE
     if normalized in {"quick", "overview"}:
@@ -85,8 +95,8 @@ class DashenHeroTreemapRequests:
             last_logical_season = logical_season
             last_request_season = request_season
 
-            target_payload = leisure_payload if query.mode == MODE_QUICK else sport_payload
-            if payload_has_profile_content(target_payload):
+            target_payload = leisure_payload if is_quick(query.mode) else sport_payload
+            if any((target_payload.get("data") or {}).get(key) for key in hero_queue_keys(query.mode)):
                 return DashenProfileBundle(
                     customer_token=query.customer_token,
                     profile_card=card,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Sequence
 
@@ -13,6 +14,7 @@ except ModuleNotFoundError:
     from src.modules.bnet_search import BnetSearchModule, BnetSearchResult, bnet_search_module
 
 from .engine import DashenHeroTreemapEngine, DashenHeroTreemapHero, DashenHeroTreemapPlayer, DashenHeroTreemapSeason
+from .engine import cloud_summary
 from .render import RenderedImage, render_hero_treemap
 from .requests import (
     DashenHeroTreemapQuery,
@@ -37,6 +39,7 @@ class DashenHeroTreemapOutput:
             "player": self.player.to_dict(),
             "season": self.season.to_dict(),
             "mode": self.mode,
+            "summary": cloud_summary(self.heroes),
             "hero_count": int(self.hero_count),
             "total_game_time_sec": float(self.total_game_time_sec),
             "heroes": [item.to_dict() for item in self.heroes],
@@ -72,6 +75,8 @@ class DashenHeroTreemapModule:
             mode=resolved_query.mode,
             resolved_name=(resolved_bnet.full_id if resolved_bnet else resolved_query.bnet_id),
         )
+        from .details import enrich_recent_perks
+        heroes = await enrich_recent_perks(heroes, bundle, resolved_query.mode, getattr(self.requests, "api_client", None), self.engine._load_ow_config())
         output = DashenHeroTreemapOutput(
             player=player,
             season=season,
@@ -83,6 +88,7 @@ class DashenHeroTreemapModule:
         if not render:
             return output
 
+        await _prefetch_hero_icons(output.heroes)
         image = render_hero_treemap(
             player=output.player.to_dict(),
             season=output.season.to_dict(),
@@ -164,6 +170,31 @@ class DashenHeroTreemapModule:
             mode=normalized_query.mode,
         )
         return resolved_query, search_output.result
+
+
+async def _prefetch_hero_icons(heroes: Sequence[DashenHeroTreemapHero]) -> None:
+    """Warm only the requested portraits; unavailable assets keep the text fallback."""
+    import httpx
+    from PIL import Image
+    from io import BytesIO
+    from ..query_tool import get_cached_asset_path, cache_query_tool_asset_bytes
+
+    urls = list(dict.fromkeys(url for h in heroes for url in [h.icon_url, *(p.get("icon_url") for p in h.recent_perks)] if url and not get_cached_asset_path(url, "heroes")))
+    if not urls:
+        return
+    semaphore = asyncio.Semaphore(6)
+    async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+        async def fetch(url: str) -> None:
+            async with semaphore:
+                try:
+                    response = await client.get(url)
+                    response.raise_for_status()
+                    with Image.open(BytesIO(response.content)) as image:
+                        image.verify()
+                    cache_query_tool_asset_bytes(url, response.content, "heroes")
+                except (httpx.HTTPError, OSError, ValueError):
+                    pass
+        await asyncio.gather(*(fetch(url) for url in urls))
 
 
 dashen_hero_treemap_module = DashenHeroTreemapModule()

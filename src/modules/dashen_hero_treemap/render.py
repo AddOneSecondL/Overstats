@@ -17,19 +17,21 @@ except ModuleNotFoundError:
     from src.modules.query_tool import get_cached_asset_path
     from src.modules.risk_status import draw_risk_status_badge
 
-from .engine import ROLE_LABELS
+from .engine import ROLE_LABELS, cloud_summary
+from .requests import is_quick
+from ..dashen_summary.runtime.summary_typography import SummaryDraw
 
 
 CANVAS_WIDTH = 1920
 CANVAS_HEIGHT = 1080
-HEADER_HEIGHT = 146
+HEADER_HEIGHT = 190
 CANVAS_PADDING = 28
-GRID_GAP = 4
+GRID_GAP = 6
 MIN_TILE_SIDE = 144
 MIN_TILE_AREA = MIN_TILE_SIDE * MIN_TILE_SIDE
 
-POSITIVE_FILL = (192, 67, 59)
-NEGATIVE_FILL = (38, 176, 105)
+POSITIVE_FILL = (101, 221, 178)
+NEGATIVE_FILL = (244, 123, 133)
 NEUTRAL_FILL = (122, 129, 140)
 ROLE_FALLBACK_FILLS = {
     "tank": (74, 128, 236),
@@ -96,7 +98,7 @@ def render_hero_treemap(
     if background is not None:
         canvas.alpha_composite(background)
     canvas.alpha_composite(_build_canvas_overlay((CANVAS_WIDTH, CANVAS_HEIGHT), has_background=background is not None))
-    draw = ImageDraw.Draw(canvas, "RGBA")
+    draw = SummaryDraw(canvas, "RGBA", numeric_font_path=RESOURCE_DIR / "GrotaRoundedExtraBold.otf")
     fonts = _load_fonts()
 
     _draw_header(
@@ -108,17 +110,19 @@ def render_hero_treemap(
         total_game_time_sec=total_game_time_sec,
         fonts=fonts,
     )
+    draw.text((530, 145), cloud_summary(heroes), font=fonts["header_emphasis"], fill=(239, 191, 94))
 
     content_rect = _Rect(
         x=CANVAS_PADDING,
         y=HEADER_HEIGHT + 14,
         width=CANVAS_WIDTH - CANVAS_PADDING * 2,
-        height=CANVAS_HEIGHT - HEADER_HEIGHT - CANVAS_PADDING - 14,
+        height=CANVAS_HEIGHT - HEADER_HEIGHT - CANVAS_PADDING - 54,
     )
     tile_rects = _layout_treemap(heroes, content_rect)
     for hero, rect in zip(heroes, tile_rects):
-        _draw_tile(canvas, hero=hero, rect=rect, fonts=fonts)
+        _draw_tile(canvas, hero=dict(hero, time_share=float(hero.get("game_time_sec") or 0) / max(total_game_time_sec, 1)), rect=rect, fonts=fonts)
 
+    draw.text((36, CANVAS_HEIGHT - 34), "模式参数：quick 快速 · competitive 竞技 · quick6v6 快速6v6 · competitive6v6 竞技6v6", font=fonts["header_meta"], fill=TEXT_MUTED)
     output = BytesIO()
     canvas.save(output, format="PNG")
     return RenderedImage(content=output.getvalue())
@@ -208,45 +212,32 @@ def _draw_header(
     total_game_time_sec: float,
     fonts: Dict[str, Any],
 ) -> None:
-    box = (CANVAS_PADDING, CANVAS_PADDING, CANVAS_WIDTH - CANVAS_PADDING, HEADER_HEIGHT)
-    draw.rounded_rectangle(box, radius=16, fill=(11, 15, 23, 198), outline=(255, 255, 255, 42), width=1)
-    draw.line((box[0] + 20, box[1] + 64, box[2] - 20, box[1] + 64), fill=(255, 255, 255, 16), width=1)
-
-    title = "英雄云图"
-    display_name = str(player.get("display_name") or "").strip() or "未知玩家"
-    season_text = _season_label(season)
-
-    draw.text((box[0] + 24, box[1] + 20), title, font=fonts["header_title"], fill=TEXT_PRIMARY)
-    player_x = box[0] + 26
-    player_y = box[1] + 74
-    draw.text((player_x, player_y), display_name, font=fonts["header_emphasis"], fill=TEXT_SECONDARY)
-    player_width = _measure(draw, display_name, fonts["header_emphasis"])[0]
-    badge_width, _ = draw_risk_status_badge(
-        draw,
-        player_x + player_width + 12,
-        player_y - 2,
-        player.get("risk_status"),
-        font=fonts["header_meta"],
-        padding_x=9,
-        padding_y=4,
-    )
-    mode_x = player_x + player_width + (badge_width + 24 if badge_width else 12)
-    draw.text((mode_x, player_y), f"|  {_mode_label(mode)}", font=fonts["header_emphasis"], fill=TEXT_SECONDARY)
-    _draw_header_meta_row(
-        draw,
-        x=box[0] + 26,
-        y=box[1] + 102,
-        hero_count=hero_count,
-        total_game_time_sec=total_game_time_sec,
-        fonts=fonts,
-    )
-
-    season_w = _measure(draw, season_text, fonts["header_meta"])[0]
-    draw.text((box[2] - 26 - season_w, box[1] + 24), season_text, font=fonts["header_meta"], fill=TEXT_SECONDARY)
+    draw.rounded_rectangle((28, 28, CANVAS_WIDTH-28, HEADER_HEIGHT), radius=20, fill=(17, 26, 39, 240), outline=(78, 99, 127, 110))
+    draw.rounded_rectangle((48, 50, 53, 96), radius=2, fill=(239, 191, 94))
+    draw.text((70, 46), "英雄云图", font=fonts["header_title"], fill=TEXT_PRIMARY)
+    display_name = _truncate_text(draw, str(player.get("display_name") or "未知玩家"), fonts["header_emphasis"], 650)
+    draw.text((72, 106), display_name, font=fonts["header_emphasis"], fill=TEXT_SECONDARY)
+    name_width = _measure(draw, display_name, fonts["header_emphasis"])[0]
+    draw_risk_status_badge(draw, 84 + name_width, 104, player.get("risk_status"), font=fonts["header_meta"], padding_x=9, padding_y=4)
+    if not is_quick(mode):
+        try:
+            from PIL import Image, ImageOps
+            with Image.open(RESOURCE_DIR / "comp.png") as raw:
+                mode_icon = ImageOps.contain(raw.convert("RGBA"), (22, 22), method=_resampling_lanczos())
+            draw._image.paste(mode_icon, (72, 145), mode_icon)
+        except (OSError, ValueError):
+            pass
+    else:
+        draw.polygon([(84,145),(76,157),(82,157),(79,167),(93,153),(85,153)], fill=(112,204,226))
+    draw.text((104, 145), f"{_mode_label(mode)}  /  {_season_label(season)}", font=fonts["header_meta"], fill=(125, 186, 231))
+    for x, value, label, color in ((1160, str(hero_count), "使用英雄", (125, 186, 231)), (1485, _format_hours(total_game_time_sec), "英雄累计时长", (239, 191, 94))):
+        draw.line((x-35, 61, x-35, 151), fill=(72, 89, 113, 130), width=1)
+        draw.text((x, 60), value, font=_load_summary_font(44, bold=True), fill=color)
+        draw.text((x+2, 124), label, font=fonts["header_meta"], fill=TEXT_MUTED)
 
 
 def _mode_label(mode: str) -> str:
-    return "竞技" if str(mode or "").strip().lower() == "competitive" else "快速"
+    return ("快速" if is_quick(mode) else "竞技") + (" 6v6" if mode.endswith("6v6") else " 5v5")
 
 
 def _season_label(season: Dict[str, Any]) -> str:
@@ -256,7 +247,7 @@ def _season_label(season: Dict[str, Any]) -> str:
         return "赛季 AUTO"
     if request in (None, ""):
         return f"S{logical}"
-    return f"S{logical} / req {request}"
+    return f"S{logical if logical is not None else request}"
 
 
 def _format_hours(game_time_sec: float) -> str:
@@ -402,138 +393,115 @@ def _draw_tile(canvas: Any, *, hero: Dict[str, Any], rect: _Rect, fonts: Dict[st
     except ModuleNotFoundError as exc:
         raise RuntimeError("render.py requires Pillow to output images") from exc
 
-    left = int(round(rect.x)) + GRID_GAP
-    top = int(round(rect.y)) + GRID_GAP
-    right = int(round(rect.x + rect.width)) - GRID_GAP
-    bottom = int(round(rect.y + rect.height)) - GRID_GAP
-    if right - left < 48 or bottom - top < 48:
+    left, top = round(rect.x) + GRID_GAP, round(rect.y) + GRID_GAP
+    width, height = round(rect.x + rect.width) - GRID_GAP - left, round(rect.y + rect.height) - GRID_GAP - top
+    if min(width, height) < 32:
         return
-
-    width = right - left
-    height = bottom - top
-    min_side = min(width, height)
-    delta = float(hero.get("win_rate_delta") or 0.0)
-    accent = _delta_color(delta)
-    role_key = str(hero.get("hero_role") or "").strip().lower()
-    role_fill = ROLE_FALLBACK_FILLS.get(role_key, ROLE_FALLBACK_FILLS["open"])
-    tile_radius = _clamp(min_side // 12, 8, 18)
-    header_height = _clamp(int(height * 0.24), 54, 84)
-    pad = max(10, min_side // 15)
-    avatar_size = _clamp(header_height - pad * 2, 34, 72)
-    compact = min_side < 196 or width < 250
-    very_compact = min_side < 148 or width < 180
-
-    tile = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    tile_draw = ImageDraw.Draw(tile, "RGBA")
-    _fill_tile_background(
-        tile_draw,
-        width,
-        height,
-        accent=accent,
-        role_fill=role_fill,
-        strength=min(abs(delta) / 22.0, 1.0),
-        radius=tile_radius,
-    )
-    tile_draw.rounded_rectangle(
-        (0, 0, width - 1, height - 1),
-        radius=tile_radius,
-        outline=(255, 255, 255, 38),
-        width=1,
-    )
-
-    header_box = (0, 0, width - 1, header_height)
-    tile_draw.rounded_rectangle(
-        header_box,
-        radius=max(tile_radius - 2, 8),
-        fill=(20, 24, 33, 222),
-    )
-    tile_draw.rectangle((0, header_height // 2, width - 1, header_height), fill=(20, 24, 33, 222))
-    tile_draw.line((0, header_height, width - 1, header_height), fill=(255, 255, 255, 18), width=1)
-    tile_draw.rectangle((0, 0, max(3, width // 90), height), fill=(*role_fill, 210))
-
-    avatar_x = pad
-    avatar_y = max((header_height - avatar_size) // 2, 8)
-    avatar_box = (avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size)
-    tile_draw.rounded_rectangle(
-        avatar_box,
-        radius=max(8, avatar_size // 6),
-        fill=(255, 255, 255, 18),
-        outline=(255, 255, 255, 42),
-        width=1,
-    )
-
-    icon = _open_cached_asset(hero.get("icon_url"), ("heroes", "misc"))
+    pad = 14 if width < 230 else 22
+    compact = width < 230 or height < 230
+    accent = _delta_color(float(hero.get("win_rate_delta") or 0))
+    role = str(hero.get("hero_role") or "open")
+    role_color = ROLE_FALLBACK_FILLS.get(role, ROLE_FALLBACK_FILLS["open"])
+    tile = Image.new("RGBA", (width, height), (20, 30, 44, 255))
+    icon = _open_cached_asset(hero.get("icon_url"), ("heroes", "misc", "summary"))
     if icon is not None:
-        inner = ImageOps.fit(icon, (avatar_size - 6, avatar_size - 6), method=_resampling_lanczos())
-        mask = Image.new("L", inner.size, 0)
-        ImageDraw.Draw(mask).rounded_rectangle(
-            (0, 0, inner.size[0], inner.size[1]),
-            radius=max(8, inner.size[0] // 6),
-            fill=255,
-        )
-        tile.paste(inner, (avatar_x + 3, avatar_y + 3), mask)
-    else:
-        _draw_fallback_avatar(tile_draw, hero=hero, box=avatar_box)
-
-    name_x = avatar_box[2] + max(10, pad // 2)
-    content_right = width - pad
-    name_font = _fit_font(
-        tile_draw,
-        hero.get("hero_name"),
-        _clamp(min_side // (4 if compact else 3), 18, 40),
-        max(content_right - name_x - 36, 30),
-        bold=True,
-    )
-    role_font = _load_summary_font(_clamp(int(name_font.size * 0.44), 11, 18), bold=False)
-    meta_font = _load_summary_font(_clamp(min_side // 10, 12, 20), bold=False)
-    delta_font = _fit_font(
-        tile_draw,
-        _format_delta(delta),
-        _clamp(min_side // (5 if compact else 4), 18, 54),
-        max(width - pad * 2, 40),
-        bold=True,
-    )
-
-    role_icon_size = _clamp(int(name_font.size * 0.72), 14, 22)
-    role_icon = _load_role_icon(role_key, role_icon_size)
-    role_label = ROLE_LABELS.get(role_key, ROLE_LABELS["open"])
-
-    name_text = _truncate_text(tile_draw, str(hero.get("hero_name") or ""), name_font, max(content_right - name_x - role_icon_size - 10, 26))
-    name_y = avatar_y + max((avatar_size - int(_measure(tile_draw, name_text, name_font)[1]) - int(_measure(tile_draw, role_label, role_font)[1]) - 3) // 2, 0)
-    tile_draw.text((name_x, name_y), name_text, font=name_font, fill=TEXT_PRIMARY)
-
-    role_icon_x = name_x + _measure(tile_draw, name_text, name_font)[0] + 8
-    if role_icon is not None and role_icon_x + role_icon_size <= content_right + 4:
-        tile.paste(role_icon, (int(role_icon_x), int(name_y + 2)), role_icon)
-
-    role_y = name_y + _measure(tile_draw, name_text, name_font)[1] + 2
-    if not very_compact:
-        tile_draw.text((name_x, role_y), role_label, font=role_font, fill=TEXT_SECONDARY)
-
-    delta_text = _format_delta(delta)
-    delta_size = _measure(tile_draw, delta_text, delta_font)
-    delta_y = _clamp((height - delta_size[1]) / 2, header_height + 12, height - pad - delta_size[1] - 16)
-    tile_draw.text(
-        ((width - delta_size[0]) / 2, delta_y),
-        delta_text,
-        font=delta_font,
-        fill=accent,
-    )
-
-    meta_text = (
-        f"{float(hero.get('win_rate') or 0.0):.2f}% / "
-        f"{int(hero.get('match_sum') or 0)}场 / "
-        f"{str(hero.get('game_time_text') or '')}"
-    )
-    meta_lines = _wrap_text(tile_draw, meta_text, meta_font, max(width - pad * 2, 40), 2, allow_space_join=False)
-    meta_height = sum(int(_measure(tile_draw, line, meta_font)[1]) + 2 for line in meta_lines)
-    role_block_bottom = role_y + (_measure(tile_draw, role_label, role_font)[1] if not very_compact else 0)
-    meta_y = max(height - pad - meta_height, role_block_bottom + 12)
-    for line in meta_lines:
-        tile_draw.text((pad, meta_y), line, font=meta_font, fill=TEXT_MUTED)
-        meta_y += _measure(tile_draw, line, meta_font)[1] + 2
-
-    canvas.paste(tile, (left, top), tile)
+        portrait_size = max(100, min(height, int(width * .8)))
+        portrait = ImageOps.contain(icon, (portrait_size, portrait_size), method=_resampling_lanczos())
+        # Fade the portrait edges so square source assets blend into the card.
+        alpha = portrait.getchannel("A")
+        fade = Image.new("L", portrait.size)
+        fd = ImageDraw.Draw(fade)
+        for y in range(portrait.height):
+            edge = min(1.0, y / max(portrait.height * .12, 1), (portrait.height-1-y) / max(portrait.height * .16, 1))
+            fd.line((0,y,portrait.width,y), fill=int(255*max(edge,0)))
+        from PIL import ImageChops
+        portrait.putalpha(ImageChops.multiply(alpha, fade))
+        tile.alpha_composite(portrait, (width - portrait.width + portrait.width // 8, max(0, (height-portrait.height)//2)))
+    shade = Image.new("RGBA", tile.size)
+    sd = ImageDraw.Draw(shade)
+    for x in range(width):
+        alpha = int(245 - 110 * x/max(width-1, 1))
+        sd.line((x, 0, x, height), fill=(15, 24, 38, alpha))
+    tile.alpha_composite(shade)
+    draw = SummaryDraw(tile, "RGBA", numeric_font_path=RESOURCE_DIR / "GrotaRoundedExtraBold.otf")
+    draw.line((pad, 0, min(width-pad, pad+72), 0), fill=role_color, width=5)
+    role_icon = _load_role_icon(role, 18)
+    if role_icon is not None:
+        tile.alpha_composite(role_icon, (pad, pad+2))
+    draw.text((pad+26, pad), ROLE_LABELS.get(role, "开放"), font=_load_summary_font(14, bold=False), fill=role_color)
+    name = str(hero.get("hero_name") or "未知英雄")
+    name_font = _fit_font(draw, name, 24 if compact else 36, width-pad*2, bold=True)
+    draw.text((pad, pad+29), _truncate_text(draw, name, name_font, width-pad*2), font=name_font, fill=TEXT_PRIMARY)
+    number_size = min(64, max(24, int(min(width*.23, height*.16))))
+    rate_font = _fit_font(draw, f"{float(hero.get('win_rate') or 0):.1f}%", number_size, width-pad*2, bold=True)
+    rate_y = pad+62 if height>=190 else pad+52
+    draw.text((pad, rate_y), f"{float(hero.get('win_rate') or 0):.1f}%", font=rate_font, fill=accent)
+    if width>=270:
+        rate_width=_measure(draw, f"{float(hero.get('win_rate') or 0):.1f}%", rate_font)[0]
+        if rate_width+pad+40<width-pad:
+            draw.text((pad+rate_width+10, rate_y+rate_font.size-19), "胜率", font=_load_summary_font(14,bold=False), fill=TEXT_MUTED)
+    kda=hero.get("kda")
+    kda_text=f"{kda:.2f}" if kda is not None else "--"
+    combat=hero.get("combat") or []
+    if kda is None and len(combat)==3 and combat[2]["value"]==0 and combat[0]["value"]+combat[1]["value"]>0:
+        kda_text="∞"
+    kda_y=rate_y+rate_font.size+7
+    kda_font=_load_summary_font(13 if height<190 or width<180 else 19,bold=True)
+    draw.text((pad,kda_y),f"KDA {kda_text}",font=kda_font,fill=(238,204,129))
+    meta_font = _load_summary_font(12 if compact else 17, bold=False)
+    perks=list(hero.get("recent_perks") or [])
+    footer_lines=2 if height>=360 or (height>=250 and not perks) else 1
+    footer_y=height-pad-footer_lines*23
+    if footer_y>kda_y+kda_font.size+7:
+        meta=f"{_format_hours(float(hero.get('game_time_sec') or 0))} · {int(hero.get('match_sum') or 0)}场"
+        draw.text((pad,footer_y),_truncate_text(draw,meta,meta_font,width-pad*2),font=meta_font,fill=TEXT_SECONDARY)
+        if footer_lines==2:
+            draw.text((pad,footer_y+24),f"时长占比 {float(hero.get('time_share') or 0)*100:.1f}%",font=_load_summary_font(12 if compact else 15,bold=False),fill=TEXT_MUTED)
+    detail_y=kda_y+kda_font.size+(12 if perks else 24)
+    detail_bottom=footer_y-14
+    max_lines=7 if width>=500 else 4 if width>=300 else 2 if width>=200 else 0
+    details=[]
+    if combat and width>=300:
+        details.append((f"{combat[0]['unit']}  " + " / ".join(f"{v['label']} {v['value']:.1f}" for v in combat),TEXT_SECONDARY))
+    stats=list(hero.get("special_stats") or [])
+    perks=list(hero.get("recent_perks") or [])
+    perk_height=36
+    side_by_side=width>=400 and len(perks)>1
+    perk_slots=(min(len(perks),2) if detail_bottom-detail_y>=perk_height else 0) if side_by_side else min(len(perks),max(0,(detail_bottom-detail_y)//perk_height)) if width>=180 else 0
+    perk_space=perk_height if side_by_side and perk_slots else perk_slots*perk_height
+    available=min(max_lines,max(0,(detail_bottom-detail_y-perk_space)//29))
+    stat_limit=max(0,available-len(details))
+    for stat in stats[:stat_limit]:
+        label=stat['label']; value=stat['value']
+        unit="%" if "率" in label else ""
+        suffix="" if unit else f" /{stat['unit']}"
+        details.append((f"{label}  {value*100 if unit else value:.1f}{unit}{suffix}",TEXT_SECONDARY))
+    if details and available:
+        draw.line((pad,detail_y-10,min(width-pad,pad+460),detail_y-10),fill=(71,88,110,160))
+    for label,color in details[:available]:
+        font=_load_summary_font(16 if width>=500 else 14,bold=False)
+        draw.text((pad,detail_y),_truncate_text(draw,label,font,width-pad*2),font=font,fill=color)
+        detail_y+=29
+    for perk_index,perk in enumerate(perks[:perk_slots]):
+        perk_left=pad+perk_index*((width-pad*2)//2) if side_by_side else pad
+        perk_right=perk_left+(width-pad*2)//2-8 if side_by_side else width-pad
+        icon=_open_cached_asset(perk.get("icon_url"), ("heroes","perk","misc"))
+        if icon is not None:
+            icon=ImageOps.contain(icon,(30,30),method=_resampling_lanczos())
+            tile.alpha_composite(icon,(perk_left,detail_y+3))
+        else:
+            draw.polygon([(perk_left+15,detail_y+3),(perk_left+28,detail_y+16),(perk_left+15,detail_y+29),(perk_left+2,detail_y+16)],outline=(186,172,230))
+        text_x=perk_left+38
+        name=str(perk.get("name") or "未知威能")
+        name_font=_fit_font(draw,name,16,perk_right-text_x,bold=True)
+        draw.text((text_x,detail_y),name,font=name_font,fill=(216,206,246))
+        tier="次级" if perk["level"]==1 else "主要"
+        draw.text((text_x,detail_y+21),f"近期{tier} · {perk['pick_count']}/{perk['sample_count']}次",font=_load_summary_font(11,bold=False),fill=TEXT_MUTED)
+        if not side_by_side:detail_y+=perk_height
+    mask = Image.new("L", tile.size)
+    ImageDraw.Draw(mask).rounded_rectangle((0,0,width-1,height-1), radius=14, fill=255)
+    draw.rounded_rectangle((0,0,width-1,height-1), radius=14, outline=(88,109,135,100), width=1)
+    canvas.paste(tile, (left, top), mask)
 
 
 def _draw_fallback_avatar(draw: Any, *, hero: Dict[str, Any], box: tuple[int, int, int, int]) -> None:
@@ -748,15 +716,6 @@ def _build_canvas_overlay(size: tuple[int, int], *, has_background: bool) -> Any
             ),
         )
 
-    stripe_step = 64
-    for offset in range(-height, width + height, stripe_step):
-        draw.line((offset, 0, offset + height, height), fill=(255, 255, 255, stripe_alpha), width=1)
-
-    grid_step = 120
-    for x in range(0, width, grid_step):
-        draw.line((x, 0, x, height), fill=(255, 255, 255, 6), width=1)
-    for y in range(0, height, grid_step):
-        draw.line((0, y, width, y), fill=(255, 255, 255, 5), width=1)
     return overlay
 
 

@@ -162,8 +162,10 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
                 "mode",
                 default="competitive",
                 options=(
-                    HTTPUIFieldOption("competitive", "竞技"),
-                    HTTPUIFieldOption("quick", "快速"),
+                    HTTPUIFieldOption("competitive", "竞技 5v5"),
+                    HTTPUIFieldOption("quick", "快速 5v5"),
+                    HTTPUIFieldOption("quick6v6", "快速 6v6"),
+                    HTTPUIFieldOption("competitive6v6", "竞技 6v6"),
                 ),
             ),
         ),
