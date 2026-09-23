@@ -48,6 +48,7 @@ AUTO_ROUTE_SUPPORTED_COMMANDS = AUTO_ROUTE_SUPPORTED_COMMANDS + (
     "OW英雄 猎空 闪现最多几层",
 )
 AUTO_ROUTE_SUPPORTED_COMMANDS = AUTO_ROUTE_SUPPORTED_COMMANDS + ("英雄云图 Player#12345", "快速英雄云图 Player#12345")
+AUTO_ROUTE_SUPPORTED_COMMANDS += ("英雄对比 PlayerA#12345 PlayerB#67890 [英雄]",)
 AUTO_ROUTE_GAME_MODE_ALIASES = {
     "快速": "quick",
     "quick": "quick",
@@ -114,7 +115,7 @@ Rules:
 5. For hero_pick_rate, default to ranking + quick + all unless the user clearly asks for history or another mode/rank.
 6. For hero_perk, only pass the hero name or heroGuid.
 7. For hero_wiki, only pass hero plus an optional question about that hero.
-8. For hero_treemap, default to competitive unless the user clearly asks for quick. For explicit 6v6 requests use quick6v6 or competitive6v6.
+8. For hero_treemap, default to quick unless the user clearly asks for competitive. For explicit 6v6 requests use quick6v6 or competitive6v6. Open quick queue is open; open competitive queue is competitive_open.
 9. For patch_notes, default to latest.
 10. If the user asks for one player tool but the target is missing, still choose the best tool instead of chatting.
 11. For dashen_profile, a trailing `*` on the user's command means competitive mode.
@@ -296,6 +297,7 @@ class AutoRouteModule:
         self._selection_builders: Dict[str, Callable[[Dict[str, Any]], AutoRouteSelection]] = {
             "dashen_profile": self._build_dashen_profile_selection,
             "hero_treemap": self._build_hero_treemap_selection,
+            "hero_compare": self._build_hero_compare_selection,
             "dashen_match": self._build_dashen_match_selection,
             "dashen_sameplay": self._build_dashen_sameplay_selection,
             "summary_today": lambda arguments: self._build_summary_selection(arguments, scope="today"),
@@ -329,6 +331,7 @@ class AutoRouteModule:
                     },
                 },
             },
+            {"type":"function","function":{"name":"hero_compare","description":"对比两名玩家的英雄数据，默认各自时长前三，可指定英雄。","parameters":{"type":"object","properties":{"player1":{"type":"string"},"player2":{"type":"string"},"hero":{"type":"string"},"mode":{"type":"string","enum":["quick","competitive","open","competitive_open"]}},"required":["player1","player2"],"additionalProperties":False}}},
             {
                 "type": "function",
                 "function": {
@@ -338,7 +341,7 @@ class AutoRouteModule:
                         "type": "object",
                         "properties": {
                             "target": {"type": "string"},
-                            "mode": {"type": "string", "enum": ["quick", "competitive", "quick6v6", "competitive6v6"]},
+                            "mode": {"type": "string", "enum": ["quick", "competitive", "quick6v6", "competitive6v6", "open", "competitive_open"]},
                         },
                         "additionalProperties": False,
                     },
@@ -599,6 +602,14 @@ class AutoRouteModule:
             endpoint_mode="image",
             payload=payload,
         )
+
+    def _build_hero_compare_selection(self, arguments):
+        from ..dashen_hero_treemap.requests import normalize_treemap_mode
+        for key in ("player1","player2"):
+            if not str(arguments.get(key) or "").strip():raise ValueError("英雄对比需要两名玩家")
+        payload={key:str(arguments.get(key) or "").strip() for key in ("player1","player2","hero")}
+        payload["mode"]=normalize_treemap_mode(arguments.get("mode"))
+        return AutoRouteSelection(tool_name="hero_compare",module_name="dashen_hero_compare",endpoint="/api/v2/dashen-hero-compare/image",endpoint_mode="image",payload=payload)
 
     def _build_hero_treemap_selection(self, arguments: Dict[str, Any]) -> AutoRouteSelection:
         payload = _require_target_payload(arguments.get("target"))

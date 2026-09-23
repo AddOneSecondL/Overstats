@@ -143,6 +143,17 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
         ),
     ),
     HTTPUIModuleSpec(
+        id="dashen-hero-compare", title="英雄对比",
+        description="比较两名玩家的前三英雄或指定英雄，无数据依次回查前三赛季。",
+        json_endpoint="/api/v2/dashen-hero-compare", image_endpoint="/api/v2/dashen-hero-compare/image", requires_target=False,
+        fields=(
+            HTTPUIFieldSpec("compare_player1", "玩家一", "player1", placeholder="Player#12345"),
+            HTTPUIFieldSpec("compare_player2", "玩家二", "player2", placeholder="Player#67890"),
+            HTTPUIFieldSpec("compare_hero", "英雄（可选）", "hero", placeholder="安娜"),
+            _select_field("compare_mode", "模式", "mode", default="quick", options=(HTTPUIFieldOption("quick","快速"),HTTPUIFieldOption("competitive","竞技"),HTTPUIFieldOption("open","开放"),HTTPUIFieldOption("competitive_open","开放竞技"))),
+        ),
+    ),
+    HTTPUIModuleSpec(
         id="dashen-hero-treemap",
         title="英雄云图",
         description="按英雄游玩时长生成胜率大盘云图，支持 JSON 或图片输出。",
@@ -160,12 +171,14 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
                 "treemap_mode",
                 "数据模式",
                 "mode",
-                default="competitive",
+                default="quick",
                 options=(
                     HTTPUIFieldOption("competitive", "竞技 5v5"),
                     HTTPUIFieldOption("quick", "快速 5v5"),
                     HTTPUIFieldOption("quick6v6", "快速 6v6"),
                     HTTPUIFieldOption("competitive6v6", "竞技 6v6"),
+                    HTTPUIFieldOption("open", "快速开放"),
+                    HTTPUIFieldOption("competitive_open", "开放竞技"),
                 ),
             ),
         ),

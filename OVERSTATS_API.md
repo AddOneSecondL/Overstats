@@ -1258,3 +1258,8 @@ Common auto-route errors:
   "dashen_max_concurrent_requests": 2
 }
 ```
+
+
+## 英雄对比
+
+`POST /api/v2/dashen-hero-compare` 和 `/api/v2/dashen-hero-compare/image` 接受 `player1`、`player2`、可选 `hero`、`mode`（默认quick）、`season`。默认各自当前赛季时长前三；无目标英雄数据时依次回查前三赛季，返回各列实际赛季。详见 `src/modules/dashen_hero_compare/README.md`。

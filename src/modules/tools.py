@@ -155,3 +155,5 @@ register_module(
     "Private local SQLite lookup from Battle.net numeric ID to candidate BattleTags.",
     public=False,
 )
+
+register_module("dashen_hero_compare", "overstats.src.modules.dashen_hero_compare", "Compare two players hero statistics with three-season fallback.")

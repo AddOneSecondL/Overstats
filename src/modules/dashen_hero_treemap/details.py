@@ -34,6 +34,8 @@ async def enrich_recent_perks(heroes, bundle, mode, client, config):
     expected={"quickpreset", "quickplay", "leisurepreset"} if is_quick(mode) else {"sportpreset", "competitive"}
     if mode.endswith("6v6"):
         expected={"quickv6", "leisurev6"} if is_quick(mode) else {"sportv6"}
+    if mode in ("open", "competitive_open"):
+        expected={"quickopen", "leisureopen"} if is_quick(mode) else {"sportopen"}
     async def page(number):
         try:
             payload=await asyncio.wait_for(client.query_match_list(bundle.customer_token,"leisure" if is_quick(mode) else "sport",page=number,season=bundle.request_season),timeout=10)

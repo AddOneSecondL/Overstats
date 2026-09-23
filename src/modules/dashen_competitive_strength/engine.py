@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
+import time
+import uuid
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 try:
     from overstats.src.constants.ranks import get_rank_score, raw_rank_score_to_strength, strength_score_to_rank
-    from overstats.src.modules.personal_data_percentile import calculate_personal_data_ranking
 except ModuleNotFoundError:
     from src.constants.ranks import get_rank_score, raw_rank_score_to_strength, strength_score_to_rank
-    from src.modules.personal_data_percentile import calculate_personal_data_ranking
 
 from .requests import DashenCompetitiveStrengthRequests, get_live_dashen_season, normalize_role_type
 
@@ -133,13 +134,29 @@ class DashenCompetitiveStrengthEngine:
         include_previous_season: bool,
         config: Dict[str, Any],
     ) -> Dict[str, Any]:
+        trace_id = uuid.uuid4().hex[:8]
+
+        @contextmanager
+        def stage(name: str):
+            started = time.monotonic()
+            print(f"[overstats] competitive-strength trace={trace_id} stage={name} start", flush=True)
+            try:
+                yield
+            finally:
+                elapsed = time.monotonic() - started
+                print(
+                    f"[overstats] competitive-strength trace={trace_id} stage={name} elapsed_s={elapsed:.3f}",
+                    flush=True,
+                )
+
         match_limit = normalize_limit(limit)
         live_season = int(get_live_dashen_season())
-        recent_matches = await self.requests.list_recent_competitive_matches(
-            customer_token,
-            limit=match_limit,
-            include_previous_season=include_previous_season,
-        )
+        with stage("recent_matches"):
+            recent_matches = await self.requests.list_recent_competitive_matches(
+                customer_token,
+                limit=match_limit,
+                include_previous_season=include_previous_season,
+            )
         if not recent_matches:
             return {
                 "summary": {
@@ -205,7 +222,8 @@ class DashenCompetitiveStrengthEngine:
                     get_player_competitive_meta=get_player_competitive_meta,
                 )
 
-        results = await asyncio.gather(*(build_one(match) for match in recent_matches), return_exceptions=True)
+        with stage("match_details_and_player_ranks"):
+            results = await asyncio.gather(*(build_one(match) for match in recent_matches), return_exceptions=True)
 
         match_points_desc: List[Dict[str, Any]] = []
         used_previous_fallback = False
@@ -229,12 +247,6 @@ class DashenCompetitiveStrengthEngine:
         ]
         summary_score_range = _range_dict(int(round(score)) for score in valid_avg_scores)
         overall_avg_score = round(sum(valid_avg_scores) / len(valid_avg_scores), 1) if valid_avg_scores else 0.0
-        personal_data_ranking = await asyncio.to_thread(
-            calculate_personal_data_ranking,
-            config,
-            list(match_detail_cache.values()),
-        )
-
         for point in match_points:
             point.pop("_used_previous_season_fallback", None)
 
@@ -245,15 +257,10 @@ class DashenCompetitiveStrengthEngine:
                 "overall_avg_rank": score_to_rank(overall_avg_score) if overall_avg_score > 0 else "Unranked",
                 "score_range": summary_score_range,
                 "used_previous_season_fallback": used_previous_fallback,
-                "personal_data_exceeded_percent": (
-                    personal_data_ranking.exceeded_percent if personal_data_ranking else None
-                ),
-                "personal_data_top_percent": (
-                    personal_data_ranking.top_percent if personal_data_ranking else None
-                ),
-                "personal_data_metric_count": (
-                    personal_data_ranking.metric_count if personal_data_ranking else 0
-                ),
+                # Keep response fields compatible; population percentiles are disabled.
+                "personal_data_exceeded_percent": None,
+                "personal_data_top_percent": None,
+                "personal_data_metric_count": 0,
             },
             "matches": match_points,
         }

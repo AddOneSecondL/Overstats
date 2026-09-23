@@ -1,0 +1,1 @@
+from .service import DashenHeroCompareQuery, DashenHeroCompareModule, dashen_hero_compare_module

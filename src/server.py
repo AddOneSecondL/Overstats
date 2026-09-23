@@ -23,6 +23,7 @@ try:
     )
     from overstats.src.modules.blizzard_profile import BlizzardProfileQuery, blizzard_profile_module
     from overstats.src.modules.dashen_profile import DashenProfileQuery, dashen_profile_module
+    from overstats.src.modules.dashen_hero_compare import DashenHeroCompareQuery, dashen_hero_compare_module
     from overstats.src.modules.dashen_hero_treemap import (
         DashenHeroTreemapQuery,
         dashen_hero_treemap_module,
@@ -79,6 +80,7 @@ except ModuleNotFoundError:
     )
     from src.modules.blizzard_profile import BlizzardProfileQuery, blizzard_profile_module
     from src.modules.dashen_profile import DashenProfileQuery, dashen_profile_module
+    from src.modules.dashen_hero_compare import DashenHeroCompareQuery, dashen_hero_compare_module
     from src.modules.dashen_hero_treemap import (
         DashenHeroTreemapQuery,
         dashen_hero_treemap_module,
@@ -408,6 +410,20 @@ class OverstatsCoreService:
             lambda: self._handle_blizzard_profile_image(payload),
         )
 
+    async def handle_dashen_hero_compare(self, payload, *, render=False):
+        async def run():
+            try:
+                season=_coerce_optional_int(payload, "season", "season_c")
+                query=DashenHeroCompareQuery(player1=str(payload.get("player1") or ""),player2=str(payload.get("player2") or ""),hero=str(payload.get("hero") or ""),mode=str(payload.get("mode") or "quick"),season=season)
+            except (ValueError,TypeError) as exc:
+                raise ModuleError(error="invalid_compare_query",message=str(exc),status_code=400) from exc
+            result=await dashen_hero_compare_module.query_compare(query,render=render)
+            return result.image.content if render else result.to_dict()
+        return await self.dashen_request_queue.run("hero_compare",run)
+
+    async def handle_dashen_hero_compare_image(self, payload):
+        return await self.handle_dashen_hero_compare(payload,render=True)
+
     async def handle_dashen_hero_treemap(self, payload: Dict[str, object]) -> Dict[str, object]:
         return await self.dashen_request_queue.run(
             "hero_treemap",
@@ -692,6 +708,7 @@ class OverstatsCoreService:
             "/api/v2/dashen-rank-history/image": lambda: self.handle_dashen_rank_history_image(selection.payload),
             "/api/v2/dashen-quick-strength/image": lambda: self.handle_dashen_quick_strength_image(selection.payload),
             "/api/v2/dashen-competitive-strength/image": lambda: self.handle_dashen_competitive_strength_image(selection.payload),
+            "/api/v2/dashen-hero-compare/image": lambda: self.handle_dashen_hero_compare_image(selection.payload),
             "/api/v2/dashen-hero-treemap/image": lambda: self.handle_dashen_hero_treemap_image(selection.payload),
             "/api/v2/ow-hero-perk/image": lambda: self.handle_ow_hero_perk_image(selection.payload),
             "/api/v2/ow_hero_wiki/image": lambda: self.handle_ow_hero_wiki_image(selection.payload),
@@ -710,6 +727,7 @@ class OverstatsCoreService:
             "/api/v2/dashen-rank-history": lambda: self.handle_dashen_rank_history(selection.payload),
             "/api/v2/dashen-quick-strength": lambda: self.handle_dashen_quick_strength(selection.payload),
             "/api/v2/dashen-competitive-strength": lambda: self.handle_dashen_competitive_strength(selection.payload),
+            "/api/v2/dashen-hero-compare": lambda: self.handle_dashen_hero_compare(selection.payload),
             "/api/v2/dashen-hero-treemap": lambda: self.handle_dashen_hero_treemap(selection.payload),
             "/api/v2/ow-hero-perk": lambda: self.handle_ow_hero_perk(selection.payload),
             "/api/v2/ow_hero_wiki": lambda: self.handle_ow_hero_wiki(selection.payload),
@@ -2053,6 +2071,12 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
                 self._handle_dashen_profile_post()
                 return
 
+            if path == "/api/v2/dashen-hero-compare/image":
+                self._handle_dashen_hero_compare_image_post()
+                return
+            if path == "/api/v2/dashen-hero-compare":
+                self._handle_dashen_hero_compare_post()
+                return
             if path == "/api/v2/dashen-hero-treemap/image":
                 self._handle_dashen_hero_treemap_image_post()
                 return
@@ -3520,6 +3544,96 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
 
             try:
                 image_body = async_runner.run(service.handle_dashen_profile_image(payload))
+            except ModuleError as exc:
+                self._send_json(
+                    HTTPStatus(exc.status_code),
+                    {
+                        "ok": False,
+                        "error": exc.error,
+                        "message": exc.message,
+                        "hint": exc.hint,
+                        "details": exc.details,
+                    },
+                )
+                return
+            except Exception as exc:
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {
+                        "ok": False,
+                        "error": "internal_error",
+                        "message": "Internal server error. See details.",
+                        "details": {
+                            "exception": type(exc).__name__,
+                            "message": str(exc),
+                        },
+                    },
+                )
+                return
+
+            self._send_binary(HTTPStatus.OK, image_body, "image/png")
+
+        def _handle_dashen_hero_compare_post(self) -> None:
+            try:
+                payload = self._read_json_body()
+            except ValueError as exc:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "ok": False,
+                        "error": "invalid_json",
+                        "message": str(exc),
+                    },
+                )
+                return
+
+            try:
+                result = async_runner.run(service.handle_dashen_hero_compare(payload))
+            except ModuleError as exc:
+                self._send_json(
+                    HTTPStatus(exc.status_code),
+                    {
+                        "ok": False,
+                        "error": exc.error,
+                        "message": exc.message,
+                        "hint": exc.hint,
+                        "details": exc.details,
+                    },
+                )
+                return
+            except Exception as exc:
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {
+                        "ok": False,
+                        "error": "internal_error",
+                        "message": "Internal server error. See details.",
+                        "details": {
+                            "exception": type(exc).__name__,
+                            "message": str(exc),
+                        },
+                    },
+                )
+                return
+
+            self._send_json(HTTPStatus.OK, result)
+
+        def _handle_dashen_hero_compare_image_post(self) -> None:
+            try:
+                payload = self._read_json_body()
+            except ValueError as exc:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "ok": False,
+                        "error": "invalid_json",
+                        "message": str(exc),
+                    },
+                )
+                return
+
+            try:
+                image_body = async_runner.run(service.handle_dashen_hero_compare_image(payload))
             except ModuleError as exc:
                 self._send_json(
                     HTTPStatus(exc.status_code),

@@ -25,12 +25,14 @@ except ModuleNotFoundError:
 
 MODE_COMPETITIVE = "competitive"
 MODE_QUICK = "quick"
-SUPPORTED_TREEMAP_MODES = (MODE_COMPETITIVE, MODE_QUICK, "quick6v6", "competitive6v6")
+SUPPORTED_TREEMAP_MODES = (MODE_COMPETITIVE, MODE_QUICK, "quick6v6", "competitive6v6", "open", "competitive_open")
 
 def is_quick(mode):
-    return mode in (MODE_QUICK, "quick6v6")
+    return mode in (MODE_QUICK, "quick6v6", "open")
 
 def hero_queue_keys(mode):
+    if mode in ("open", "competitive_open"):
+        return ("openHeroUseSummaryList", "openHeroList")
     if mode.endswith("6v6"):
         return ("v6HeroUseSummaryList",)
     return ("presetsHeroUseSummaryList", "presetsyList" if is_quick(mode) else "presetsHeroList")
@@ -42,19 +44,19 @@ class DashenHeroTreemapQuery:
     bnet_id: str = ""
     season: Optional[int] = None
     include_previous_season: bool = True
-    mode: str = MODE_COMPETITIVE
+    mode: str = MODE_QUICK
 
 
 def normalize_treemap_mode(value: Any) -> str:
     normalized = str(value or "").strip().lower()
-    if normalized in {"quick6v6", "competitive6v6"}:
+    if normalized in {"quick6v6", "competitive6v6", "open", "competitive_open"}:
         return normalized
     if normalized in {"competitive", "comp", "ranked"}:
         return MODE_COMPETITIVE
     if normalized in {"quick", "overview"}:
         return MODE_QUICK
     if not normalized:
-        return MODE_COMPETITIVE
+        return MODE_QUICK
     raise ValueError(f"Unsupported mode: {value}")
 
 

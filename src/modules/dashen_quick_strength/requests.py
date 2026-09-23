@@ -136,6 +136,7 @@ class DashenQuickStrengthRequests:
             for request_season in iter_dashen_season_request_values(logical_season):
                 page = 1
                 while count_unique_match_entries(season_matches) < int(limit):
+                    previous_count = count_unique_match_entries(season_matches)
                     tasks = [
                         self.api_client.query_match_list(
                             customer_token,
@@ -161,7 +162,8 @@ class DashenQuickStrengthRequests:
                             item["_dashenSeason"] = logical_season
                             item.setdefault("gameMode", "leisure")
                             season_matches.append(item)
-                    if not batch_has_data:
+                    season_matches = merge_unique_match_entries([], season_matches)
+                    if not batch_has_data or count_unique_match_entries(season_matches) <= previous_count:
                         break
                     page += max(1, int(pages_per_batch))
                 if season_matches:

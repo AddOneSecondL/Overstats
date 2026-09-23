@@ -122,7 +122,7 @@ def render_hero_treemap(
     for hero, rect in zip(heroes, tile_rects):
         _draw_tile(canvas, hero=dict(hero, time_share=float(hero.get("game_time_sec") or 0) / max(total_game_time_sec, 1)), rect=rect, fonts=fonts)
 
-    draw.text((36, CANVAS_HEIGHT - 34), "模式参数：quick 快速 · competitive 竞技 · quick6v6 快速6v6 · competitive6v6 竞技6v6", font=fonts["header_meta"], fill=TEXT_MUTED)
+    draw.text((36, CANVAS_HEIGHT - 34), "模式参数：quick 快速 · competitive 竞技 · open 开放 · competitive_open 开放竞技 · quick6v6 / competitive6v6", font=fonts["header_meta"], fill=TEXT_MUTED)
     output = BytesIO()
     canvas.save(output, format="PNG")
     return RenderedImage(content=output.getvalue())
@@ -237,6 +237,8 @@ def _draw_header(
 
 
 def _mode_label(mode: str) -> str:
+    if mode in ("open", "competitive_open"):
+        return "快速开放" if is_quick(mode) else "开放竞技"
     return ("快速" if is_quick(mode) else "竞技") + (" 6v6" if mode.endswith("6v6") else " 5v5")
 
 
@@ -450,7 +452,7 @@ def _draw_tile(canvas: Any, *, hero: Dict[str, Any], rect: _Rect, fonts: Dict[st
     draw.text((pad,kda_y),f"KDA {kda_text}",font=kda_font,fill=(238,204,129))
     meta_font = _load_summary_font(12 if compact else 17, bold=False)
     perks=list(hero.get("recent_perks") or [])
-    footer_lines=2 if height>=360 or (height>=250 and not perks) else 1
+    footer_lines=1 if hero.get("hide_time_share") else 2 if height>=360 or (height>=250 and not perks) else 1
     footer_y=height-pad-footer_lines*23
     if footer_y>kda_y+kda_font.size+7:
         meta=f"{_format_hours(float(hero.get('game_time_sec') or 0))} · {int(hero.get('match_sum') or 0)}场"
