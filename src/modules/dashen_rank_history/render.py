@@ -16,9 +16,9 @@ except ModuleNotFoundError:
     from src.modules.query_tool import get_cached_asset_path, load_query_tool
 
 try:
-    from overstats.src.constants.ranks import get_rank_score, get_rank_sub_tier, raw_rank_score_to_icon_level
+    from overstats.src.constants.ranks import get_rank_score, get_rank_sub_tier, raw_rank_score_to_icon_level, rank_info_to_icon_level
 except ModuleNotFoundError:
-    from src.constants.ranks import get_rank_score, get_rank_sub_tier, raw_rank_score_to_icon_level
+    from src.constants.ranks import get_rank_score, get_rank_sub_tier, raw_rank_score_to_icon_level, rank_info_to_icon_level
 
 try:
     from overstats.src.modules.font_resolver import load_font, resolve_resource_dir
@@ -84,6 +84,21 @@ def collect_missing_assets(seasons: Sequence[Dict[str, Any]]) -> List[str]:
             continue
         if not (SEASON_LOGO_DIR / f"s{season}.png").exists():
             _append(f"overstats/res/season_logo/s{season}.png")
+        for payload_key, rows_key, prefix in (
+            ("sport_payload", "guideCountData", ""),
+            ("fight_payload", "roleTypeCountData", "c"),
+        ):
+            for row in payload_data(item.get(payload_key)).get(rows_key, []) or []:
+                if not isinstance(row, dict):
+                    continue
+                for key in ("lastRankInfo", "maxRankInfo"):
+                    info = row.get(key)
+                    if not isinstance(info, dict):
+                        continue
+                    level = raw_rank_score_to_icon_level(get_rank_score(info)) if prefix else rank_info_to_icon_level(info)
+                    filename = f"{prefix}{level}.png"
+                    if level > 0 and not (RANK_FLAT_DIR / filename).exists():
+                        _append(f"overstats/res/rank_flat/{filename}")
     return missing
 
 
@@ -238,11 +253,11 @@ def _paste_rank_bar(
 ) -> None:
     score = _safe_int(get_rank_score(rank_info))
     tier = _safe_int(get_rank_sub_tier(rank_info))
-    if score <= 0:
+    rank_level = raw_rank_score_to_icon_level(score) if prefix else rank_info_to_icon_level(rank_info)
+    if score <= 0 and rank_level <= 0:
         draw.text((x + 57, y + 10), "未定级", font=fonts["font_cn_small_ex"], fill=(180, 190, 205), anchor="mt")
         return
 
-    rank_level = raw_rank_score_to_icon_level(score)
     asset = RANK_FLAT_DIR / f"{prefix}{rank_level}.png"
     rank_image = _load_local_rgba(asset)
     if rank_image is not None:
