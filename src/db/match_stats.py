@@ -454,6 +454,7 @@ class IDPoolDB:
         rank_scores: Optional[List[int]] = None,
         ratio_statmap_names: Optional[List[str]] = None,
         group_by_rank: bool = True,
+        preaggregated_only: bool = False,
     ) -> Dict[str, Any]:
         hero_guid = str(hero_guid or "").strip()
         if not hero_guid:
@@ -474,7 +475,7 @@ class IDPoolDB:
             rank_scores=rank_scores,
             group_by_rank=group_by_rank,
         )
-        if summary_rows:
+        if summary_rows or preaggregated_only:
             try:
                 conn.close()
             except Exception:

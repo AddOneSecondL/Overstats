@@ -74,7 +74,7 @@ def render_compare(data):
             draw.text((x+282,y+153),'个人数据',font=font,fill=MUTED)
             if data.get('database_enabled'):
                 draw.text((x+427,y+153),'库内均值',font=font,fill=MUTED)
-                draw.text((x+587,y+153),'Top% / 样本',font=font,fill=MUTED)
+                draw.text((x+587,y+153),'分位档 / 样本',font=font,fill=MUTED)
         row_y=y+184
         for row_index,(pair,lines,row_h) in enumerate(rows):
             better=winner(*pair,same)
@@ -95,15 +95,15 @@ def render_compare(data):
                 if data.get('database_enabled'):
                     ref=m.get('reference') or {}
                     draw.text((x+427,row_y+16),formatted(ref.get('average'),m['unit']),font=fonts['header_emphasis'],fill=(156,186,214))
-                    top=ref.get('top_percent');n=ref.get('player_count',0)
-                    top_text='—' if top is None else f'{top:.1f}%' if top>0 else f'<{100/max(n,1):.1f}%'
-                    draw.text((x+587,row_y+7),top_text,font=fonts['header_emphasis'],fill=(238,204,129) if top is not None else MUTED)
-                    draw.text((x+587,row_y+32),f'{n}位玩家' if n else '无同口径样本',font=_load_summary_font(12,bold=False),fill=MUTED)
+                    band=ref.get('percentile_band');n=ref.get('sample_count',0)
+                    top_text=band or '—'
+                    draw.text((x+587,row_y+7),top_text,font=_fit_font(draw,top_text,20,190,bold=True),fill=(238,204,129) if band else MUTED)
+                    draw.text((x+587,row_y+32),f'{n}条样本' if n else '无聚合参考',font=_load_summary_font(12,bold=False),fill=MUTED)
             row_y+=row_h
         y+=section_h+20
     draw.text((36,height-58),'数据以各列赛季为准；缺项、不同单位及无明确优劣方向的指标不高亮。',font=fonts['header_meta'],fill=MUTED)
     if data.get('database_enabled'):
-        note='数据库暂不可用' if data.get('database_status')=='unavailable' else '数据库参考：库内同英雄全量样本，未按模式/赛季筛选；每位玩家等权，至少5人才显示Top%。'
+        note='数据库暂不可用' if data.get('database_status')=='unavailable' else '数据库参考：同英雄聚合样本，未按模式/赛季筛选；至少5条显示2%/5%/10%/20%参考线，非精确玩家排名。'
         draw.text((36,height-30),note,font=fonts['header_meta'],fill=MUTED)
     output=BytesIO();canvas.save(output,format='PNG')
     return RenderedImage(output.getvalue())

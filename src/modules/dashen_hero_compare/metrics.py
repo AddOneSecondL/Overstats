@@ -39,32 +39,57 @@ def winner(left,right,same_hero):
     if a is None or b is None or math.isclose(a,b,rel_tol=1e-7,abs_tol=1e-8):return None
     return 0 if (a-b)*left['direction']>0 else 1
 
+def aggregate_band(value, summary, direction):
+    """Match stored sample quantiles; this is not an exact player ranking."""
+    if not direction or int(summary.get('count') or 0) < 5:
+        return None
+    prefix = 'bottom' if direction < 0 else 'top'
+    for percent in (2, 5, 10, 20):
+        threshold = summary.get(f'{prefix}{percent}')
+        if threshold is not None and (value <= threshold if direction < 0 else value >= threshold):
+            return f'达到前{percent}%线'
+    threshold = summary.get(f'{prefix}20')
+    return '未达前20%线' if threshold is not None else None
+
+
 async def attach_references(data, *, db=None, enabled=None):
-    enabled=is_database_write_enabled() if enabled is None else enabled
-    data['database_enabled']=bool(enabled)
-    if not enabled:return
-    database=db or IDPoolDB()
-    # Query each player separately: their values for the same hero/stat must not be deduplicated together.
-    def query_player(player):
-        targets=[];lookup={};kdas=[]
-        for hero in player['heroes']:
-            for row in hero.get('metrics',[]):
-                if row['key']=='kda' and row.get('value') is not None:
-                    kdas.append(dict(hero_guid=hero['hero_guid'],value=row['value']))
-                    lookup[(hero['hero_guid'],'KDA')]=row
-                if row.get('reference_value') is None:continue
-                key=(hero['hero_guid'],row['key']);lookup[key]=row
-                targets.append(dict(hero_guid=key[0],statmap_name=key[1],value=row['reference_value'],reverse=row['direction']==-1))
-        comparisons=database.get_personal_stat_percentiles(targets) if targets else []
-        if kdas:comparisons+=database.get_personal_kda_percentiles(kdas,death_floor=0.)
-        for ref in comparisons:
-            row=lookup.get((ref['hero_guid'],ref['statmap_name']))
-            if row is None:continue
-            count=int(ref.get('player_count') or 0)
-            average=ref.get('average')
-            row['reference']=dict(average=average*100 if average is not None and row['unit']=='%' else average,top_percent=max(0.,min(100.,100-float(ref['exceeded_percent']))) if count>=5 and row['direction'] else None,player_count=count)
+    enabled = is_database_write_enabled() if enabled is None else enabled
+    data['database_enabled'] = bool(enabled)
+    if not enabled:
+        return
+    database = db or IDPoolDB()
+
+    def load_references():
+        # Both players share one read per hero. Never fall back to raw records.
+        heroes = {}
+        for player in data['players']:
+            for hero in player['heroes']:
+                rows = [row for row in hero.get('metrics', []) if row.get('reference_value') is not None]
+                if rows:
+                    heroes.setdefault(hero['hero_guid'], []).extend(rows)
+        available = False
+        for hero_guid, rows in heroes.items():
+            summaries = database.get_statmap_summary(
+                hero_guid,
+                statmap_names=list(dict.fromkeys(row['key'] for row in rows)),
+                group_by_rank=False,
+                preaggregated_only=True,
+            )
+            for row in rows:
+                summary = summaries.get((row['key'], None))
+                if not summary:
+                    continue
+                available = True
+                average = summary.get('avg')
+                row['reference'] = dict(
+                    average=average * 100 if average is not None and row['unit'] == '%' else average,
+                    percentile_band=aggregate_band(row['reference_value'], summary, row['direction']),
+                    sample_count=int(summary.get('count') or 0),
+                )
+        return available
+
     try:
-        for player in data['players']:await asyncio.to_thread(query_player,player)
-        data['database_status']='available'
+        available = await asyncio.to_thread(load_references)
+        data['database_status'] = 'available' if available else 'unavailable'
     except Exception:
-        data['database_status']='unavailable'
+        data['database_status'] = 'unavailable'
