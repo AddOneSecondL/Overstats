@@ -26,12 +26,12 @@ def _search_unavailable(payload: Dict[str, Any]) -> bool:
     if payload.get("success") is False or payload.get("ok") is False:
         return True
     code = payload.get("code")
-    if code is not None:
-        return str(code) != "0"
-    if payload.get("success") is True or payload.get("ok") is True:
-        return False
+    if code is not None and str(code) != "0":
+        return True
+    # A successful status without a usable token still becomes bnet_not_found
+    # downstream, so try the fallback accounts before returning that result.
     data = payload.get("data")
-    return not isinstance(data, dict) or not data.get("customerToken")
+    return not isinstance(data, dict) or not str(data.get("customerToken") or "").strip()
 
 
 @dataclass(frozen=True)
