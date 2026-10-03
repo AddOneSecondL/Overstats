@@ -213,9 +213,11 @@ async def _ensure_target_icon_url(resolved_target: Dict[str, Any]) -> Dict[str, 
     if not full_id:
         resolved_target["full_id"] = str(data.get("name") or "").strip()
 
-    bnet_id = str(resolved_target.get("bnet_id") or "").strip()
-    if not bnet_id:
-        resolved_target["bnet_id"] = str(data.get("bnetId") or "").strip()
+    # The card belongs to the queried token. Its numeric ID is authoritative;
+    # search/binding input can contain a BattleTag or an outdated ID instead.
+    card_bnet_id = str(data.get("bnetId") or "").strip()
+    if card_bnet_id:
+        resolved_target["bnet_id"] = card_bnet_id
 
     return resolved_target
 

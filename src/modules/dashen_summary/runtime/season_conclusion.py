@@ -434,9 +434,9 @@ def _detail_root(detail):
         return {}
     total_count = detail.get("totalCount")
     if isinstance(total_count, dict):
-        root = dict(total_count)
-        if "nameMap" in detail and "nameMap" not in root:
-            root["nameMap"] = detail.get("nameMap")
+        # Some responses keep the roster beside totalCount rather than inside it.
+        root = {key: value for key, value in detail.items() if key != "totalCount"}
+        root.update(total_count)
         return root
     return detail
 
@@ -837,8 +837,9 @@ def _find_me(detail, resolved_target):
     if not detail:
         return None, None, {}
 
-    full_id = str(resolved_target.get("full_id") or "")
-    bnet_id = str(resolved_target.get("bnet_id") or "")
+    full_id = str(resolved_target.get("full_id") or "").strip().casefold()
+    bnet_id = str(resolved_target.get("bnet_id") or "").strip()
+    customer_token = str(resolved_target.get("customer_token") or "").strip()
     name_map = {str(k): v for k, v in (detail.get("nameMap") or {}).items()}
 
     players = []
@@ -849,11 +850,21 @@ def _find_me(detail, resolved_target):
                 player["name"] = name_map.get(str(player.get("bnetId")), "")
             players.append((side, player))
 
+    # Prefer stable identifiers over display names, which may be stale or cased differently.
+    for side, player in players:
+        if customer_token and str(player.get("customerToken") or "") == customer_token:
+            return side, player, name_map
     for side, player in players:
         if bnet_id and str(player.get("bnetId")) == bnet_id:
             return side, player, name_map
-        if full_id and player.get("name") == full_id:
-            return side, player, name_map
+    candidates = [(side, player) for side, player in players
+                  if full_id and "#" in full_id and full_id in {
+                      str(player.get("name") or "").strip().casefold(),
+                      str(name_map.get(str(player.get("bnetId"))) or "").strip().casefold(),
+                  }]
+    if len(candidates) == 1:
+        side, player = candidates[0]
+        return side, player, name_map
     return None, None, name_map
 
 
