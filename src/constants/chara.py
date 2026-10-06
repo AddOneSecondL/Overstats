@@ -54,7 +54,8 @@ CHARA_NAME = {
     "瑞稀": ["mizuki", "Mizuki", "mizuki", "MIZUKI", "瑞稀", "瑞希", "斗笠男", "绿帽", "乌龟", "锁链男", "斗笠摩西", "河童", "镰刀男"],
     "西拉": ["sierra", "Sierra", "sierra", "SIERRA", "西拉", "鸟人", "拉稀", "埃科", "希拉", "茜拉", "拉西"],
     "死怨": ["shion", "Shion", "shion", "SHION", "死怨"],
-    "D.Mon": ["d.mon","D.Mon","d.mon","D.MON","D.Mon"]
+    "D.Mon": ["d.mon","D.Mon","d.mon","D.MON","D.Mon"],
+    "血律": ["doctrine","Doctrine","doctrine","DOCTRINE","血律","吸血鬼"]
 }
 
 RANK_DIST = {
