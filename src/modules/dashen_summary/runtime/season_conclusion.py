@@ -912,14 +912,14 @@ def _calculate_period_carry_score(
     death=0,
 ):
     return (
-        (damage + healing + (blocked / 10))
-        + (kill * 200)
+        (damage + healing * 0.8 + blocked * 0.15)
+        + (kill * 100)
         + (final_blows * 200)
-        + (solo_kills * 300)
-        + (assist * 50)
-        + (healing_taken * -0.3)
-        + (damage_taken * 0.3)
-        - (death * 200)
+        + (solo_kills * 200)
+        + (assist * 75)
+        + (healing_taken * -0.1)
+        + (damage_taken * 0.1)
+        - (death * 300)
     )
 
 
@@ -1068,6 +1068,9 @@ def _build_stats(matches, detail_pairs, resolved_target):
             if str(player.get("bnetId")) == str(me.get("bnetId")):
                 continue
             name = _player_name(player, name_map)
+            contact = stats["friends" if str(player.get("bnetId")) in friends else "stranger_details"][name]
+            if ret not in (0, 1):
+                contact["losses"] = contact.get("losses", 0) + 1
             teammate_kda = (_int(player.get("kill")) + _int(player.get("assist"))) / max(1, _int(player.get("death")))
             teammate_hero_guid = player.get("heroGuid")
             if not teammate_hero_guid and player.get("heroList"):
@@ -1678,8 +1681,15 @@ def _overall_metrics(stats, matches, detail_pairs, target):
             if isinstance(me.get("endorserBnetIds"),list):
                 merged["received"]=len(me["endorserBnetIds"])
             players=(root.get("teammateList") or [])+(root.get("enemyList") or [])
-            if players and all(isinstance(p.get("endorserBnetIds"),list) for p in players):
-                merged["given"]=sum(str(me.get("bnetId")) in {str(v) for v in p["endorserBnetIds"]} for p in players if str(p.get("bnetId"))!=str(me.get("bnetId")))
+            # Endorsement lists are sparse: an unendorsed player may omit the field.
+            # One absent list must not discard confirmed outgoing endorsements.
+            my_id = str(me.get("bnetId") or target.get("bnet_id") or "").strip()
+            known_lists = [p for p in players if isinstance(p.get("endorserBnetIds"), list)]
+            if my_id and known_lists:
+                recipients = {str(p.get("bnetId")) for p in known_lists
+                              if p.get("bnetId") is not None and str(p["bnetId"]) != my_id
+                              and my_id in {str(v) for v in p["endorserBnetIds"]}}
+                merged["given"] = len(recipients)
         if root.get("gameTimeSec") is not None:
             merged["gameTimeSec"]=root["gameTimeSec"]
         samples.append(merged)
@@ -2018,24 +2028,20 @@ def _carry_color(ratio):
 
 
 def _carry_baseline(stats):
-    my_score = _calculate_period_carry_score(
-        damage=stats["total_damage"],
-        healing=stats["total_healing"],
-        blocked=stats["total_blocked"],
-        kill=stats["total_kill"],
-        final_blows=stats["total_final_hit"],
-        solo_kills=stats.get("total_solo_kills", 0),
-        assist=stats["total_assist"],
-        healing_taken=stats.get("total_healing_taken", 0),
-        damage_taken=stats.get("total_damage_taken", 0),
-        death=stats["total_death"],
-    )
-    return max(1, my_score / (max(1, stats["total_time"]) / 600))
+    fields = {"damage":"total_damage", "healing":"total_healing", "blocked":"total_blocked",
+              "kill":"total_kill", "final_blows":"total_final_hit", "solo_kills":"total_solo_kills",
+              "assist":"total_assist", "healing_taken":"total_healing_taken",
+              "damage_taken":"total_damage_taken", "death":"total_death"}
+    score = _calculate_period_carry_score(**{key:stats.get(value,0) for key,value in fields.items()})
+    return max(1, score / (max(1, stats.get("total_time",0)) / 600))
 
 
 def _carry_ratio(data, baseline):
-    avg_score = _num(data.get("score")) / (max(1, data.get("time", 0)) / 600)
-    return max(0, avg_score / max(1, baseline) * 100)
+    avg_score = _num(data.get("score")) / (max(1, data.get("time",0)) / 600)
+    games = max(1, data.get("games",0))
+    # Draws are neutral; the result multiplier stays between 0.8 and 1.2.
+    net_rate = max(-1, min(1, (data.get("wins",0)-data.get("losses",0)) / games))
+    return max(0, avg_score / max(1,baseline) * 100 * (1 + .2 * net_rate))
 
 
 def _period_contact_rows(stats):
@@ -3250,6 +3256,110 @@ def _performance_style(entry):
     return grade, {"S":(243,195,109),"A":(153,219,163),"B":(105,198,204),"C":(164,147,203),"D":(187,146,149)}[grade]
 
 
+def _human_ratio(entries):
+    valid = {}
+    for entry in entries:
+        score = _baseline_number(entry.get("score"))
+        if score is None:
+            continue
+        bonus = {1: 100, 0: 50}.get(entry.get("result"), 0)
+        valid[_award_key(entry)] = (score - .05 * bonus) / .95
+    human = sum(value >= 45 - 1e-9 for value in valid.values())
+    return human, len(valid)
+
+
+def _draw_human_ratio(draw, entries, total, x, y, w):
+    human, count = _human_ratio(entries)
+    green, pink = (112, 210, 172), (245, 111, 145)
+    draw.text((x,y), "你是人类吗？", font=_load_font(18,bold=True), fill=(228,238,249))
+    coverage = f"已评价 {count}/{total} 场"
+    draw.text((x+w-_text_size(draw,coverage,_load_font(12))[0],y+4),coverage,font=_load_font(12),fill=(145,163,185))
+    by=y+31
+    draw.rounded_rectangle((x,by,x+w,by+18),radius=9,fill=(49,61,78))
+    if count:
+        split=x+w*human/count
+        draw.rounded_rectangle((x,by,x+w,by+18),radius=9,fill=green if human==count else pink)
+        if 0<human<count:
+            draw.rounded_rectangle((x,by,split,by+18),radius=9,fill=green)
+            if split-x>9:
+                draw.rectangle((split-9,by,split,by+18),fill=green)
+        left=f"人类 {human/count:.1%}"
+        right=f"人机 {1-human/count:.1%}"
+    else:
+        left,right="人类 —","人机 —"
+    draw.text((x,by+24),left,font=_load_font(15,bold=True),fill=green)
+    draw.text((x+w-_text_size(draw,right,_load_font(15,bold=True))[0],by+24),right,font=_load_font(15,bold=True),fill=pink)
+
+
+def _daily_result_series(matches):
+    daily = {}
+    seen = set()
+    for match in matches:
+        key = str(match.get("matchId") or match.get("beginTs") or "")
+        ts = _num(match.get("beginTs"))
+        if key in seen or ts <= 0:
+            continue
+        seen.add(key)
+        day = datetime.datetime.fromtimestamp(ts/1000).date()
+        values = daily.setdefault(day, [0,0,0])
+        result = _int(match.get("matchRet"))
+        values[0] += result == 1
+        values[1] += result not in (0,1)
+        values[2] += 1
+    net_wins = 0
+    rows = []
+    if not daily:
+        return rows
+    day = min(daily)
+    while day <= max(daily):
+        win, loss, played = daily.get(day, [0,0,0])
+        net_wins += win - loss
+        rows.append((day,win,loss,net_wins))
+        day += datetime.timedelta(days=1)
+    return rows
+
+
+def _draw_daily_results(draw, matches, x, y, w, h):
+    rows = _daily_result_series(matches)
+    green,pink,gold=(112,210,172),(245,111,145),(243,195,109)
+    draw.text((x,y),"每日胜负",font=_load_font(17,bold=True),fill=(229,239,249))
+    legend="胜 / 负 · 累计净胜场"
+    draw.text((x+w-_text_size(draw,legend,_load_font(12))[0],y+4),legend,font=_load_font(12),fill=gold)
+    if not rows:
+        draw.text((x,y+50),"暂无数据",font=_load_font(14),fill=(145,163,185))
+        return
+    left,right=x+25,x+w-38
+    top,bottom=y+35,y+h-27
+    center=(top+bottom)/2
+    half=(bottom-top)/2
+    peak=max(1,max(max(row[1],row[2],abs(row[3])) for row in rows))
+    draw.line((left,center,right,center),fill=(104,125,148),width=1)
+    draw.text((x,center-6),"0",font=_load_font(10),fill=(164,177,197))
+    draw.text((x,top),str(peak),font=_load_font(10),fill=green)
+    draw.text((x,bottom-10),str(-peak),font=_load_font(10),fill=pink)
+    step=(right-left)/len(rows)
+    points=[]
+    for i,(day,win,loss,net_wins) in enumerate(rows):
+        cx=left+(i+.5)*step
+        bw=max(.5,step*.68)
+        if win:
+            height = half*win/peak
+            draw.rounded_rectangle((cx-bw/2,center-height,cx+bw/2,center),
+                                   radius=min(3,bw/2,height/2),fill=green)
+        if loss:
+            height = half*loss/peak
+            draw.rounded_rectangle((cx-bw/2,center,cx+bw/2,center+height),
+                                   radius=min(3,bw/2,height/2),fill=pink)
+        points.append((cx,center-half*net_wins/peak))
+    if len(points)>1: draw.line(points,fill=gold,width=2)
+    cx,cy=points[-1]
+    draw.ellipse((cx-3,cy-3,cx+3,cy+3),fill=gold)
+    for i in sorted({0,len(rows)//2,len(rows)-1}):
+        text=f"{rows[i][0]:%m/%d}"
+        tx=left+(i+.5)*step-_text_size(draw,text,_load_font(10))[0]/2
+        draw.text((tx,bottom+9),text,font=_load_font(10),fill=(154,174,196))
+
+
 async def _draw_match_timeline(canvas,draw,box,matches,streak_text,awards=None):
     x,y,right,bottom=box
     _card(draw,box,"对局时间线")
@@ -3264,30 +3374,32 @@ async def _draw_match_timeline(canvas,draw,box,matches,streak_text,awards=None):
     records={_award_key(r):r for r in awards.get("records",[])}
     for i,match in enumerate(matches):
         row,col=divmod(i,8)
-        left,top=x+24+col*158,y+65+row*174
+        left,top=x+24+col*158,y+65+row*142
         key=str(match.get("matchId") or match.get("beginTs") or "")
         entry=evaluated.get(key)
         record=records.get(key) or entry or {}
         label,border=_performance_style(entry)
-        draw.rounded_rectangle((left,top,left+148,top+158),radius=10,fill=(22,33,48))
-        await _paste_remote_cover(canvas,(left+2,top+2,left+146,top+86),_map_icon_url(match.get("mapGuid")),radius=8,tint=(8,15,26,105))
+        draw.rounded_rectangle((left,top,left+148,top+132),radius=10,fill=(22,33,48))
+        await _paste_remote_cover(canvas,(left+2,top+2,left+146,top+70),_map_icon_url(match.get("mapGuid")),radius=8,tint=(8,15,26,105))
         hero=record.get("hero_guid") or match.get("heroGuid")
-        await _paste_summary_hero(canvas,draw,hero,(left+10,top+37,43,43))
+        await _paste_summary_hero(canvas,draw,hero,(left+10,top+30,35,35))
         dt=datetime.datetime.fromtimestamp(_num(match.get("beginTs"))/1000)
         draw.text((left+10,top+9),f'{dt:%H:%M}',font=_load_font(16,bold=True),fill=(246,249,255))
         _draw_mode_badge(draw,left+117,top+7,match,compact=True,canvas=canvas)
-        _draw_summary_role(canvas,draw,record.get("role") or _role_label(hero),left+119,top+55,18)
+        _draw_summary_role(canvas,draw,record.get("role") or _role_label(hero),left+119,top+45,18)
         name=_truncate_to_width(draw,_map_name(match.get("mapGuid")),_load_font(14),128)
-        draw.text((left+10,top+92),name,font=_load_font(14),fill=(220,231,245))
+        draw.text((left+10,top+75),name,font=_load_font(14),fill=(220,231,245))
         result,color=_result_color(match.get("matchRet"))
-        draw.text((left+10,top+116),result,font=_load_font(14),fill=color)
-        draw.text((left+89,top+112),label,font=_load_font(20,bold=True),fill=border)
+        draw.text((left+10,top+99),result,font=_load_font(14),fill=color)
+        draw.text((left+89,top+95),label,font=_load_font(20,bold=True),fill=border)
         if _is_comp(match):
-            _draw_summary_rank(canvas,draw,record.get("rank_info") or match.get("rankInfo"),left+10,top+137,16)
+            _draw_summary_rank(canvas,draw,record.get("rank_info") or match.get("rankInfo"),left+10,top+113,16)
         else:
-            draw.text((left+10,top+139),f'{dt:%m/%d}',font=_load_font(11),fill=(142,164,190))
-        draw.rounded_rectangle((left,top,left+148,top+158),radius=10,outline=border,width=2 if entry else 1)
-    draw.text((x+25,bottom-29),streak_text,font=_load_font(13),fill=(166,186,208))
+            draw.text((left+10,top+115),f'{dt:%m/%d}',font=_load_font(11),fill=(142,164,190))
+        draw.rounded_rectangle((left,top,left+148,top+132),radius=10,outline=border,width=2 if entry else 1)
+    draw.text((x+25,bottom-112),streak_text,font=_load_font(13),fill=(166,186,208))
+
+    _draw_human_ratio(draw, list(evaluated.values()), len(matches), x+25, bottom-84, right-x-50)
 
 
 async def _paste_remote_cover(canvas, box, url, radius=8, tint=(8, 12, 20, 125)):
@@ -3466,7 +3578,6 @@ async def _render_period_image(
     map_win_rows = stats["maps"]
     highlights = _build_period_highlights(detail_pairs, resolved_target)
     profile_tag = _build_period_profile_tag(stats, matches, highlights)
-    carry_baseline = _carry_baseline(stats)
     state_text = _period_title_line(stats).replace("今日状态：", "", 1).strip()
     if state_text.endswith("。"):
         state_text = state_text[:-1]
@@ -3559,7 +3670,7 @@ async def _render_period_image(
     timeline_y1 = mid_y1 + mid_section_h + 30
     sorted_matches = sorted(matches, key=lambda item: item.get("beginTs") or 0)
     timeline_rows = max(1, (len(sorted_matches) + 7) // 8) if sorted_matches else 1
-    timeline_h = 105 + timeline_rows * 174
+    timeline_h = 195 + timeline_rows * 142
     quick_dist_y1 = timeline_y1 + timeline_h + 30
     quick_dist_h = 455
     bottom_y1 = quick_dist_y1 + quick_dist_h + 30
@@ -3577,7 +3688,7 @@ async def _render_period_image(
         weather_total_weeks = 6
     weather_panel_h = max(286, 54 + weather_total_weeks * 36)
     activity_height = 280 if period_scope_text == "本周" else 252
-    activity_offset = 67 + weather_panel_h + 25
+    activity_offset = 67 + weather_panel_h + 25 + 200
     bottom_h = max(428, 96 + highlight_rows_total * 52, activity_offset + activity_height + 24)
     footer_y = bottom_y1 + bottom_h + 18
 
@@ -3855,11 +3966,11 @@ async def _render_period_image(
             )
             games = data.get("games", 0)
             wins = data.get("wins", 0)
-            carry_ratio = _carry_ratio(data, carry_baseline)
+            carry_ratio = _carry_ratio(data, _carry_baseline(stats))
             value_font = _load_font(16, bold=True)
             draw.text((1035, row_y + 1), str(games), font=value_font, fill=(246, 248, 255))
             draw.text((1105, row_y + 1), _fmt_pct(wins, games), font=value_font, fill=_summary_winrate_color(games, wins))
-            draw.text((1202, row_y + 1), f"{carry_ratio:.0f}%", font=value_font, fill=_carry_color(carry_ratio))
+            draw.text((1202, row_y + 1), f"{carry_ratio:.0f}%" if carry_ratio is not None else "—", font=value_font, fill=_carry_color(carry_ratio) if carry_ratio is not None else (145,155,170))
     else:
         draw.text((735, team_table_y), "这段时间像个孤狼。", font=_load_font(16), fill=(160, 170, 185))
 
@@ -3968,6 +4079,7 @@ async def _render_period_image(
 
     _card(draw, (705, bottom_y1, 1350, bottom_y1 + bottom_h), "胜率晴雨表")
     _draw_period_weather_calendar(draw, weather_source_matches, 735, bottom_y1 + 67, 585, weather_panel_h)
+    _draw_daily_results(draw, weather_source_matches, 735, bottom_y1 + 67 + weather_panel_h + 15, 585, 180)
     durations = {str(m.get("matchId") or m.get("beginTs") or ""):_detail_root(d).get("gameTimeSec") for m,d in detail_pairs if _detail_root(d).get("gameTimeSec") is not None}
     activity = hourly_activity(matches, durations, weekly=period_scope_text=="本周")
     _draw_activity_chart(draw, activity, 735, bottom_y1 + activity_offset, 585, activity_height)
