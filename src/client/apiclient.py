@@ -942,46 +942,12 @@ class DashenAPIClient:
             print(f"[overstats] failed to record upstream request metric url={url}: {exc}")
 
     async def _record_player_identity_payload(self, url: str, payload: Any) -> None:
-        if not is_database_write_enabled():
-            return
-        try:
-            host = (httpx.URL(url).host or "").lower()
-        except Exception:
-            host = ""
-        if host != DATAMSAPI_HOST:
-            return
-        recorder = self.player_identity_recorder
-        if recorder is not None:
-            try:
-                await recorder.enqueue(payload)
-            except Exception as exc:
-                print(f"[overstats] failed to enqueue player identity url={url}: {exc}")
-            return
-        try:
-            await record_identity_payload(payload)
-        except Exception as exc:
-            print(f"[overstats] failed to record player identity url={url}: {exc}")
+        # Player identity collection has been retired.
+        return
 
     async def _record_match_detail_payload(self, url: str, payload: Any) -> None:
-        if not is_database_write_enabled():
-            return
-        recorder = self.match_detail_recorder
-        if recorder is None or not isinstance(payload, dict):
-            return
-        try:
-            parsed_url = httpx.URL(str(url or ""))
-        except Exception:
-            return
-        path = str(parsed_url.path or "").rstrip("/")
-        host = (parsed_url.host or "").lower()
-        if host != DATAMSAPI_HOST or path != "/v1/a19ld5tool/customer/queryMatchInfo":
-            return
-        if payload.get("code") != 0 or not isinstance(payload.get("data"), dict):
-            return
-        try:
-            await recorder.enqueue(str(url or ""), payload)
-        except Exception as exc:
-            print(f"[overstats] failed to record match detail url={url}: {exc}")
+        # Raw match persistence has been retired.
+        return
 
     async def request_json(
         self,

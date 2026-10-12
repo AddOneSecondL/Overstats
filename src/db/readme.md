@@ -1,5 +1,17 @@
 # Database
 
+## 隐私约束
+
+禁止持久化玩家 ID、战网名称、身份映射、玩家级对局明细以及任何 token、Cookie 或请求正文。
+身份和对局记录入口已经停用，数据库写入总开关不会重新启用这些入口。
+仅保留已有的不含身份的汇总统计；停用明细采集后，这些汇总不再通过对局明细自动更新。
+
+启动服务器时自动删除旧的 `player_identity_map`、`hero_match_detail`、`comp_data`、`hero_perk_pick` 表，
+并通过 SQLite secure_delete、WAL checkpoint 和 VACUUM 清理数据库文件中的已删除内容。
+也可以先手动运行 `python -m src.db.privacy`。迁移会保留 `comp_data_summary` 和 `hero_perk_summary`。
+部署时先停止旧服务，再更新并启动，避免旧进程重新写入。历史外部备份不属于此迁移范围。
+旧身份查询接口保留兼容，但不再读取身份数据库，返回空匹配。
+
 本目录用于存放 `overstats` 的数据库访问层、数据模型或持久化相关实现。
 
 此处 `readme.md` 预留用于撰写以下规范：

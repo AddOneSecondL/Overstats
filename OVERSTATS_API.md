@@ -2,6 +2,24 @@
 
 面向 `overstats` 本地服务的 HTTP 接口说明。
 
+## 英雄云图：大神 / 小程序
+
+`POST /api/v2/dashen-hero-treemap` 返回 JSON；`POST /api/v2/dashen-hero-treemap/image` 返回 PNG。
+在 `config/config.py` 配置 `HERO_MODULE_MODE = 1` 使用小程序，`0` 或未配置继续使用大神。
+
+小程序请求示例（示例 ID 与凭据均为占位）：
+
+```json
+{"bnetID":"123456789","xcxtoken":"<XCXTOKEN>","mode":"quick"}
+```
+
+也可用 `bnet_name: "Player#12345"`，通过既有战网搜索解析数字 ID。
+小程序模式支持 `quick`、`competitive`、`stadium_quick`、`stadium_competitive`，仅生涯累计，请省略 `season`。
+数字 ID 当前只验证九位；必须提供业务 `xcxtoken`，不接受上游登录 token 替代。
+JSON 返回 `data_source: "mini_program"`、`season.scope: "total"`；小时数为接口取整精度，零小时英雄不绘制。
+缺少参数返回 400，票据失效返回 401，无可绘制数据返回 404，上游或名称搜索失败返回 502。
+配置和样例中不要保存真实票据。完整限制见 [英雄云图模块](src/modules/dashen_hero_treemap/README.md)。
+
 ## 服务地址
 
 - 默认：`http://127.0.0.1:18080`

@@ -116,47 +116,15 @@ def _extract_from_mapping(mapping: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def extract_identity_records(payload: Any) -> List[Dict[str, Any]]:
-    if payload is None:
-        return []
-
-    pending: List[Any] = [payload]
-    seen_nodes: set[int] = set()
-    rows_by_bnetid: Dict[str, Dict[str, Any]] = {}
-
-    while pending:
-        current = pending.pop()
-        node_id = id(current)
-        if node_id in seen_nodes:
-            continue
-        seen_nodes.add(node_id)
-
-        if isinstance(current, dict):
-            record = _extract_from_mapping(current)
-            if record is not None:
-                rows_by_bnetid[record["bnetid"]] = record
-            pending.extend(current.values())
-            continue
-
-        if isinstance(current, (list, tuple, set)):
-            pending.extend(current)
-
-    return list(rows_by_bnetid.values())
+    return []
 
 
 async def record_identity_records(records: List[Dict[str, Any]], *, db: Optional[IDPoolDB] = None) -> int:
-    if not is_database_write_enabled() or not records:
-        return 0
-    identity_db = db or IDPoolDB()
-    return await asyncio.to_thread(identity_db.upsert_player_identity_records, records)
+    return 0
 
 
 async def record_identity_payload(payload: Any, *, db: Optional[IDPoolDB] = None) -> int:
-    if not is_database_write_enabled():
-        return 0
-    records = extract_identity_records(payload)
-    if not records:
-        return 0
-    return await record_identity_records(records, db=db)
+    return 0
 
 
 class PlayerIdentityRecorder:
@@ -168,18 +136,10 @@ class PlayerIdentityRecorder:
         self._closed = False
 
     async def start(self) -> None:
-        if self._started or not is_database_write_enabled():
-            return
-        await asyncio.to_thread(self.db.initialize_player_identity_schema)
-        self._worker_task = asyncio.create_task(self._worker(), name="player-identity-recorder-worker")
-        self._started = True
+        return
 
     async def enqueue(self, payload: Any) -> None:
-        if self._closed or not is_database_write_enabled() or payload is None:
-            return
-        if not self._started:
-            await self.start()
-        await self._queue.put(_IdentityEvent(payload))
+        return
 
     async def close(self) -> None:
         if not self._started or self._closed:
@@ -214,15 +174,7 @@ class PlayerIdentityRecorder:
                     self._queue.task_done()
 
     def _write_batch(self, batch: Sequence[_IdentityEvent]) -> int:
-        merged_records: Dict[str, Dict[str, Any]] = {}
-        for event in batch or []:
-            for record in extract_identity_records(event.payload):
-                bnetid = str(record.get("bnetid") or "").strip()
-                if bnetid:
-                    merged_records[bnetid] = record
-        if not merged_records:
-            return 0
-        return self.db.upsert_player_identity_records(list(merged_records.values()))
+        return 0
 
 
 async def search_identity_by_bnet_id(
@@ -232,16 +184,7 @@ async def search_identity_by_bnet_id(
     limit: int = 10,
     exact_only: bool = False,
 ) -> List[Dict[str, Any]]:
-    normalized_bnet_id = str(bnet_id or "").strip()
-    if not normalized_bnet_id:
-        return []
-    identity_db = db or IDPoolDB()
-    return await asyncio.to_thread(
-        identity_db.search_player_identity_by_bnet_id,
-        normalized_bnet_id,
-        limit=limit,
-        exact_only=exact_only,
-    )
+    return []
 
 
 __all__ = [

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Optional
 
 try:
@@ -28,7 +28,7 @@ MODE_QUICK = "quick"
 SUPPORTED_TREEMAP_MODES = (MODE_COMPETITIVE, MODE_QUICK, "quick6v6", "competitive6v6", "open", "competitive_open")
 
 def is_quick(mode):
-    return mode in (MODE_QUICK, "quick6v6", "open")
+    return mode in (MODE_QUICK, "quick6v6", "open", "stadium_quick")
 
 def hero_queue_keys(mode):
     if mode in ("open", "competitive_open"):
@@ -40,16 +40,19 @@ def hero_queue_keys(mode):
 
 @dataclass(frozen=True)
 class DashenHeroTreemapQuery:
-    customer_token: str = ""
+    customer_token: str = field(default="", repr=False)
     bnet_id: str = ""
     season: Optional[int] = None
     include_previous_season: bool = True
     mode: str = MODE_QUICK
+    xcxtoken: str = field(default="", repr=False)
 
 
-def normalize_treemap_mode(value: Any) -> str:
+def normalize_treemap_mode(value: Any, *, allow_stadium: bool = False) -> str:
     normalized = str(value or "").strip().lower()
     if normalized in {"quick6v6", "competitive6v6", "open", "competitive_open"}:
+        return normalized
+    if allow_stadium and normalized in {"stadium_quick", "stadium_competitive"}:
         return normalized
     if normalized in {"competitive", "comp", "ranked"}:
         return MODE_COMPETITIVE

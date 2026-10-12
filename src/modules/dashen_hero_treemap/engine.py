@@ -52,12 +52,14 @@ class DashenHeroTreemapSeason:
     logical: Optional[int]
     request: Optional[int]
     include_previous_season: bool
+    scope: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "logical": self.logical,
             "request": self.request,
             "include_previous_season": bool(self.include_previous_season),
+            **({"scope": self.scope} if self.scope else {}),
         }
 
 
@@ -69,7 +71,7 @@ class DashenHeroTreemapHero:
     hero_level: int
     match_sum: int
     win_sum: int
-    loss_sum: int
+    loss_sum: Optional[int]
     win_rate: float
     win_rate_delta: float
     game_time_sec: float
@@ -88,7 +90,7 @@ class DashenHeroTreemapHero:
             "hero_level": int(self.hero_level),
             "match_sum": int(self.match_sum),
             "win_sum": int(self.win_sum),
-            "loss_sum": int(self.loss_sum),
+            "loss_sum": int(self.loss_sum) if self.loss_sum is not None else None,
             "win_rate": float(self.win_rate),
             "win_rate_delta": float(self.win_rate_delta),
             "game_time_sec": float(self.game_time_sec),

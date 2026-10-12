@@ -6,6 +6,10 @@ API_PORT = 18080
 USE_STREAM_RESPONSE = True
 ENABLE_DATABASE_WRITE = True
 
+# Hero treemap source: 0 (or omitted) = Dashen, 1 = WeChat mini program.
+# Mini-program requests supply xcxtoken in the POST body; never save it here.
+HERO_MODULE_MODE = 0
+
 # ======================= Dashen Upstream ====================== #
 # Configure at least one account.
 DASHEN_ACCOUNTS = [

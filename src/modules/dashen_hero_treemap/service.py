@@ -32,10 +32,12 @@ class DashenHeroTreemapOutput:
     total_game_time_sec: float
     heroes: Sequence[DashenHeroTreemapHero]
     image: Optional[RenderedImage] = None
+    data_source: str = "dashen"
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "ok": True,
+            "data_source": self.data_source,
             "player": self.player.to_dict(),
             "season": self.season.to_dict(),
             "mode": self.mode,
@@ -68,6 +70,17 @@ class DashenHeroTreemapModule:
         *,
         render: bool = False,
     ) -> DashenHeroTreemapOutput:
+        from .mini_program import get_hero_module_mode, MiniProgramHeroTreemap
+        if get_hero_module_mode() == 1:
+            player, season, heroes, mode = await MiniProgramHeroTreemap(search_module=self.search_module).query(query)
+            output = DashenHeroTreemapOutput(
+                player=player, season=season, mode=mode, hero_count=len(heroes),
+                total_game_time_sec=sum(item.game_time_sec for item in heroes),
+                heroes=heroes, data_source="mini_program",
+            )
+            return await self._render_output(output) if render else output
+        if str(query.mode).startswith("stadium_"):
+            raise ModuleError(error="unsupported_treemap_mode", message="角斗领域仅支持小程序数据源。", status_code=400)
         resolved_query, resolved_bnet = await self._resolve_query(query)
         bundle = await self.requests.get_treemap_bundle(resolved_query)
         player, season, heroes = self.engine.build_output(
@@ -88,6 +101,10 @@ class DashenHeroTreemapModule:
         if not render:
             return output
 
+        return await self._render_output(output)
+
+    async def _render_output(self, output: DashenHeroTreemapOutput) -> DashenHeroTreemapOutput:
+
         await _prefetch_hero_icons(output.heroes)
         image = render_hero_treemap(
             player=output.player.to_dict(),
@@ -96,6 +113,7 @@ class DashenHeroTreemapModule:
             hero_count=output.hero_count,
             total_game_time_sec=output.total_game_time_sec,
             heroes=[item.to_dict() for item in output.heroes],
+            data_source=output.data_source,
         )
         return DashenHeroTreemapOutput(
             player=output.player,
@@ -105,6 +123,7 @@ class DashenHeroTreemapModule:
             total_game_time_sec=output.total_game_time_sec,
             heroes=output.heroes,
             image=image,
+            data_source=output.data_source,
         )
 
     async def _resolve_query(

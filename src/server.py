@@ -204,9 +204,13 @@ def _build_ow_hero_perk_query(payload: Dict[str, object]) -> OWHeroPerkQuery:
 
 
 def _build_dashen_hero_treemap_query(payload: Dict[str, object]) -> DashenHeroTreemapQuery:
+    try:
+        from overstats.src.modules.dashen_hero_treemap.mini_program import get_hero_module_mode
+    except ModuleNotFoundError:
+        from src.modules.dashen_hero_treemap.mini_program import get_hero_module_mode
     raw_mode = str(payload.get("mode") or "").strip()
     try:
-        mode = normalize_treemap_mode(raw_mode)
+        mode = normalize_treemap_mode(raw_mode, allow_stadium=get_hero_module_mode() == 1)
     except ValueError as exc:
         raise ModuleError(
             error="invalid_treemap_query",
@@ -215,8 +219,9 @@ def _build_dashen_hero_treemap_query(payload: Dict[str, object]) -> DashenHeroTr
             details={"mode": raw_mode},
         ) from exc
     return DashenHeroTreemapQuery(
-        bnet_id=str(payload.get("bnet_id") or payload.get("bnetId") or "").strip(),
+        bnet_id=str(payload.get("bnet_id") or payload.get("bnetId") or payload.get("bnetID") or payload.get("battle_tag") or payload.get("bnet_name") or "").strip(),
         customer_token=str(payload.get("customer_token") or payload.get("customerToken") or "").strip(),
+        xcxtoken=str(payload.get("xcxtoken") or payload.get("xcxToken") or "").strip(),
         season=_coerce_optional_int(payload, "season", "season_c"),
         include_previous_season=_coerce_bool(payload.get("include_previous_season"), True),
         mode=mode,
@@ -1859,6 +1864,9 @@ class AsyncRunner:
 
 
 def create_server(config: APIConfig) -> ThreadingHTTPServer:
+    # Purge legacy identity storage even when database writes are disabled.
+    from .db.privacy import purge_player_storage
+    purge_player_storage()
     query_tool_config = load_query_tool()
     asset_status = ensure_query_tool_assets(query_tool_config)
     print(
@@ -1883,10 +1891,10 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
     request_metrics_recorder = RequestMetricsRecorder() if config.enable_database_write else None
     if request_metrics_recorder is not None:
         async_runner.run(request_metrics_recorder.start())
-    match_detail_recorder = MatchDetailRecorder() if config.enable_database_write else None
+    match_detail_recorder = None
     if match_detail_recorder is not None:
         async_runner.run(match_detail_recorder.start())
-    player_identity_recorder = PlayerIdentityRecorder() if config.enable_database_write else None
+    player_identity_recorder = None
     if player_identity_recorder is not None:
         async_runner.run(player_identity_recorder.start())
     ow_hero_leaderboard_sync_service = OWHeroLeaderboardSyncService()

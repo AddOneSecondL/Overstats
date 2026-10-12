@@ -87,6 +87,7 @@ def render_hero_treemap(
     hero_count: int,
     total_game_time_sec: float,
     heroes: Sequence[Dict[str, Any]],
+    data_source: str = "dashen",
 ) -> RenderedImage:
     try:
         from PIL import Image, ImageDraw
@@ -122,7 +123,10 @@ def render_hero_treemap(
     for hero, rect in zip(heroes, tile_rects):
         _draw_tile(canvas, hero=dict(hero, time_share=float(hero.get("game_time_sec") or 0) / max(total_game_time_sec, 1)), rect=rect, fonts=fonts)
 
-    draw.text((36, CANVAS_HEIGHT - 34), "模式参数：quick 快速 · competitive 竞技 · open 开放 · competitive_open 开放竞技 · quick6v6 / competitive6v6", font=fonts["header_meta"], fill=TEXT_MUTED)
+    footer = ("数据源：守望先锋助手 · 生涯累计 · 时长按接口整数小时展示，零小时英雄不参与云图"
+              if data_source == "mini_program" else
+              "模式参数：quick 快速 · competitive 竞技 · open 开放 · competitive_open 开放竞技 · quick6v6 / competitive6v6")
+    draw.text((36, CANVAS_HEIGHT - 34), footer, font=fonts["header_meta"], fill=TEXT_MUTED)
     output = BytesIO()
     canvas.save(output, format="PNG")
     return RenderedImage(content=output.getvalue())
@@ -229,7 +233,10 @@ def _draw_header(
             pass
     else:
         draw.polygon([(84,145),(76,157),(82,157),(79,167),(93,153),(85,153)], fill=(112,204,226))
-    draw.text((104, 145), f"{_mode_label(mode)}  /  {_season_label(season)}", font=fonts["header_meta"], fill=(125, 186, 231))
+    mode_label = _mode_label(mode)
+    if season.get("scope") == "total":
+        mode_label = mode_label.replace(" 5v5", "")
+    draw.text((104, 145), f"{mode_label}  /  {_season_label(season)}", font=fonts["header_meta"], fill=(125, 186, 231))
     for x, value, label, color in ((1160, str(hero_count), "使用英雄", (125, 186, 231)), (1485, _format_hours(total_game_time_sec), "英雄累计时长", (239, 191, 94))):
         draw.line((x-35, 61, x-35, 151), fill=(72, 89, 113, 130), width=1)
         draw.text((x, 60), value, font=_load_summary_font(44, bold=True), fill=color)
@@ -237,12 +244,18 @@ def _draw_header(
 
 
 def _mode_label(mode: str) -> str:
+    if mode == "stadium_quick":
+        return "角斗领域快速"
+    if mode == "stadium_competitive":
+        return "角斗领域竞技"
     if mode in ("open", "competitive_open"):
         return "快速开放" if is_quick(mode) else "开放竞技"
     return ("快速" if is_quick(mode) else "竞技") + (" 6v6" if mode.endswith("6v6") else " 5v5")
 
 
 def _season_label(season: Dict[str, Any]) -> str:
+    if season.get("scope") == "total":
+        return "生涯累计"
     logical = season.get("logical")
     request = season.get("request")
     if logical in (None, "") and request in (None, ""):

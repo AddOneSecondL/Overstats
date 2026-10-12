@@ -323,18 +323,10 @@ class MatchDetailRecorder:
         self._closed = False
 
     async def start(self) -> None:
-        if self._started or not is_database_write_enabled():
-            return
-        await asyncio.to_thread(self.db.initialize_match_detail_schema)
-        self._worker_task = asyncio.create_task(self._worker(), name="match-detail-recorder-worker")
-        self._started = True
+        return
 
     async def enqueue(self, url: str, payload: Dict[str, Any]) -> None:
-        if self._closed or not is_database_write_enabled():
-            return
-        if not self._started:
-            await self.start()
-        await self._queue.put(_MatchDetailEvent(str(url or ""), dict(payload or {})))
+        return
 
     async def close(self) -> None:
         if not self._started or self._closed:
@@ -369,23 +361,7 @@ class MatchDetailRecorder:
                     self._queue.task_done()
 
     def _write_batch(self, batch: Sequence[_MatchDetailEvent]) -> None:
-        merged = ParsedNormalMatchDetailBatch()
-        extracted_at = int(time.time())
-        for event in batch or []:
-            merged.extend(
-                extract_normal_match_detail_records(
-                    event.payload,
-                    request_url=event.url,
-                    extracted_at=extracted_at,
-                )
-            )
-        self.db.write_match_detail_batch(
-            hero_detail_rows=merged.hero_detail_rows,
-            comp_data_rows=merged.comp_data_rows,
-            perk_pick_rows=merged.perk_pick_rows,
-            comp_summary_keys=merged.comp_summary_keys,
-            perk_summary_keys=merged.perk_summary_keys,
-        )
+        return
 
 
 __all__ = [
