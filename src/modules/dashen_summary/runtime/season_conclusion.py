@@ -1,4 +1,6 @@
-﻿import asyncio
+from ...dashen_promo import append_dashen_promo
+
+import asyncio
 import base64
 import datetime
 import hashlib
@@ -131,6 +133,7 @@ async def _ensure_resolved_target_risk_status(resolved_target):
 
 
 def _summary_png_b64(image):
+    image = append_dashen_promo(image)
     out = BytesIO()
     try:
         image.convert("RGB").save(

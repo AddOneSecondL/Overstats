@@ -33,7 +33,6 @@
 胜率、胜场/场次及 KDA 直接读取接口。没有败场与平局的拆分，`loss_sum` 为 null；未提供的威能、特色统计不会从其他口径补齐。
 
 接口结构和 ID 编码见 [miniProgramCombatLog.md](../../client/api_structure/miniProgramCombatLog.md)。
-离线验证：`python -m unittest discover -s validation -p '*_checks.py'`，只使用人工构造的样本。
 
 ## 大神模式
 
@@ -46,6 +45,5 @@
 
 概括：按职责时长占比和英雄集中度确定两个短词，不推断人格或实力。职责占比至少55%才称主场；第一英雄至少50%为本命专精，否则前三至少70%为三核轮转，其余为广谱英雄池。JSON返回summary，图片标题区同步显示。
 
-验证：本地18080旧进程提供真实39英雄数据和近期对局详情，新代码重放验证渲染；两页调用、去重、前三过滤及模式隔离使用单元测试验证。运行中的旧进程需要重新加载才能使用新增模式和统计流程。
 
 开放队列参数：`open` 为快速开放（leisure/openHeroUseSummaryList），`competitive_open` 为竞技开放（sport/openHeroUseSummaryList）。均只读取开放英雄统计并筛选对应比赛，不与职责/6v6混用。

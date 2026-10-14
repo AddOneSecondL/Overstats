@@ -1,4 +1,6 @@
-﻿from __future__ import annotations
+from __future__ import annotations
+
+from ..dashen_promo import append_dashen_promo
 
 from dataclasses import dataclass
 from io import BytesIO
@@ -138,6 +140,7 @@ def render_rank_history(
 
     canvas = _decorate_with_header(image, player_name=player_name, subtitle=subtitle, risk_status=risk_status)
     output = BytesIO()
+    canvas = append_dashen_promo(canvas)
     canvas.save(output, format="PNG")
     return RenderedImage(content=output.getvalue())
 

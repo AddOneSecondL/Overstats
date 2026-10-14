@@ -1,6 +1,8 @@
 """Adaptive season-report image, sharing the daily summary's assets and typography."""
 from __future__ import annotations
 
+from ..dashen_promo import append_dashen_promo
+
 import datetime as dt
 import html
 import json
@@ -423,5 +425,6 @@ async def render_report(report, role_id):
                 text(tx + 17, y + 96, fmt(report["lootbox"].get(key)), 37, color, tile_w - 52)
                 text(tx + 18, y + 153, label, 19, color, tile_w - 32)
     out = BytesIO()
+    canvas = append_dashen_promo(canvas)
     canvas.convert("RGB").save(out, "PNG")
     return out.getvalue(), "image/png"

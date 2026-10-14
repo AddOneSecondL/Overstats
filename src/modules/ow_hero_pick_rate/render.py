@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..dashen_promo import append_dashen_promo
+
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -124,6 +126,7 @@ def render_pick_rate_ranking(
 
     output = BytesIO()
     canvas = canvas.resize((base_width, base_height), Image.LANCZOS)
+    canvas = append_dashen_promo(canvas)
     canvas.save(output, format="PNG")
     return RenderedImage(content=output.getvalue())
 
@@ -194,6 +197,7 @@ def render_pick_rate_history(
 
     output = BytesIO()
     canvas = canvas.resize((base_width, base_height), Image.LANCZOS)
+    canvas = append_dashen_promo(canvas)
     canvas.save(output, format="PNG")
     return RenderedImage(content=output.getvalue())
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..dashen_promo import append_dashen_promo
+
 from dataclasses import dataclass
 from io import BytesIO
 import json
@@ -148,6 +150,7 @@ def render_match_list(
         )
 
     output = BytesIO()
+    img = append_dashen_promo(img)
     img.convert("RGB").save(output, format="PNG", optimize=True)
     return RenderedImage(content=output.getvalue())
 
@@ -336,6 +339,7 @@ def _render_scoreboard_match_detail(
     )
 
     output = BytesIO()
+    img = append_dashen_promo(img)
     img.convert("RGB").save(output, format="PNG", optimize=True)
     return RenderedImage(content=output.getvalue())
 
@@ -630,6 +634,7 @@ def _render_fight_match_detail(
         y += round_h + round_gap
 
     output = BytesIO()
+    img = append_dashen_promo(img)
     img.convert("RGB").save(output, format="PNG", optimize=True)
     return RenderedImage(content=output.getvalue())
 

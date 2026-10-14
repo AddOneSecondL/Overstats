@@ -1,3 +1,5 @@
+from ..dashen_promo import append_dashen_promo
+
 """Editorial image layout for the hero guide; all content remains data-driven."""
 from io import BytesIO
 from collections import OrderedDict
@@ -367,5 +369,6 @@ def render_guide(payload, *, accent_color, icon_url, image_url):
         canvas.alpha_composite(block, (40*S, y))
         y += block.height+gap
     output = BytesIO()
-    canvas.resize((1200, height//S), Image.Resampling.LANCZOS).convert("RGB").save(output, format="PNG")
+    canvas = append_dashen_promo(canvas.resize((1200, height//S), Image.Resampling.LANCZOS))
+    canvas.convert("RGB").save(output, format="PNG")
     return RenderedImage(output.getvalue())

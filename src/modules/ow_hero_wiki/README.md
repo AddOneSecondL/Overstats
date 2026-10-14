@@ -37,9 +37,3 @@ Content-Type: application/json
 技能和威能保留 Wiki 的 `ability_image` 为 `icon_file`，通过 `imageinfo` 批量解析 `icon_url`（含文件名规范化和重定向），优先加载 Wiki 图标并缓存图片文件。地址每天刷新；查询失败或缺图在五分钟后重试，不中断百科。远程图标不可用时，本地图标从 `ow_guess_assets/shared/hero_icons/<英雄>/Abilities|Perks/<中文名称>.png` 读取，文件缺失时保留文字卡片。标题、回答、参数和备注均按实际文本动态测量，保留长 URL 换行；重复引用按标题和来源合并显示。
 
 模型配置复用项目现有 `ANALYSIS_*` 配置；没有模型仍可完成检索，英文和中英混合的名称、说明、参数注释、标签、普通及模式备注均可翻译；数字序列与百分号数量变动、空翻译会被拒绝并保留原文。英文专名与通用缩写可保留。启用或更换模型端点/模型后，下次查询会补翻译缓存，无需等待 Wiki 修订；失败五分钟后重试。没有模型时，除基础术语和单位映射外，英文保留原文。Wiki 数据可能滞后于游戏版本，页面与本地中文配置也可能不完全同步。
-
-## 验证
-
-```powershell
-python -m unittest discover -s test -p 'test_hero_wiki*.py' -v
-```

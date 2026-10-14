@@ -6,6 +6,10 @@ API_PORT = 18080
 USE_STREAM_RESPONSE = True
 ENABLE_DATABASE_WRITE = True
 
+# 在使用大神数据或素材的渲染图片底部显示战绩查询宣传横幅。
+# True 显示，False 不显示；修改后重启服务生效。
+SHOW_DASHEN_PROMO = False
+
 # Hero treemap source: 0 (or omitted) = Dashen, 1 = WeChat mini program.
 # Mini-program requests supply xcxtoken in the POST body; never save it here.
 HERO_MODULE_MODE = 0

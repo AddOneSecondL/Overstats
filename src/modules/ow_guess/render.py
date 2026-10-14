@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..dashen_promo import append_dashen_promo
+
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -41,6 +43,8 @@ def render_guess_image(
     else:
         rendered = base
 
+    if question_type in {"hero_icon", "map_image", "hero_silhouette"}:
+        rendered = append_dashen_promo(rendered)
     return _encode_image(rendered)
 
 

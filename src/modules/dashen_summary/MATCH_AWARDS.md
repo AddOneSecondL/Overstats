@@ -26,13 +26,6 @@
 
 地图背景、主英雄头像、其他英雄缩略图；竞技使用 comp.png，职责使用 tank/dps/healer 素材。竞技段位来自该局玩家或 match.rankInfo，显示对应段位图标与小段；无快照显示“段位未知”，不拿当前赛季段位冒充历史段位。边框颜色对应字母评级，胜负单独呈现。素材失败保留文字布局。
 
-## 验证
-
-测试：test/test_match_awards.py、test/test_season_baseline.py、test/test_summary_awards_integration.py。
-模拟预览：test/summary_awards_preview.py。
-
-queryCountInfo 的顶层英雄字段由仓库接口文档确认；本轮真实账号请求返回401，仍需有效凭据下验证完整返回结构。特色数据字典已通过网易公开配置核对。
-
 ## 总体数据与小时曲线
 
 总体数据增加 healingTaken / damageTaken，每项显示总量和小号场均值。使用每个字段的有效场次数作分母，明确的0计入，缺失字段不计0。对局详情优先于列表同名字段，避免重复相加；时间项用时长场均。
@@ -41,7 +34,6 @@ queryCountInfo 的顶层英雄字段由仓库接口文档确认；本轮真实�
 
 胜率晴雨表下方增加24小时游玩曲线，横轴00–24，纵轴每小时游玩分钟。实际gameTimeSec按小时边界拆分，跨午夜分入各日期；重复或重叠时段取并集。没有时长不推测，曲线显示有效时长覆盖数量。日总结汇总本次对局，周总结按生成日向前七个自然日绘制七色堆叠面积图，独立日期图例。每天面积层的厚度是该日时长，最上沿是七日逐小时总和；纵轴按累计值缩放（每小时最多420分钟），浅色上沿标出总量。该自然日窗口与原战绩列表的滚动七天窗口边界可能不同。
 
-验证：test_summary_activity.py、test_summary_metrics_typography.py；整图模拟预览脚本 summary_activity_preview.py。
 
 ## 页眉职责时长占比
 

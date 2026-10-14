@@ -1,3 +1,5 @@
+from ..dashen_promo import append_dashen_promo
+
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageOps
 from ..dashen_hero_treemap.render import (_load_fonts, _load_summary_font, _build_treemap_background, _mode_label, _truncate_text, _fit_font, _wrap_text, _open_cached_asset, _load_role_icon, RESOURCE_DIR, RenderedImage)
@@ -105,5 +107,6 @@ def render_compare(data):
     if data.get('database_enabled'):
         note='数据库暂不可用' if data.get('database_status')=='unavailable' else '数据库参考：同英雄聚合样本，未按模式/赛季筛选；至少5条显示2%/5%/10%/20%参考线，非精确玩家排名。'
         draw.text((36,height-30),note,font=fonts['header_meta'],fill=MUTED)
+    canvas = append_dashen_promo(canvas)
     output=BytesIO();canvas.save(output,format='PNG')
     return RenderedImage(output.getvalue())

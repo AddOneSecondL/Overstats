@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..dashen_promo import append_dashen_promo
+
 from dataclasses import dataclass
 from functools import lru_cache
 from io import BytesIO
@@ -128,6 +130,7 @@ def render_hero_treemap(
               "模式参数：quick 快速 · competitive 竞技 · open 开放 · competitive_open 开放竞技 · quick6v6 / competitive6v6")
     draw.text((36, CANVAS_HEIGHT - 34), footer, font=fonts["header_meta"], fill=TEXT_MUTED)
     output = BytesIO()
+    canvas = append_dashen_promo(canvas)
     canvas.save(output, format="PNG")
     return RenderedImage(content=output.getvalue())
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..dashen_promo import append_dashen_promo
+
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Any, Optional
@@ -65,5 +67,6 @@ def _render_text_png(lines: list[str], *, risk_status: Optional[dict[str, Any]] 
         y += line_height
 
     output = BytesIO()
+    image = append_dashen_promo(image)
     image.save(output, format="PNG")
     return RenderedImage(content=output.getvalue())

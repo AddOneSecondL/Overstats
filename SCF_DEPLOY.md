@@ -39,4 +39,4 @@ python .\update_scf_images.py --region <region> --names <function-name> --image 
 
 更新脚本必须显式提供 `--region`、`--names`，以及 `--image` 或 `--memory`。默认仅预览，添加 `--apply` 才执行。支持 `--namespace`。凭据通过环境变量或隐藏输入获取，不保存；本地进度文件已加入忽略规则。
 
-脚本更新 `$LATEST`。若函数 URL 的别名绑定固定版本，需要另行发布并切换别名。更新后验证健康检查和实际查询。
+脚本更新 `$LATEST`。若函数 URL 的别名绑定固定版本，需要另行发布并切换别名。

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..dashen_promo import append_dashen_promo
+
 from dataclasses import dataclass
 from io import BytesIO
 import os
@@ -145,6 +147,7 @@ def render_rank_leaderboard(
         y_cursor += max(1, (len(entries) + cards_per_row - 1) // cards_per_row) * (card_h + card_gap) + 10
 
     output = BytesIO()
+    canvas = append_dashen_promo(canvas)
     canvas.save(output, format="PNG")
     return RenderedImage(content=output.getvalue())
 

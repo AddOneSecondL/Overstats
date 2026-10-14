@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..dashen_promo import append_dashen_promo
+
 from dataclasses import dataclass
 import datetime as dt
 from io import BytesIO
@@ -155,6 +157,7 @@ def render_quick_strength(
 
     output = BytesIO()
     canvas = canvas.resize((base_width, base_height), Image.LANCZOS)
+    canvas = append_dashen_promo(canvas)
     canvas.save(output, format="PNG")
     return RenderedImage(content=output.getvalue())
 
