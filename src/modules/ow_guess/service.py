@@ -54,7 +54,7 @@ class OWGuessModule:
             "question_id": str(entry.get("id") or entry.get("guid") or name),
             "recommended_wait_seconds": 45, "duration_seconds": 45, "stage_seconds": 15,
             "question": {"prompt_text": "猜出地图名称，每15秒更新图片，共45秒。", "media_kind": "image"},
-            "answer": {"canonical": name, "aliases": [name]},
+            "answer": {"canonical": name, "aliases": entry.get("answer_aliases") or [name]},
             "replies": stages[0]["replies"], "stages": stages,
             "reveal_replies": [{"type": "text", "data": f"答案：{name}"}, reveal],
         })

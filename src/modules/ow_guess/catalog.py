@@ -3,12 +3,29 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 import random
+import re
 import tempfile
 
 import httpx
 
 from ..query_tool import read_query_tool
 from ..errors import ModuleError
+
+
+EXCLUDED_MAP_MARKERS = (
+    "地图工坊", "英雄精通", "vppgreenroom", "怪鼠复仇", "教学模式",
+    "workshop", "heromastery", "junkenstein", "tutorial",
+)
+
+
+def is_excluded_map(item):
+    values = (str(item.get(key) or "") for key in ("name", "mode"))
+    return any(marker in re.sub(r"[\s_-]+", "", value).casefold()
+               for value in values for marker in EXCLUDED_MAP_MARKERS)
+
+
+def simplify_map_name(name):
+    return re.sub(r"\s*[-‐‑–—－]\s*", "", str(name or "")).strip()
 
 
 class OWGuessCatalog:
@@ -21,10 +38,13 @@ class OWGuessCatalog:
         payload = read_query_tool(default={})
         entries = {}
         for item in payload.get("mapList", []):
-            name = str(item.get("name") or "").strip()
+            if not isinstance(item, dict) or is_excluded_map(item):
+                continue
+            original_name = str(item.get("name") or "").strip()
+            name = simplify_map_name(original_name)
             url = str(item.get("icon") or "").strip()
             if name and url.startswith("https://"):
-                entries[(name, url)] = item
+                entries[(name, url)] = {**item, "name": name, "answer_aliases": list(dict.fromkeys((name, original_name)))}
         if not entries:
             raise ModuleError(error="ow_guess_resources_unavailable", message="地图题库暂无可用图片，请更新资源配置。", status_code=503)
         return self.random.choice(list(entries.values()))
