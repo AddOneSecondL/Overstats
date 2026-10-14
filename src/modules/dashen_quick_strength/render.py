@@ -157,7 +157,7 @@ def render_quick_strength(
 
     output = BytesIO()
     canvas = canvas.resize((base_width, base_height), Image.LANCZOS)
-    canvas = append_dashen_promo(canvas)
+    canvas = append_dashen_promo(canvas, compact=True)
     canvas.save(output, format="PNG")
     return RenderedImage(content=output.getvalue())
 

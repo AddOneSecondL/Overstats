@@ -133,7 +133,7 @@ async def _ensure_resolved_target_risk_status(resolved_target):
 
 
 def _summary_png_b64(image):
-    image = append_dashen_promo(image)
+    image = append_dashen_promo(image, compact=False)
     out = BytesIO()
     try:
         image.convert("RGB").save(
