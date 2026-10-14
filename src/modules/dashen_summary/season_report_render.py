@@ -17,6 +17,7 @@ from .season_report import RESOURCE_DIR, fmt, mapping, mode_name, number, rows
 from ...constants.ranks import get_rank_name, get_rank_sub_tier, rank_name_cn, rank_name_to_icon_level
 from ..dashen_match.render import _perk_guid_candidates, _perk_lookup
 from .season_report_ranks import QUEUE_LABELS, ROLE_LABELS
+from .season_loot import loot_panel_height, render_loot_panel
 
 WHITE = (240, 246, 254)
 MUTED = (158, 175, 197)
@@ -134,7 +135,9 @@ async def render_report(report, role_id):
     if low:
         section("low", 60 + math.ceil(len(low) / 3) * 70)
     if report["friends"] or report["lootbox"]:
-        section("bottom", max(235, 82 + len(report["friends"]) * 68))
+        loot_width = 645 if report["friends"] else 1300
+        section("bottom", max(235, 82 + len(report["friends"]) * 68,
+                              loot_panel_height(loot_width) if report["lootbox"] else 0))
 
     urls = [report.get("icon")]
     urls.extend(r.get("friend_icon") for r in report["friends"])
@@ -407,7 +410,8 @@ async def render_report(report, role_id):
         y, h = sections["bottom"]
         have_friends, have_loot = bool(report["friends"]), bool(report["lootbox"])
         if have_friends:
-            panel(50, y, 615 if have_loot else 1300, h, "组队好友", GREEN)
+            panel(50, y, 615 if have_loot else 1300,
+                  max(235, 82 + len(report["friends"]) * 68), "组队好友", GREEN)
             for i, row in enumerate(report["friends"]):
                 ty = y + 78 + i * 68
                 await picture(row.get("friend_icon"), 77, ty, 46, 46, 23)
@@ -415,15 +419,7 @@ async def render_report(report, role_id):
                 text(413, ty + 7, f"{fmt(row.get('with_friend_match_cnt'))} 场 · {fmt(row.get('with_friend_win_rate'), 1, '%')}", 17, GREEN, 226)
         if have_loot:
             lx, lw = (705, 645) if have_friends else (50, 1300)
-            panel(lx, y, lw, h, "赛季收获", GOLD)
-            tile_w = (lw - 64) // 3
-            for i, (label, key, color) in enumerate([("补给箱", "open_lootbox_cnt", BLUE), ("史诗", "epic_cnt", PURPLE), ("传奇", "legendary_cnt", GOLD)]):
-                tx = lx + 22 + i * (tile_w + 10)
-                draw.rounded_rectangle((tx, y + 77, tx + tile_w, y + 207), radius=10, fill=tint(color, 0.14), outline=tint(color, 0.5))
-                cx, cy = tx + tile_w - 30, y + 103
-                draw.polygon([(cx, cy - 9), (cx + 9, cy), (cx, cy + 9), (cx - 9, cy)], fill=color)
-                text(tx + 17, y + 96, fmt(report["lootbox"].get(key)), 37, color, tile_w - 52)
-                text(tx + 18, y + 153, label, 19, color, tile_w - 32)
+            render_loot_panel(canvas, lx, y, lw, report["lootbox"], s._load_font)
     out = BytesIO()
     canvas = append_dashen_promo(canvas, compact=False)
     canvas.convert("RGB").save(out, "PNG")
