@@ -1912,7 +1912,7 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
     request_metrics_recorder = RequestMetricsRecorder() if config.enable_database_write else None
     if request_metrics_recorder is not None:
         async_runner.run(request_metrics_recorder.start())
-    match_detail_recorder = None
+    match_detail_recorder = MatchDetailRecorder() if config.enable_database_write else None
     if match_detail_recorder is not None:
         async_runner.run(match_detail_recorder.start())
     player_identity_recorder = None

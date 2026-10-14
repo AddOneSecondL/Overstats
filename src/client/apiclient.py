@@ -946,8 +946,11 @@ class DashenAPIClient:
         return
 
     async def _record_match_detail_payload(self, url: str, payload: Any) -> None:
-        # Raw match persistence has been retired.
-        return
+        if self.match_detail_recorder is not None and isinstance(payload, dict):
+            try:
+                await self.match_detail_recorder.enqueue(url, payload)
+            except Exception as exc:
+                print(f"[overstats] anonymous statistics enqueue failed: {type(exc).__name__}")
 
     async def request_json(
         self,

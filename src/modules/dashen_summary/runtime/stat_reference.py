@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+import time
 from typing import Any, Iterable, Optional, Sequence
 
 from ....constants.ranks import normalize_raw_rank_bucket
@@ -99,6 +100,7 @@ def get_cached_statmap_summary(
     cache_max: int = 2048,
 ) -> dict[str, Any]:
     cache_key = (
+        str(getattr(db, "db_path", "")), int(time.monotonic() // 30),
         str(lookup_key),
         tuple(sorted(str(item) for item in (stat_guids or []))),
         tuple(sorted(str(item) for item in (rank_buckets or []))) if rank_buckets is not None else None,

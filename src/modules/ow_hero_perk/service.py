@@ -137,7 +137,7 @@ class OWHeroPerkModule:
         if minor_bucket.sample_count <= 0 and major_bucket.sample_count <= 0:
             raise ModuleError(
                 error="hero_perk_empty",
-                message="No perk data found for the requested hero.",
+                message="该英雄暂无匿名威能样本；查询含该英雄的对局详情后会逐步积累统计。",
                 status_code=404,
                 details={"hero_guid": hero_meta.hero_guid},
             )

@@ -317,16 +317,40 @@ def extract_normal_match_detail_records(
 class MatchDetailRecorder:
     def __init__(self, db_path: Optional[Path] = None) -> None:
         self.db = IDPoolDB(db_path)
-        self._queue: asyncio.Queue[Optional[_MatchDetailEvent]] = asyncio.Queue()
-        self._worker_task: Optional[asyncio.Task[None]] = None
+        self._queue = asyncio.Queue(maxsize=256)
+        self._worker_task = None
         self._started = False
         self._closed = False
+        self._key = None
+
+    def _initialize(self):
+        if not self.db.initialize_match_detail_schema():
+            raise RuntimeError("Anonymous statistics database is unavailable")
+        conn = self.db._get_connection()
+        try:
+            return bytes(conn.execute("SELECT value FROM anonymous_meta WHERE name='event_key'").fetchone()[0])
+        finally:
+            conn.close()
 
     async def start(self) -> None:
-        return
+        if self._started or not is_database_write_enabled():
+            return
+        self._key = await asyncio.to_thread(self._initialize)
+        self._started = True
+        self._worker_task = asyncio.create_task(self._worker())
 
     async def enqueue(self, url: str, payload: Dict[str, Any]) -> None:
-        return
+        if not self._started or self._closed or not is_database_write_enabled():
+            return
+        path = urlsplit(url).path
+        if not path.endswith('/queryMatchInfo') or '/fight/' in path:
+            return
+        from .anonymous_stats import anonymize
+        parsed = extract_normal_match_detail_records(payload, request_url=url)
+        # Only distributions, choices and one-way event digests enter the queue.
+        event = anonymize(parsed, self._key)
+        if event[0] or event[1]:
+            await self._queue.put(event)
 
     async def close(self) -> None:
         if not self._started or self._closed:
@@ -334,34 +358,39 @@ class MatchDetailRecorder:
         self._closed = True
         await self._queue.join()
         await self._queue.put(None)
-        if self._worker_task is not None:
-            await self._worker_task
+        await self._worker_task
         self._worker_task = None
 
-    async def _worker(self) -> None:
+    async def _worker(self):
         while True:
             event = await self._queue.get()
             if event is None:
                 self._queue.task_done()
                 return
             batch = [event]
-            while True:
-                try:
-                    extra = self._queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    break
-                if extra is None:
-                    await self._queue.put(None)
-                    break
-                batch.append(extra)
+            while len(batch) < 32 and not self._queue.empty():
+                batch.append(self._queue.get_nowait())
             try:
                 await asyncio.to_thread(self._write_batch, batch)
+            except Exception as exc:
+                # Never log payloads, URLs or identifiers on failure.
+                self.db._warn_once(f"anonymous statistics write failed: {type(exc).__name__}")
             finally:
                 for _ in batch:
                     self._queue.task_done()
 
-    def _write_batch(self, batch: Sequence[_MatchDetailEvent]) -> None:
-        return
+    def _write_batch(self, batch):
+        if not is_database_write_enabled():
+            return
+        from .anonymous_stats import write
+        with self.db._write_lock:
+            conn = self.db._get_write_connection()
+            if conn is None:
+                raise RuntimeError("Anonymous statistics database is unavailable")
+            try:
+                return write(conn, batch)
+            finally:
+                conn.close()
 
 
 __all__ = [

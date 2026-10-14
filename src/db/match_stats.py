@@ -126,11 +126,19 @@ class IDPoolDB:
                 )
 
     def _initialize_match_detail_tables(self, connection: sqlite3.Connection) -> None:
-        # Retired: only existing anonymous aggregate tables are retained.
-        return
+        from .anonymous_stats import initialize
+        initialize(connection)
 
     def initialize_match_detail_schema(self) -> bool:
-        return False
+        with self._write_lock:
+            conn = self._get_write_connection()
+            if conn is None:
+                return False
+            try:
+                self._initialize_match_detail_tables(conn)
+                return True
+            finally:
+                conn.close()
 
     def initialize_player_identity_schema(self) -> bool:
         return False
