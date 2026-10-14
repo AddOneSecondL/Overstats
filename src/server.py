@@ -851,11 +851,11 @@ class OverstatsCoreService:
         return result.image.content, result.image.media_type
 
     async def handle_ow_esports(self, payload: Dict[str, object]) -> Dict[str, object]:
-        result = await ow_esports_module.query_ow_esports(render=False)
+        result = await ow_esports_module.query_ow_esports(render=False, region=payload.get("region", "china"))
         return result.to_dict()
 
     async def handle_ow_esports_image(self, payload: Dict[str, object]) -> bytes:
-        result = await ow_esports_module.query_ow_esports(render=True)
+        result = await ow_esports_module.query_ow_esports(render=True, region=payload.get("region", "china"))
         if not result.image:
             raise ModuleError(
                 error="render_failed",

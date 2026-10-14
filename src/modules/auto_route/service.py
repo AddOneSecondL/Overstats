@@ -539,7 +539,7 @@ class AutoRouteModule:
                     "description": "Query current OW esports matches.",
                     "parameters": {
                         "type": "object",
-                        "properties": {},
+                        "properties": {"region": {"type": "string", "description": "中国、韩国、日本、北美、EMEA、世界；默认中国，无赛事回退世界"}},
                         "additionalProperties": False,
                     },
                 },
@@ -828,7 +828,7 @@ class AutoRouteModule:
             module_name="ow_esports",
             endpoint="/api/v2/ow-esports/image",
             endpoint_mode="image",
-            payload={},
+            payload={"region": str(arguments.get("region") or "china")},
         )
 
     def _build_ow_shop_selection(self, arguments: Dict[str, Any]) -> AutoRouteSelection:

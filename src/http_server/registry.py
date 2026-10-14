@@ -580,6 +580,11 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
         json_endpoint="/api/v2/ow-esports",
         image_endpoint="/api/v2/ow-esports/image",
         requires_target=False,
+        fields=(_select_field("esports_region", "赛区", "region", default="china", options=(
+            HTTPUIFieldOption("china", "中国"), HTTPUIFieldOption("world", "世界"),
+            HTTPUIFieldOption("korea", "韩国"), HTTPUIFieldOption("japan", "日本"),
+            HTTPUIFieldOption("north_america", "北美"), HTTPUIFieldOption("emea", "EMEA"),
+        )),),
     ),
     HTTPUIModuleSpec(
         id="blizzard-player-search",
