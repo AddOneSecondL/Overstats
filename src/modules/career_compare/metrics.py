@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import re
 
 AXES = ("消灭", "助攻", "存活", "伤害", "治疗", "协防")
 
@@ -16,6 +17,33 @@ def number(value):
         return None
 
 
+def metric_number(value):
+    text = str(value or "").strip()
+    if re.fullmatch(r"\d+:\d{2}(?::\d{2})?", text):
+        parts = [int(part) for part in text.split(":")]
+        if any(part >= 60 for part in parts[1:]):
+            return None
+        total = 0
+        for part in parts:
+            total = total * 60 + part
+        return float(total)
+    return number(value)
+
+
+def metric_direction(label):
+    if label in {"游戏时间", "比赛时间", "游玩时间", "场次", "比赛场次"}:
+        return 0
+    if "死亡" in label or "阵亡" in label:
+        return -1
+    if label == "KDA" or any(word in label for word in (
+        "胜率", "命中率", "消灭", "助攻", "最后一击", "伤害", "治疗", "协防",
+        "目标争夺时间", "目标攻防时间", "火力全开", "麻醉敌人", "催眠敌人",
+        "阻挡", "吸收", "拯救", "复活",
+    )):
+        return 1
+    return 0
+
+
 def rows(value):
     return [row for row in value if isinstance(row, dict)] if isinstance(value, list) else []
 
@@ -28,6 +56,10 @@ def collect_metrics(hero):
             label = str(item.get("item_name") or "").strip()
             if not label:
                 continue
+            # Type 3 is the upstream per-ten-minute row. The same label can
+            # also occur as a lifetime total, so distinguish it before deduplication.
+            if str(item.get("item_type")) == "3" and not label.startswith(("每10分钟", "每十分钟")):
+                label = "每10分钟" + label
             raw = item.get("item_value")
             text = str(raw).strip() if raw is not None else "—"
             unit = str(item.get("item_unit") or "").strip()
@@ -41,15 +73,8 @@ def collect_metrics(hero):
             if key in seen:
                 continue
             seen.add(key)
-            numeric = number(raw)
-            direction = 0
-            if label in {"胜率", "KDA", "命中率", "暴击命中率"}:
-                direction = 1
-            elif any(prefix in label for prefix in ("每10分钟", "每十分钟", "场均", "平均")):
-                if "死亡" in label:
-                    direction = -1
-                elif any(word in label for word in ("消灭", "助攻", "伤害", "治疗", "协防")):
-                    direction = 1
+            numeric = metric_number(raw)
+            direction = metric_direction(label)
             result.append({"key": label + "|" + unit, "label": label, "unit": unit,
                            "text": text, "value": numeric, "group": group,
                            "comment": str(item.get("item_comment") or ""), "direction": direction})
