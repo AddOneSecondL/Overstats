@@ -5,12 +5,11 @@ from io import BytesIO
 import random
 
 from PIL import Image, ImageFilter
-from ..dashen_promo import append_dashen_promo
 
 
 def image_reply(image):
     output = BytesIO()
-    append_dashen_promo(image).convert("RGB").save(output, format="JPEG", quality=90)
+    image.convert("RGB").save(output, format="JPEG", quality=90)
     return {"type": "image", "media_type": "image/jpeg", "base64": base64.b64encode(output.getvalue()).decode("ascii")}
 
 
