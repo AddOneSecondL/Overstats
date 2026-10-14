@@ -49,6 +49,7 @@ AUTO_ROUTE_SUPPORTED_COMMANDS = AUTO_ROUTE_SUPPORTED_COMMANDS + (
 )
 AUTO_ROUTE_SUPPORTED_COMMANDS = AUTO_ROUTE_SUPPORTED_COMMANDS + ("英雄云图 Player#12345", "快速英雄云图 Player#12345")
 AUTO_ROUTE_SUPPORTED_COMMANDS += ("英雄对比 PlayerA#12345 PlayerB#67890 [英雄]",)
+AUTO_ROUTE_SUPPORTED_COMMANDS += ("生涯对比 PlayerA#12345 PlayerB#67890 [英雄]",)
 AUTO_ROUTE_GAME_MODE_ALIASES = {
     "快速": "quick",
     "quick": "quick",
@@ -119,6 +120,7 @@ Rules:
 9. For patch_notes, default to latest.
 10. If the user asks for one player tool but the target is missing, still choose the best tool instead of chatting.
 11. For dashen_profile, a trailing `*` on the user's command means competitive mode.
+12. Use career_compare for 生涯对比 (mini-program lifetime data); use hero_compare for 大神对比 or 英雄对比. Never request or put authentication tokens in tool arguments.
 """.strip()
 
 
@@ -298,6 +300,7 @@ class AutoRouteModule:
             "dashen_profile": self._build_dashen_profile_selection,
             "hero_treemap": self._build_hero_treemap_selection,
             "hero_compare": self._build_hero_compare_selection,
+            "career_compare": self._build_career_compare_selection,
             "dashen_match": self._build_dashen_match_selection,
             "dashen_sameplay": self._build_dashen_sameplay_selection,
             "summary_today": lambda arguments: self._build_summary_selection(arguments, scope="today"),
@@ -331,6 +334,13 @@ class AutoRouteModule:
                     },
                 },
             },
+            {"type": "function", "function": {
+                "name": "career_compare", "description": "小程序生涯对比：累计英雄统计和六维雷达，可指定英雄；省略 player2 时与全服 Top 20% 对比。",
+                "parameters": {"type": "object", "properties": {
+                    "player1": {"type": "string"}, "player2": {"type": "string"},
+                    "hero": {"type": "string"}, "mode": {"type": "string", "enum": ["quick", "competitive", "stadium_quick", "stadium_competitive"]}
+                }, "required": ["player1"], "additionalProperties": False}
+            }},
             {"type":"function","function":{"name":"hero_compare","description":"对比两名玩家的英雄数据，默认各自时长前三，可指定英雄。","parameters":{"type":"object","properties":{"player1":{"type":"string"},"player2":{"type":"string"},"hero":{"type":"string"},"mode":{"type":"string","enum":["quick","competitive","open","competitive_open"]}},"required":["player1","player2"],"additionalProperties":False}}},
             {
                 "type": "function",
@@ -602,6 +612,19 @@ class AutoRouteModule:
             endpoint_mode="image",
             payload=payload,
         )
+
+    def _build_career_compare_selection(self, arguments):
+        from ..dashen_hero_treemap.requests import normalize_treemap_mode
+        for key in ("player1",):
+            if not str(arguments.get(key) or "").strip():
+                raise ValueError("生涯对比需要至少一名玩家")
+        mode = normalize_treemap_mode(arguments.get("mode"), allow_stadium=True)
+        if mode not in {"quick", "competitive", "stadium_quick", "stadium_competitive"}:
+            raise ValueError("小程序不支持此模式")
+        payload = {key: str(arguments.get(key) or "").strip() for key in ("player1", "player2", "hero")}
+        payload["mode"] = mode
+        return AutoRouteSelection(tool_name="career_compare", module_name="career_compare",
+                                  endpoint="/api/v2/career-compare/image", endpoint_mode="image", payload=payload)
 
     def _build_hero_compare_selection(self, arguments):
         from ..dashen_hero_treemap.requests import normalize_treemap_mode

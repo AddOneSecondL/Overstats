@@ -370,7 +370,8 @@
         });
       } else {
         control = document.createElement("input");
-        control.type = field.control_type === "number" ? "number" : "text";
+        control.type = field.control_type === "number" ? "number" : (field.control_type === "password" ? "password" : "text");
+        if (field.control_type === "password") control.autocomplete = "off";
         control.placeholder = field.placeholder || "";
         control.value = field.default === null || field.default === undefined ? "" : String(field.default);
       }

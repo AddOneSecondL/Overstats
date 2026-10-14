@@ -143,6 +143,21 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
         ),
     ),
     HTTPUIModuleSpec(
+        id="career-compare", title="生涯对比",
+        description="小程序生涯累计：同英雄详细数据与六维雷达，留空英雄时比较双方合计时长前三。",
+        json_endpoint="/api/v2/career-compare", image_endpoint="/api/v2/career-compare/image", requires_target=False,
+        fields=(
+            HTTPUIFieldSpec("career_player1", "玩家一", "player1", placeholder="完整战网名称或九位数字 ID"),
+            HTTPUIFieldSpec("career_player2", "玩家二（可选）", "player2", placeholder="留空对比全服 Top 20%"),
+            HTTPUIFieldSpec("career_hero", "英雄（可选）", "hero", placeholder="例如：安娜"),
+            HTTPUIFieldSpec("career_xcxtoken", "小程序 xcxtoken", "xcxtoken", control_type="password", help_text="仅用于本次小程序请求"),
+            _select_field("career_mode", "模式", "mode", default="quick", options=(
+                HTTPUIFieldOption("quick", "快速"), HTTPUIFieldOption("competitive", "竞技"),
+                HTTPUIFieldOption("stadium_quick", "角斗快速"), HTTPUIFieldOption("stadium_competitive", "角斗竞技"),
+            )),
+        ),
+    ),
+    HTTPUIModuleSpec(
         id="dashen-hero-compare", title="英雄对比",
         description="比较两名玩家的前三英雄或指定英雄，无数据依次回查前三赛季。",
         json_endpoint="/api/v2/dashen-hero-compare", image_endpoint="/api/v2/dashen-hero-compare/image", requires_target=False,

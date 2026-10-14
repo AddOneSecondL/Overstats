@@ -49,6 +49,30 @@ def encode_account_id(value: Any) -> str:
     return base64.b64encode(bytes(a ^ b for a, b in zip(plain, ID_XOR_KEY))).decode("ascii")
 
 
+def validate_xcxtoken(value: Any) -> str:
+    token = str(value or "").strip()
+    if not token or not token.isascii() or any(ord(c) < 33 or ord(c) == 127 for c in token):
+        raise ModuleError(error="missing_xcxtoken", message="小程序模式需要有效的 xcxtoken 请求参数。", status_code=400)
+    return token
+
+
+async def resolve_account_id(search_module, value: Any) -> tuple[str, str, str]:
+    """Shared BattleTag lookup and wire ID encoding for mini-program modules."""
+    target = str(value or "").replace("＃", "#").strip()
+    if not target:
+        raise ModuleError(error="missing_target", message="请提供数字 bnetID 或完整战网名称。", status_code=400)
+    account_id = target
+    if not re.fullmatch(r"[0-9]+", target):
+        try:
+            result = (await search_module.search(target, render=False)).result
+            account_id = result.bnet_id
+        except Exception:
+            raise ModuleError(error="bnet_search_failed", message="战网名称解析失败，可改用数字 bnetID。", status_code=502) from None
+        if not account_id:
+            raise ModuleError(error="bnet_not_found", message="未找到对应的数字 bnetID，请检查完整战网名称。", status_code=404)
+    return target, str(account_id), encode_account_id(account_id)
+
+
 def _number(value: Any) -> float | None:
     try:
         result = float(str(value).strip().rstrip("%"))
@@ -150,22 +174,8 @@ class MiniProgramHeroTreemap:
             raise ModuleError(error="unsupported_mini_program_mode", message="小程序支持 quick、competitive、stadium_quick、stadium_competitive；不映射开放或 6v6 队列。", status_code=400)
         if query.season is not None:
             raise ModuleError(error="unsupported_mini_program_season", message="小程序英雄云图目前仅支持生涯累计，请省略 season。", status_code=400)
-        token = str(query.xcxtoken or "").strip()
-        if not token or not token.isascii() or any(ord(c) < 33 or ord(c) == 127 for c in token):
-            raise ModuleError(error="missing_xcxtoken", message="小程序模式需要有效的 xcxtoken 请求参数。", status_code=400)
-        target = str(query.bnet_id or "").replace("＃", "#").strip()
-        if not target:
-            raise ModuleError(error="missing_target", message="请提供数字 bnetID 或完整战网名称。", status_code=400)
-        account_id = target
-        if not re.fullmatch(r"[0-9]+", target):
-            try:
-                result = (await self.search_module.search(target, render=False)).result
-                account_id = result.bnet_id
-            except Exception:
-                raise ModuleError(error="bnet_search_failed", message="战网名称解析失败，可改用数字 bnetID。", status_code=502) from None
-            if not account_id:
-                raise ModuleError(error="bnet_not_found", message="未找到对应的数字 bnetID，请检查完整战网名称。", status_code=404)
-        encoded = encode_account_id(account_id)
+        token = validate_xcxtoken(query.xcxtoken)
+        target, account_id, encoded = await resolve_account_id(self.search_module, query.bnet_id)
         params = {"type": MODE_TYPES[mode], "season_id": "total", "account_id": encoded}
         async with httpx.AsyncClient(timeout=20, follow_redirects=False, trust_env=False,
                                      transport=self.transport, headers={"Accept-Encoding": "gzip, deflate"}) as client:
