@@ -346,6 +346,19 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
         ),
     ),
     HTTPUIModuleSpec(
+        id="dashen-team-overview",
+        title="双方概览",
+        description="导入玩家 Base64，上排队友、下排对手，展示常用三英雄、当前段位与省级排行榜。",
+        json_endpoint="/api/v2/dashen-team-overview",
+        image_endpoint="/api/v2/dashen-team-overview/image",
+        requires_target=False,
+        fields=(HTTPUIFieldSpec(
+            id="base64", label="玩家列表 Base64", payload_key="base64", control_type="textarea",
+            placeholder="粘贴导出器生成的 Base64",
+            help_text="需要含队友/对手标记的版本 2 数据；不支持旧版纯 ID 数组。",
+        ),),
+    ),
+    HTTPUIModuleSpec(
         id="dashen-rank-history",
         title="段位历史",
         description="查看赛季段位变化，支持 JSON 或图片。",

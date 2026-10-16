@@ -33,6 +33,8 @@ try:
     from overstats.src.modules.dashen_match import DashenMatchQuery, dashen_match_module
     from overstats.src.modules.dashen_sameplay import DashenSameplayQuery, dashen_sameplay_module
     from overstats.src.modules.dashen_rank_history import DashenRankHistoryQuery, dashen_rank_history_module
+    from overstats.src.modules.dashen_team_overview import team_overview_module
+    from overstats.src.modules.dashen_team_overview.render import render_overview
     from overstats.src.modules.dashen_quick_strength import DashenQuickStrengthQuery, dashen_quick_strength_module
     from overstats.src.modules.dashen_competitive_strength import (
         DashenCompetitiveStrengthQuery,
@@ -90,6 +92,8 @@ except ModuleNotFoundError:
     from src.modules.dashen_match import DashenMatchQuery, dashen_match_module
     from src.modules.dashen_sameplay import DashenSameplayQuery, dashen_sameplay_module
     from src.modules.dashen_rank_history import DashenRankHistoryQuery, dashen_rank_history_module
+    from src.modules.dashen_team_overview import team_overview_module
+    from src.modules.dashen_team_overview.render import render_overview
     from src.modules.dashen_quick_strength import DashenQuickStrengthQuery, dashen_quick_strength_module
     from src.modules.dashen_competitive_strength import (
         DashenCompetitiveStrengthQuery,
@@ -729,6 +733,7 @@ class OverstatsCoreService:
             "/api/v2/dashen-summary/today/image": lambda: self.handle_dashen_summary_image(selection.payload, scope="today"),
             "/api/v2/dashen-summary/yesterday/image": lambda: self.handle_dashen_summary_image(selection.payload, scope="yesterday"),
             "/api/v2/dashen-summary/week/image": lambda: self.handle_dashen_summary_image(selection.payload, scope="week"),
+            "/api/v2/dashen-team-overview/image": lambda: self.handle_dashen_team_overview_image(selection.payload),
             "/api/v2/dashen-rank-history/image": lambda: self.handle_dashen_rank_history_image(selection.payload),
             "/api/v2/dashen-quick-strength/image": lambda: self.handle_dashen_quick_strength_image(selection.payload),
             "/api/v2/dashen-competitive-strength/image": lambda: self.handle_dashen_competitive_strength_image(selection.payload),
@@ -750,6 +755,7 @@ class OverstatsCoreService:
             "/api/v2/dashen-summary/today": lambda: self.handle_dashen_summary(selection.payload, scope="today"),
             "/api/v2/dashen-summary/yesterday": lambda: self.handle_dashen_summary(selection.payload, scope="yesterday"),
             "/api/v2/dashen-summary/week": lambda: self.handle_dashen_summary(selection.payload, scope="week"),
+            "/api/v2/dashen-team-overview": lambda: self.handle_dashen_team_overview(selection.payload),
             "/api/v2/dashen-rank-history": lambda: self.handle_dashen_rank_history(selection.payload),
             "/api/v2/dashen-quick-strength": lambda: self.handle_dashen_quick_strength(selection.payload),
             "/api/v2/dashen-competitive-strength": lambda: self.handle_dashen_competitive_strength(selection.payload),
@@ -1591,6 +1597,14 @@ class OverstatsCoreService:
         )
         return result.image_bytes, result.image_media_type
 
+    async def handle_dashen_team_overview(self, payload: Dict[str, object]) -> Dict[str, object]:
+        return await self.dashen_request_queue.run(
+            "team_overview", lambda: team_overview_module.query(payload.get("base64")))
+
+    async def handle_dashen_team_overview_image(self, payload: Dict[str, object]) -> bytes:
+        result = await self.handle_dashen_team_overview(payload)
+        return await asyncio.to_thread(render_overview, result)
+
     async def handle_dashen_rank_history(self, payload: Dict[str, object]) -> Dict[str, object]:
         return await self.dashen_request_queue.run(
             "rank_history",
@@ -2115,6 +2129,13 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
 
             if path == "/api/v2/dashen-hero-treemap":
                 self._handle_dashen_hero_treemap_post()
+                return
+
+            if path == "/api/v2/dashen-team-overview/image":
+                self._handle_dashen_team_overview_image_post()
+                return
+            if path == "/api/v2/dashen-team-overview":
+                self._handle_dashen_team_overview_post()
                 return
 
             if path == "/api/v2/dashen-rank-history/image":
@@ -3775,6 +3796,96 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
 
             try:
                 image_body = async_runner.run(service.handle_dashen_hero_treemap_image(payload))
+            except ModuleError as exc:
+                self._send_json(
+                    HTTPStatus(exc.status_code),
+                    {
+                        "ok": False,
+                        "error": exc.error,
+                        "message": exc.message,
+                        "hint": exc.hint,
+                        "details": exc.details,
+                    },
+                )
+                return
+            except Exception as exc:
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {
+                        "ok": False,
+                        "error": "internal_error",
+                        "message": "Internal server error. See details.",
+                        "details": {
+                            "exception": type(exc).__name__,
+                            "message": str(exc),
+                        },
+                    },
+                )
+                return
+
+            self._send_binary(HTTPStatus.OK, image_body, "image/png")
+
+        def _handle_dashen_team_overview_post(self) -> None:
+            try:
+                payload = self._read_json_body()
+            except ValueError as exc:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "ok": False,
+                        "error": "invalid_json",
+                        "message": str(exc),
+                    },
+                )
+                return
+
+            try:
+                result = async_runner.run(service.handle_dashen_team_overview(payload))
+            except ModuleError as exc:
+                self._send_json(
+                    HTTPStatus(exc.status_code),
+                    {
+                        "ok": False,
+                        "error": exc.error,
+                        "message": exc.message,
+                        "hint": exc.hint,
+                        "details": exc.details,
+                    },
+                )
+                return
+            except Exception as exc:
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {
+                        "ok": False,
+                        "error": "internal_error",
+                        "message": "Internal server error. See details.",
+                        "details": {
+                            "exception": type(exc).__name__,
+                            "message": str(exc),
+                        },
+                    },
+                )
+                return
+
+            self._send_json(HTTPStatus.OK, result)
+
+        def _handle_dashen_team_overview_image_post(self) -> None:
+            try:
+                payload = self._read_json_body()
+            except ValueError as exc:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "ok": False,
+                        "error": "invalid_json",
+                        "message": str(exc),
+                    },
+                )
+                return
+
+            try:
+                image_body = async_runner.run(service.handle_dashen_team_overview_image(payload))
             except ModuleError as exc:
                 self._send_json(
                     HTTPStatus(exc.status_code),

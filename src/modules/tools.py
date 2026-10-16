@@ -157,3 +157,9 @@ register_module(
 )
 
 register_module("dashen_hero_compare", "overstats.src.modules.dashen_hero_compare", "Compare two players hero statistics with three-season fallback.")
+
+register_module(
+    "dashen_team_overview",
+    "overstats.src.modules.dashen_team_overview",
+    "Decode team Base64 and render teammate/opponent profile overview.",
+)

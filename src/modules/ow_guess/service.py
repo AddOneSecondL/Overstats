@@ -46,14 +46,15 @@ class OWGuessModule:
         else:
             raise ModuleError(error="ow_guess_resources_unavailable", message="地图图片暂时无法加载，请稍后重试。", status_code=503) from last_error
         label = "地图局部" if mode == "map_crop" else "地图模糊"
-        stages = [{"stage": i + 1, "at_seconds": i * 15, "replies": [{"type": "text", "data": f"{label} · 第{i + 1}/3张 · 剩余{45 - i * 15}秒"}, img]} for i, img in enumerate(images)]
+        answer_hint = "提示：本题需回答完整的地图名＋小图名，不能只答主地图名。" if entry.get("requires_submap") else ""
+        stages = [{"stage": i + 1, "at_seconds": i * 15, "replies": [{"type": "text", "data": f"{label} · 第{i + 1}/3张 · 剩余{45 - i * 15}秒" + (f"\n{answer_hint}" if answer_hint else "")}, img]} for i, img in enumerate(images)]
         name = entry["name"].strip()
         return OWGuessOutput({
             "ok": True, "generated_at": datetime.now().isoformat(timespec="seconds"),
             "question_type": mode, "question_type_label": label,
             "question_id": str(entry.get("id") or entry.get("guid") or name),
             "recommended_wait_seconds": 45, "duration_seconds": 45, "stage_seconds": 15,
-            "question": {"prompt_text": "猜出地图名称，每15秒更新图片，共45秒。", "media_kind": "image"},
+            "question": {"prompt_text": "猜出地图名称，每15秒更新图片，共45秒。" + answer_hint, "media_kind": "image"},
             "answer": {"canonical": name, "aliases": entry.get("answer_aliases") or [name]},
             "replies": stages[0]["replies"], "stages": stages,
             "reveal_replies": [{"type": "text", "data": f"答案：{name}"}, reveal],

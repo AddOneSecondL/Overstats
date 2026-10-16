@@ -357,6 +357,12 @@
         control = document.createElement("input");
         control.type = "checkbox";
         control.checked = Boolean(field.default);
+      } else if (field.control_type === "textarea") {
+        control = document.createElement("textarea");
+        control.rows = 5;
+        control.maxLength = 32768;
+        control.placeholder = field.placeholder || "";
+        control.value = String(field.default || "");
       } else if (field.control_type === "select") {
         control = document.createElement("select");
         field.options.forEach((option) => {

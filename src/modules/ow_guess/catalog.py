@@ -13,7 +13,7 @@ from ..errors import ModuleError
 
 
 EXCLUDED_MAP_MARKERS = (
-    "地图工坊", "英雄精通", "vppgreenroom", "怪鼠复仇", "教学模式",
+    "地图工坊", "英雄精通", "vppgreenroom", "怪鼠复仇", "教学模式", "高架车站",
     "workshop", "heromastery", "junkenstein", "tutorial",
 )
 
@@ -37,6 +37,12 @@ class OWGuessCatalog:
     def pick_question(self):
         payload = read_query_tool(default={})
         entries = {}
+        control_names = {
+            simplify_map_name(item.get("name"))
+            for item in payload.get("mapList", [])
+            if isinstance(item, dict) and item.get("mode") == "占领要点"
+            and not is_excluded_map(item) and item.get("name")
+        }
         for item in payload.get("mapList", []):
             if not isinstance(item, dict) or is_excluded_map(item):
                 continue
@@ -44,7 +50,10 @@ class OWGuessCatalog:
             name = simplify_map_name(original_name)
             url = str(item.get("icon") or "").strip()
             if name and url.startswith("https://"):
-                entries[(name, url)] = {**item, "name": name, "answer_aliases": list(dict.fromkeys((name, original_name)))}
+                entries[(name, url)] = {**item, "name": name, "answer_aliases": list(dict.fromkeys((name, original_name))),
+                    "requires_submap": item.get("mode") == "占领要点" and any(
+                        parent != name and parent in name for parent in control_names
+                    )}
         if not entries:
             raise ModuleError(error="ow_guess_resources_unavailable", message="地图题库暂无可用图片，请更新资源配置。", status_code=503)
         return self.random.choice(list(entries.values()))
