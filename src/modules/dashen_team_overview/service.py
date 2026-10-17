@@ -4,12 +4,14 @@ import asyncio
 import base64
 import binascii
 import json
+import math
 import re
 from dataclasses import asdict
 
 from ..errors import ModuleError
 from ..dashen_profile import DashenProfileQuery, dashen_profile_module
 from ..dashen_profile.engine import build_role_panel_entries, _resolve_hero_payload_rows, _payload_data
+from .recent import fetch_recent
 
 
 def decode_players(value):
@@ -42,7 +44,7 @@ def decode_players(value):
     return result
 
 
-def summarize(bundle, billboard):
+def summarize(bundle, billboard, historical_rows=()):
     sport, leisure = _payload_data(bundle.sport), _payload_data(bundle.leisure)
     title, heroes = _resolve_hero_payload_rows(sport, quick_mode=False)
     if not heroes:
@@ -60,13 +62,22 @@ def summarize(bundle, billboard):
             if rank > 0 and item.get('province') and item.get('heroGuid'):
                 boards.append({'hero_guid': str(item['heroGuid']), 'province': str(item['province']),
                                'rank': rank, 'mode': mode})
+    card = _payload_data(getattr(bundle, 'profile_card', {}))
+    try:
+        hours = float(card['gameTime'])
+        if not math.isfinite(hours) or hours < 0:
+            hours = None
+    except (KeyError, ValueError, TypeError):
+        hours = None
     return {
+        'avatar_url': str(card.get('icon') or ''),
+        'total_playtime_hours': hours,
         'season': bundle.logical_season,
         'hero_source': title,
         'heroes': [{'hero_guid': str(h.get('heroGuid') or h.get('heroId') or ''),
                     'name': str(h.get('heroName') or ''), 'game_time': float(h.get('gameTime') or 0)}
                    for h in heroes[:3]],
-        'ranks': [asdict(role) for role in build_role_panel_entries(sport.get('guideCountData') or [], [])],
+        'ranks': [asdict(role) for role in build_role_panel_entries(sport.get('guideCountData') or [], historical_rows)],
         'leaderboards': sorted(boards, key=lambda b: b['rank']),
         'leaderboard_status': 'ok' if isinstance(billboard, dict) and billboard.get('code') == 0 else 'unavailable',
     }
@@ -76,7 +87,7 @@ class TeamOverviewModule:
     def __init__(self, profile_module=None):
         self.profile = profile_module or dashen_profile_module
 
-    async def query(self, value):
+    async def query(self, value, *, include_avatars=False):
         players = decode_players(value)
         semaphore = asyncio.Semaphore(3)
 
@@ -86,8 +97,39 @@ class TeamOverviewModule:
                     async def request():
                         profile = await self.profile.query_profile(
                             DashenProfileQuery(bnet_id=player['battletag'], include_previous_season=False), render=False)
-                        billboard = await self.profile.requests.get_billboard_user(profile.customer_token)
-                        return summarize(profile.bundle, billboard)
+                        async def avatar():
+                            if not include_avatars:
+                                return None
+                            try:
+                                return await asyncio.wait_for(self.profile._try_fetch_avatar_bytes(
+                                    profile.bundle.profile_card), timeout=3)
+                            except Exception:
+                                return None
+                        async def previous_ranks():
+                            season = int(profile.bundle.logical_season or 0) - 1
+                            if season < 1:
+                                return [], None, None
+                            try:
+                                sport, leisure, _ = await asyncio.wait_for(
+                                    self.profile.requests.get_count_payload_pair(
+                                        profile.customer_token, logical_season=season), timeout=10)
+                                return [(season, _payload_data(sport).get('guideCountData') or [])], sport, leisure
+                            except Exception:
+                                return [], None, None
+                        billboard, avatar_bytes, previous = await asyncio.gather(
+                            self.profile.requests.get_billboard_user(profile.customer_token), avatar(), previous_ranks())
+                        historical_rows, previous_sport, previous_leisure = previous
+                        summary = summarize(profile.bundle, billboard, historical_rows)
+                        season = int(profile.bundle.logical_season or 0)
+                        quick, competitive = await asyncio.gather(
+                            fetch_recent(self.profile.requests, profile.customer_token, 'leisure', season,
+                                         profile.bundle.leisure, previous_leisure),
+                            fetch_recent(self.profile.requests, profile.customer_token, 'sport', season,
+                                         profile.bundle.sport, previous_sport))
+                        summary['recent_stats'] = {'quick': quick, 'competitive': competitive}
+                        if include_avatars:
+                            summary['_avatar_bytes'] = avatar_bytes
+                        return summary
                     summary = await asyncio.wait_for(request(), timeout=45)
                     return {**player, 'status': 'ok', **summary}
                 except ModuleError as exc:

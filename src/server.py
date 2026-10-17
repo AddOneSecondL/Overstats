@@ -1602,7 +1602,8 @@ class OverstatsCoreService:
             "team_overview", lambda: team_overview_module.query(payload.get("base64")))
 
     async def handle_dashen_team_overview_image(self, payload: Dict[str, object]) -> bytes:
-        result = await self.handle_dashen_team_overview(payload)
+        result = await self.dashen_request_queue.run(
+            "team_overview_image", lambda: team_overview_module.query(payload.get("base64"), include_avatars=True))
         return await asyncio.to_thread(render_overview, result)
 
     async def handle_dashen_rank_history(self, payload: Dict[str, object]) -> Dict[str, object]:
