@@ -192,18 +192,23 @@ def start_query_tool_asset_warmup(config: Dict[str, Any]) -> threading.Event:
                                 counts[status] += 1
                                 manifest[url] = entry
                                 done = sum(counts.values())
-                                if done % 100 == 0:
-                                    print(f"[overstats] background assets {done}/{len(assets)} {counts}")
+                                _print_asset_progress(
+                                    done, len(assets), counts["cached"],
+                                    counts["downloaded"], counts["failed"], status,
+                                )
                 except Exception as exc:
                     print(f"[overstats] background asset worker failed: {exc}")
 
             workers = [threading.Thread(target=worker, name="query-tool-asset", daemon=True)
                        for _ in range(min(get_asset_download_workers(), len(assets)))]
             print(f"[overstats] background asset warmup: total={len(assets)} dir={QUERY_TOOL_ASSET_DIR}")
+            _print_asset_progress(0, len(assets), 0, 0, 0, "start")
             for thread in workers:
                 thread.start()
             for thread in workers:
                 thread.join()
+            if assets:
+                print()
             _write_asset_manifest(manifest)
             print(f"[overstats] background assets {'stopped' if stop.is_set() else 'finished'}: {counts}")
         except Exception as exc:
