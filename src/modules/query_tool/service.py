@@ -26,6 +26,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 QUERY_TOOL_PATH = PROJECT_ROOT / "res" / "query_tool.json"
 QUERY_TOOL_RUNTIME_PATH = PROJECT_ROOT / "res" / "query_tool.runtime.json"
 QUERY_TOOL_ASSET_DIR = PROJECT_ROOT / "res" / "query_tool_assets"
+LEGACY_ASSET_DIR = PROJECT_ROOT.parent / "overstats" / "res" / "query_tool_assets"
 QUERY_TOOL_ASSET_MANIFEST_PATH = QUERY_TOOL_ASSET_DIR / "assets_manifest.json"
 IMAGE_URL_KEYS = ("icon", "image", "avatar", "portrait", "background", "smallIconUrl", "ddHeroIcon")
 ASSET_SECTION_DIRS = {
@@ -128,9 +129,88 @@ def get_cached_asset_path(url: str, category: str = "misc") -> Optional[Path]:
     folder = QUERY_TOOL_ASSET_DIR / category
     stem = _asset_hash(url)
     for path in folder.glob(f"{stem}.*"):
-        if path.is_file():
+        if path.is_file() and path.suffix != ".tmp":
             return path
+    if LEGACY_ASSET_DIR.resolve() != QUERY_TOOL_ASSET_DIR.resolve():
+        for path in (LEGACY_ASSET_DIR / category).glob(f"{stem}.*"):
+            if path.is_file() and path.suffix != ".tmp":
+                try:
+                    target = folder / path.name
+                    _write_asset_bytes(target, path.read_bytes())
+                    return target
+                except OSError:
+                    continue
     return None
+
+
+def _write_asset_bytes(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=f"{path.stem}.", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(content)
+        Path(temporary).replace(path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
+def start_query_tool_asset_warmup(config: Dict[str, Any]) -> threading.Event:
+    """Warm images without delaying HTTP startup; stop scheduling on shutdown."""
+    stop = threading.Event()
+    if os.environ.get("OVERSTATS_SCF_FROZEN_QUERY_TOOL") == "1":
+        return stop
+
+    def run() -> None:
+        try:
+            assets = list(_iter_unique_asset_urls(config))
+            pending = iter(assets)
+            lock = threading.Lock()
+            counts = {"cached": 0, "downloaded": 0, "failed": 0}
+            manifest = _read_asset_manifest()
+
+            def worker() -> None:
+                try:
+                    with httpx.Client(headers=REMOTE_HEADERS, timeout=20.0, follow_redirects=True) as client:
+                        while not stop.is_set():
+                            with lock:
+                                item = next(pending, None)
+                            if item is None or stop.is_set():
+                                break
+                            url, category = item["url"], item["category"]
+                            try:
+                                path = get_cached_asset_path(url, category)
+                                status = "cached" if path else "downloaded"
+                                if path is None:
+                                    if stop.is_set():
+                                        break
+                                    path = _download_asset(client, url, category)
+                                entry = {"category": category, "path": str(path.relative_to(QUERY_TOOL_ASSET_DIR))}
+                            except Exception as exc:
+                                status = "failed"
+                                entry = {"category": category, "error": f"{type(exc).__name__}: {exc}"}
+                            with lock:
+                                counts[status] += 1
+                                manifest[url] = entry
+                                done = sum(counts.values())
+                                if done % 100 == 0:
+                                    print(f"[overstats] background assets {done}/{len(assets)} {counts}")
+                except Exception as exc:
+                    print(f"[overstats] background asset worker failed: {exc}")
+
+            workers = [threading.Thread(target=worker, name="query-tool-asset", daemon=True)
+                       for _ in range(min(get_asset_download_workers(), len(assets)))]
+            print(f"[overstats] background asset warmup: total={len(assets)} dir={QUERY_TOOL_ASSET_DIR}")
+            for thread in workers:
+                thread.start()
+            for thread in workers:
+                thread.join()
+            _write_asset_manifest(manifest)
+            print(f"[overstats] background assets {'stopped' if stop.is_set() else 'finished'}: {counts}")
+        except Exception as exc:
+            print(f"[overstats] background asset warmup failed: {exc}")
+
+    threading.Thread(target=run, name="query-tool-warmup", daemon=True).start()
+    return stop
 
 
 def cache_query_tool_asset_bytes(url: str, data: bytes, category: str = "misc") -> Optional[Path]:
@@ -352,9 +432,7 @@ def _download_asset(client: httpx.Client, url: str, category: str) -> Path:
     folder = QUERY_TOOL_ASSET_DIR / category
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{_asset_hash(url)}{extension}"
-    temp_path = path.with_suffix(path.suffix + ".tmp")
-    temp_path.write_bytes(content)
-    temp_path.replace(path)
+    _write_asset_bytes(path, content)
     return path
 
 

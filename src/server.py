@@ -29,7 +29,7 @@ try:
         dashen_hero_treemap_module,
         normalize_treemap_mode,
     )
-    from overstats.src.modules.query_tool import ensure_query_tool_assets, load_query_tool
+    from overstats.src.modules.query_tool import start_query_tool_asset_warmup, load_query_tool
     from overstats.src.modules.dashen_match import DashenMatchQuery, dashen_match_module
     from overstats.src.modules.dashen_sameplay import DashenSameplayQuery, dashen_sameplay_module
     from overstats.src.modules.dashen_rank_history import DashenRankHistoryQuery, dashen_rank_history_module
@@ -88,7 +88,7 @@ except ModuleNotFoundError:
         dashen_hero_treemap_module,
         normalize_treemap_mode,
     )
-    from src.modules.query_tool import ensure_query_tool_assets, load_query_tool
+    from src.modules.query_tool import start_query_tool_asset_warmup, load_query_tool
     from src.modules.dashen_match import DashenMatchQuery, dashen_match_module
     from src.modules.dashen_sameplay import DashenSameplayQuery, dashen_sameplay_module
     from src.modules.dashen_rank_history import DashenRankHistoryQuery, dashen_rank_history_module
@@ -1904,15 +1904,6 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
     from .db.privacy import purge_player_storage
     purge_player_storage()
     query_tool_config = load_query_tool()
-    asset_status = ensure_query_tool_assets(query_tool_config)
-    print(
-        "[overstats] query_tool assets "
-        f"checked={asset_status['checked']} "
-        f"cached={asset_status.get('cached', 0)} "
-        f"downloaded={asset_status['downloaded']} "
-        f"failed={asset_status['failed']} "
-        f"dir={asset_status['asset_dir']}"
-    )
     service = OverstatsCoreService(
         dashen_max_concurrent_requests=config.dashen_max_concurrent_requests,
         dashen_max_accepted_requests=config.dashen_max_accepted_requests,
@@ -4712,9 +4703,11 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
             self.wfile.flush()
 
     server = ThreadingHTTPServer((config.host, config.port), OverstatsRequestHandler)
+    asset_warmup_stop = start_query_tool_asset_warmup(query_tool_config)
     original_server_close = server.server_close
 
     def server_close() -> None:
+        asset_warmup_stop.set()
         dashen_api_client.match_detail_recorder = previous_match_detail_recorder
         dashen_api_client.player_identity_recorder = previous_player_identity_recorder
         dashen_api_client.request_metrics_recorder = previous_request_metrics_recorder
