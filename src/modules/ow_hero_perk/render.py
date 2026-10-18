@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..subroles import draw_subrole_badge, get_subrole
+
 from ..dashen_promo import append_dashen_promo
 
 from dataclasses import dataclass
@@ -180,6 +182,10 @@ def _draw_header(
 
     role_key = str(hero.get("hero_role") or "").strip().lower()
     role_text = ROLE_LABELS.get(role_key, str(hero.get("hero_role") or "未知职责"))
+    subrole = get_subrole(hero)
+    if subrole:
+        draw_subrole_badge(canvas, hero, text_x+86*scale, top+62*scale, 28*scale)
+        draw.text((text_x+120*scale, top+66*scale), subrole["displayName"], font=fonts["section_meta"], fill=TEXT_SUB)
     role_fill = ROLE_BADGE_COLORS.get(role_key, (93, 112, 140, 235))
     _draw_role_badge(
         draw,

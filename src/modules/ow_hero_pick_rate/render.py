@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..subroles import draw_subrole_badge, get_subrole
+
 from ..dashen_promo import append_dashen_promo
 
 from dataclasses import dataclass
@@ -285,6 +287,7 @@ def _draw_ranking_rows(
         draw.text((left + 58 * scale, y + 6 * scale), str(item.get("hero_name") or "--"), font=fonts["font_panel_title"], fill=(242, 247, 255, 255))
         draw.text((left + 58 * scale, y + 28 * scale), _hero_role_label(item.get("hero_role")), font=fonts["font_meta"], fill=(156, 175, 201, 255))
 
+        draw_subrole_badge(canvas, item, left+112*scale, y+27*scale, 20*scale)
         rank_box = (left + 6 * scale, y + 6 * scale, left + 44 * scale, y + 40 * scale)
         draw.rounded_rectangle(rank_box, radius=10 * scale, fill=_enhance_rgba(line_color, brightness=0.94, contrast=1.0, alpha=216))
         _draw_text_center(draw, str(item.get("rank") or index + 1), rank_box, font=fonts["font_rank"], fill=(255, 255, 255, 255))
@@ -334,6 +337,7 @@ def _draw_history_header(
         size=84 * scale,
         font=fonts["font_panel_title"],
     )
+    draw_subrole_badge(canvas, hero, 128*scale, 96*scale, 26*scale)
     draw.text((182 * scale, 38 * scale), str(hero.get("hero_name") or "--"), font=fonts["font_title_cn"], fill=(242, 247, 255, 255))
     draw.text(
         (184 * scale, 92 * scale),

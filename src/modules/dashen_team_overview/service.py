@@ -44,11 +44,28 @@ def decode_players(value):
     return result
 
 
-def summarize(bundle, billboard, historical_rows=()):
+def select_hero_source(sport, leisure, *, prefer_6v6=False):
+    # Split sources before applying fallback so 6v6 competitive cannot
+    # accidentally precede 5v5 quick in a five-player matchup.
+    sources = {
+        'comp5': (sport, False, ('presetsHeroUseSummaryList', 'presetsHeroList')),
+        'quick5': (leisure, True, ('presetsHeroUseSummaryList', 'presetsyList')),
+        'comp6': (sport, False, ('openHeroUseSummaryList', 'openHeroList')),
+        'quick6': (leisure, True, ('v6HeroUseSummaryList', 'openHeroUseSummaryList', 'openHeroList')),
+    }
+    order = ('comp6', 'comp5', 'quick6', 'quick5') if prefer_6v6 else ('comp5', 'quick5', 'comp6', 'quick6')
+    for key in order:
+        payload, quick, fields = sources[key]
+        title, heroes = _resolve_hero_payload_rows(
+            {field: payload.get(field) for field in fields}, quick_mode=quick)
+        if heroes:
+            return title, heroes
+    return '', []
+
+
+def summarize(bundle, billboard, historical_rows=(), *, prefer_6v6=False):
     sport, leisure = _payload_data(bundle.sport), _payload_data(bundle.leisure)
-    title, heroes = _resolve_hero_payload_rows(sport, quick_mode=False)
-    if not heroes:
-        title, heroes = _resolve_hero_payload_rows(leisure, quick_mode=True)
+    title, heroes = select_hero_source(sport, leisure, prefer_6v6=prefer_6v6)
     boards = []
     data = _payload_data(billboard)
     for key, mode in [('sportPresetHeroBillboardList', '职责'), ('sportOpenHeroBillboardList', '开放')]:
@@ -89,6 +106,7 @@ class TeamOverviewModule:
 
     async def query(self, value, *, include_avatars=False):
         players = decode_players(value)
+        prefer_6v6 = sum(player['team_type'] == 'enemy' for player in players) == 6
         semaphore = asyncio.Semaphore(3)
 
         async def fetch(player):
@@ -119,7 +137,7 @@ class TeamOverviewModule:
                         billboard, avatar_bytes, previous = await asyncio.gather(
                             self.profile.requests.get_billboard_user(profile.customer_token), avatar(), previous_ranks())
                         historical_rows, previous_sport, previous_leisure = previous
-                        summary = summarize(profile.bundle, billboard, historical_rows)
+                        summary = summarize(profile.bundle, billboard, historical_rows, prefer_6v6=prefer_6v6)
                         season = int(profile.bundle.logical_season or 0)
                         quick, competitive = await asyncio.gather(
                             fetch_recent(self.profile.requests, profile.customer_token, 'leisure', season,

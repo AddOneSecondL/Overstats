@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..subroles import draw_subrole_badge, get_subrole
+
 from ..dashen_promo import append_dashen_promo
 
 from collections import defaultdict
@@ -512,6 +514,7 @@ def render_player_hero_detail(
         icon = _load_icon_rgba(_hero_icon_url(hero_info, hero), size=(54, 54))
         if icon is not None:
             image.paste(icon, (box[0] + 20, box[1] + 12), icon)
+        draw_subrole_badge(image, hero_info, box[0]+54, box[1]+46, 22)
         role_icon = _load_role_icon_asset(role_type, size=(30, 30))
         hero_text_x = box[0] + 178
         if role_icon is not None:

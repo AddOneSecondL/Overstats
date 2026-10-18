@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..subroles import draw_subrole_badge, get_subrole
+
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -172,6 +174,12 @@ def _draw_header(
         pad_x=14 * scale,
         pad_y=7 * scale,
     )
+
+    subrole = get_subrole(hero_cn)
+    if subrole:
+        badge_x = title_x + _measure(draw, role_text, fonts["role"])[0] + 40 * scale
+        draw_subrole_badge(canvas, hero_cn, badge_x, current_y, 28 * scale)
+        draw.text((badge_x + 34 * scale, current_y + 5 * scale), subrole["displayName"], font=fonts["role"], fill=TEXT_SUB)
 
     module_left = left + 24 * scale
     module_right = right - 24 * scale

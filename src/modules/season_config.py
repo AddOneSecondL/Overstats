@@ -62,17 +62,9 @@ def get_dashen_history_start_season() -> int:
 
 
 def read_local_query_tool(default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    fallback = dict(default or {})
-    if not QUERY_TOOL_PATH.exists():
-        return normalize_query_tool_config(fallback)
-    try:
-        payload = json.loads(QUERY_TOOL_PATH.read_text(encoding="utf-8"))
-    except Exception as exc:
-        print(f"[overstats] failed to read query_tool season config {QUERY_TOOL_PATH}: {exc}")
-        return normalize_query_tool_config(fallback)
-    if not isinstance(payload, dict):
-        return normalize_query_tool_config(fallback)
-    return normalize_query_tool_config(payload)
+    # Lazy import avoids a cycle with query_tool's season normalization.
+    from .query_tool.service import read_query_tool
+    return read_query_tool(default=default)
 
 
 def get_dashen_auto_season(query_tool_config: Optional[Mapping[str, Any]] = None) -> int:

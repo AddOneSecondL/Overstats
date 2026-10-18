@@ -686,7 +686,7 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
     HTTPUIModuleSpec(
         id="ow-guess",
         title="OW 猜一猜",
-        description="地图猜一猜：每15秒一张提示，共45秒，返回三阶段图片及答案原图。",
+        description="猜一猜：地图题三阶段提示，威能题看图猜英雄，均限时45秒。",
         json_endpoint="/api/v2/ow-guess/replies",
         image_endpoint="",
         requires_target=False,
@@ -696,10 +696,11 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
                 "题型",
                 "question_type",
                 default="map_crop",
-                help_text="支持局部和模糊两种模式；答案仅供机器人结算使用。",
+                help_text="支持地图局部、地图模糊和威能猜英雄；答案仅供机器人结算使用。",
                 options=(
                     HTTPUIFieldOption("map_crop", "地图局部 · 三阶段"),
                     HTTPUIFieldOption("map_blur", "地图模糊 · 三阶段"),
+                    HTTPUIFieldOption("perk_icon_hero", "威能猜英雄"),
                 ),
             ),
         ),

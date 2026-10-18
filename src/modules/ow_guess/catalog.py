@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import hashlib
 from pathlib import Path
 import random
@@ -10,6 +11,7 @@ import httpx
 
 from ..query_tool import read_query_tool
 from ..errors import ModuleError
+from ...constants import iter_hero_alias_pairs
 
 
 EXCLUDED_MAP_MARKERS = (
@@ -57,6 +59,33 @@ class OWGuessCatalog:
         if not entries:
             raise ModuleError(error="ow_guess_resources_unavailable", message="地图题库暂无可用图片，请更新资源配置。", status_code=503)
         return self.random.choice(list(entries.values()))
+
+    def pick_perk_question(self):
+        payload = read_query_tool(default={})
+        heroes = {str(h.get("id")): h.get("name") for h in payload.get("heroList", []) if h.get("name")}
+        by_icon = {}
+        for hero_id, perks in payload.get("heroPerkList", {}).items():
+            hero = heroes.get(str(hero_id))
+            if not hero:
+                continue
+            for perk in perks:
+                url = str(perk.get("icon") or "").strip()
+                title = html.unescape(re.split(r"<br\s*/?>", str(perk.get("name") or ""), flags=re.I)[0]).strip()
+                if not url.startswith("https://") or not title or "[PH]" in title:
+                    continue
+                by_icon.setdefault(url, []).append((hero, title, perk.get("id")))
+        entries = []
+        aliases = iter_hero_alias_pairs()
+        for url, owners in by_icon.items():
+            if len({row[0] for row in owners}) != 1:
+                continue
+            hero, title, perk_id = owners[0]
+            entries.append({"name": hero, "icon": url, "id": perk_id,
+                            "perk_name": title,
+                            "answer_aliases": list(dict.fromkeys([hero] + [a for a, canonical in aliases if canonical == hero]))})
+        if not entries:
+            raise ModuleError(error="ow_guess_resources_unavailable", message="威能题库暂无可用图标，请更新资源配置。", status_code=503)
+        return self.random.choice(entries)
 
     async def resolve_media_path(self, entry):
         url = entry["icon"]

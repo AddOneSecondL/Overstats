@@ -45,3 +45,11 @@ benchmark-*.log
 smoke-*
 *.tar
 /cache/
+src/db/match_stats.sqlite3-shm
+
+# SQLite runtime sidecar files
+*.sqlite3-shm
+*.sqlite3-wal
+
+# Remote resource cache (query_tool.json remains tracked)
+res/query_tool.runtime.json

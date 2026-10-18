@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..subroles import draw_subrole_badge, get_subrole
+
 from ..dashen_promo import append_dashen_promo
 
 from dataclasses import dataclass
@@ -447,6 +449,8 @@ def _draw_tile(canvas: Any, *, hero: Dict[str, Any], rect: _Rect, fonts: Dict[st
     if role_icon is not None:
         tile.alpha_composite(role_icon, (pad, pad+2))
     draw.text((pad+26, pad), ROLE_LABELS.get(role, "开放"), font=_load_summary_font(14, bold=False), fill=role_color)
+    if width >= 120:
+        draw_subrole_badge(tile, hero, pad+62, pad, 20)
     name = str(hero.get("hero_name") or "未知英雄")
     name_font = _fit_font(draw, name, 24 if compact else 36, width-pad*2, bold=True)
     draw.text((pad, pad+29), _truncate_text(draw, name, name_font, width-pad*2), font=name_font, fill=TEXT_PRIMARY)

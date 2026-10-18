@@ -22,9 +22,10 @@ except ModuleNotFoundError:
 from .requests import MANUAL_KEYS, REMOTE_HEADERS, QueryToolRequests
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[4]
-QUERY_TOOL_PATH = PROJECT_ROOT / "overstats" / "res" / "query_tool.json"
-QUERY_TOOL_ASSET_DIR = PROJECT_ROOT / "overstats" / "res" / "query_tool_assets"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+QUERY_TOOL_PATH = PROJECT_ROOT / "res" / "query_tool.json"
+QUERY_TOOL_RUNTIME_PATH = PROJECT_ROOT / "res" / "query_tool.runtime.json"
+QUERY_TOOL_ASSET_DIR = PROJECT_ROOT / "res" / "query_tool_assets"
 QUERY_TOOL_ASSET_MANIFEST_PATH = QUERY_TOOL_ASSET_DIR / "assets_manifest.json"
 IMAGE_URL_KEYS = ("icon", "image", "avatar", "portrait", "background", "smallIconUrl", "ddHeroIcon")
 ASSET_SECTION_DIRS = {
@@ -83,38 +84,40 @@ def get_asset_download_workers() -> int:
         return DEFAULT_ASSET_DOWNLOAD_WORKERS
 
 
-def read_query_tool(default: Dict[str, Any] | None = None) -> Dict[str, Any]:
-    if default is None:
-        default = {}
-    if not QUERY_TOOL_PATH.exists():
-        return normalize_query_tool_config(default)
+def _read_config_object(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        return {}
     try:
-        data = json.loads(QUERY_TOOL_PATH.read_text(encoding="utf-8"))
-        if isinstance(data, dict):
-            return normalize_query_tool_config(data)
-        return normalize_query_tool_config(default)
-    except Exception as exc:
-        print(f"[overstats] failed to read query tool config {QUERY_TOOL_PATH}: {exc}")
-    return normalize_query_tool_config(default)
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        if isinstance(payload, dict):
+            return payload
+        raise ValueError("expected a JSON object")
+    except (OSError, ValueError) as exc:
+        print(f"[overstats] failed to read config {path}: {exc}")
+        return {}
+
+
+def read_query_tool(default: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    # Git owns the resource configuration. Runtime owns only the remote cache.
+    data = dict(default or {})
+    data.update(_read_config_object(QUERY_TOOL_PATH))
+    if os.environ.get("OVERSTATS_SCF_FROZEN_QUERY_TOOL") != "1":
+        data.update({k: v for k, v in _read_config_object(QUERY_TOOL_RUNTIME_PATH).items()
+                     if k not in MANUAL_KEYS})
+    return normalize_query_tool_config(data)
 
 
 def write_query_tool(payload: Dict[str, Any]) -> None:
-    QUERY_TOOL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_path = tempfile.mkstemp(
-        prefix="query_tool.",
-        suffix=".tmp",
-        dir=str(QUERY_TOOL_PATH.parent),
-    )
+    """Persist remote fields without modifying Git-managed resource files."""
+    QUERY_TOOL_RUNTIME_PATH.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(prefix="query_tool.", suffix=".tmp", dir=str(QUERY_TOOL_RUNTIME_PATH.parent))
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as file:
-            json.dump(payload, file, ensure_ascii=False, indent=2)
+            json.dump({k: v for k, v in payload.items() if k not in MANUAL_KEYS}, file, ensure_ascii=False, indent=2)
             file.write("\n")
-        Path(temp_path).replace(QUERY_TOOL_PATH)
+        Path(temp_path).replace(QUERY_TOOL_RUNTIME_PATH)
     except Exception:
-        try:
-            Path(temp_path).unlink(missing_ok=True)
-        except OSError:
-            pass
+        Path(temp_path).unlink(missing_ok=True)
         raise
 
 
@@ -276,7 +279,8 @@ class QueryToolModule:
 
             local_config = read_query_tool(default={})
             remote_config = _run_async_sync(self.requests.fetch_remote_query_tool)
-            merged_config = dict(remote_config)
+            merged_config = dict(local_config)
+            merged_config.update(remote_config)
 
             for key in MANUAL_KEYS:
                 if key in local_config:
@@ -287,7 +291,7 @@ class QueryToolModule:
             try:
                 write_query_tool(merged_config)
             except Exception as exc:
-                print(f"[overstats] failed to write {QUERY_TOOL_PATH}: {exc}")
+                print(f"[overstats] failed to write {QUERY_TOOL_RUNTIME_PATH}: {exc}")
 
             _CONFIG_CACHE = merged_config
             _CONFIG_UPDATED = True

@@ -1,3 +1,4 @@
+from ...subroles import draw_subrole_badge, get_subrole
 from ...dashen_promo import append_dashen_promo
 
 import asyncio
@@ -3204,6 +3205,7 @@ async def _draw_award_card(canvas, draw, box, title, entry, breakthrough=False):
     label = _truncate_to_width(draw,_hero_name(hero),_load_font(26,bold=True),305)
     draw.text((x+124,y+76),label,font=_load_font(26,bold=True),fill=(244,248,255))
     _draw_summary_role(canvas,draw,entry["role"],x+125,y+116,20,label=True)
+    draw_subrole_badge(canvas, hero, x+190, y+114, 24)
     _draw_mode_badge(draw,right-106,y+77,entry["match"],canvas=canvas)
     dt = datetime.datetime.fromtimestamp(entry["timestamp"]/1000)
     result,result_color = _result_color(entry["result"])
@@ -3390,6 +3392,7 @@ async def _draw_match_timeline(canvas,draw,box,matches,streak_text,awards=None):
         draw.text((left+10,top+9),f'{dt:%H:%M}',font=_load_font(16,bold=True),fill=(246,249,255))
         _draw_mode_badge(draw,left+117,top+7,match,compact=True,canvas=canvas)
         _draw_summary_role(canvas,draw,record.get("role") or _role_label(hero),left+119,top+45,18)
+        draw_subrole_badge(canvas, hero, left+96, top+44, 20)
         name=_truncate_to_width(draw,_map_name(match.get("mapGuid")),_load_font(14),128)
         draw.text((left+10,top+75),name,font=_load_font(14),fill=(220,231,245))
         result,color=_result_color(match.get("matchRet"))

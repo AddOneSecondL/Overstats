@@ -16,6 +16,13 @@ def image_reply(image):
 def render_stages(path, mode, rng=None):
     rng = rng or random.Random()
     with Image.open(path) as opened:
+        if mode == "perk_icon_hero":
+            icon = opened.convert("RGBA")
+            icon.thumbnail((240, 240), Image.Resampling.LANCZOS)
+            card = Image.new("RGB", (320, 320), (30, 39, 53))
+            card.paste(icon, ((320 - icon.width) // 2, (320 - icon.height) // 2), icon)
+            reply = image_reply(card)
+            return [reply], reply
         original = opened.convert("RGB")
     original.thumbnail((960, 640), Image.Resampling.LANCZOS)
     width, height = original.size

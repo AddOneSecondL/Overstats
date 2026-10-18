@@ -1,3 +1,4 @@
+from ..subroles import draw_subrole_badge, get_subrole
 from ..dashen_promo import append_dashen_promo
 
 """Editorial image layout for the hero guide; all content remains data-driven."""
@@ -127,7 +128,12 @@ def cover(payload, accent, icon_url, image_url):
     text(draw, name, 32, 78, 600, 66, WHITE, True)
     text(draw, str(payload.get("hero_en") or "").upper(), 36, name_bottom+10, 590, 22, accent)
     y = text(draw, overview, 36, intro_y, 540, 19)
-    text(draw, f"{payload.get('role_cn') or '英雄'}  /  技能与机制档案", 36, max(y+24, h-48), 550, 14, MUTED)
+    role_y = max(y+24, h-48)
+    text(draw, f"{payload.get('role_cn') or '英雄'}  /  技能与机制档案", 36, role_y, 300, 14, MUTED)
+    subrole = get_subrole(name)
+    if subrole:
+        draw_subrole_badge(image, name, 310*S, (role_y-4)*S, 24*S)
+        text(draw, subrole["displayName"], 342, role_y, 120, 14, MUTED)
     return image
 
 

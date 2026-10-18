@@ -1,3 +1,4 @@
+from ..subroles import draw_subrole_badge, get_subrole
 from ..dashen_promo import append_dashen_promo
 
 from io import BytesIO
@@ -66,6 +67,7 @@ def render_compare(data):
                     canvas.alpha_composite(icon,(x+632,y+5))
                 role=_load_role_icon(hero.get('hero_role'),22)
                 if role is not None:canvas.alpha_composite(role,(x+22,y+22))
+                draw_subrole_badge(canvas, hero, x+22, y+49, 22)
                 draw.text((x+58,y+18),hero['hero_name'],font=fonts['header_title'],fill=WHITE)
                 draw.text((x+24,y+80),f"{hero['match_sum']}场 · {hero['game_time_sec']/3600:.1f}小时",font=fonts['header_emphasis'],fill=MUTED)
                 feature_count=sum(m.get('kind')=='特色数据' for m in hero.get('metrics',[]))

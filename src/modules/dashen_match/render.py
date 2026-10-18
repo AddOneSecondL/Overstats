@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..subroles import draw_subrole_badge, get_subrole
+
 from ..dashen_promo import append_dashen_promo
 
 from dataclasses import dataclass
@@ -805,6 +807,8 @@ def _draw_scoreboard_players(
         icon_url = _hero_icon_url(hero_info, player)
         hero_size = max(int(80 * row_h / 82), 20)
         _paste_icon_from_url(img, icon_url, (38, int(y + (row_h - hero_size) / 2)), (hero_size, hero_size), ("heroes", "misc"))
+        badge_size = max(16, min(26, hero_size // 3))
+        draw_subrole_badge(img, hero_info, 38 + hero_size - badge_size, int(y + (row_h + hero_size) / 2) - badge_size, badge_size)
 
         rank_h = max(int(21 * row_h / 82), 9)
         rank_w = max(int(63 * row_h / 82), 28)
@@ -1044,6 +1048,9 @@ def _draw_fight_player_row(
 def _draw_hero_icon(img: Any, hero_info: Dict[str, Any], x: int, y: int, size: int) -> None:
     icon_url = _hero_icon_url(hero_info)
     _paste_icon_from_url(img, icon_url, (x, y), (size, size), ("heroes", "misc"))
+    badge_size = max(14, min(24, size // 2))
+    if size >= 28:
+        draw_subrole_badge(img, hero_info, x+size-badge_size, y+size-badge_size, badge_size)
 
 
 def _normalize_role_name(role: Any) -> str:
