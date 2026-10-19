@@ -33,7 +33,6 @@ Overstats 是一个基于网易大神上游接口封装的守望先锋本地数�
 - `overstats/src/modules/`：各业务模块实现
 - `overstats/src/db/request_metrics.py`：请求统计 SQLite 记录器
 - `overstats/res/`：渲染使用的静态资源
-- `overstats/test/`：测试与本地验证脚本
 
 ## 运行要求
 
@@ -79,7 +78,7 @@ DASHEN_MAX_ACCEPTED_REQUESTS = max(len(DASHEN_ACCOUNTS) * 4, 1)
 - `DASHEN_DTS` 与 `DASHEN_SERVER` 对所有账号共享
 - 服务会在多个账号之间轮转请求，失败账号会进入临时冷却
 - `API_HOST`、`API_PORT`、`USE_STREAM_RESPONSE` 用于控制本地服务行为
-- `OW_GUESS_ASSET_ROOT` 用于指定 `ow_guess` 的可选外置资源包目录。默认位置为仓库内的 `ow_guess_assets/`（建议保持 git ignore，按需选装）；未安装该资源包时，依赖本地图片/音频的题型会自动不可用
+- 猜一猜扩展包按需安装到 `res/ow_guess/packs/`，不随 Git 下载；未安装的扩展题型不会参与随机出题，使用方法见下文。
 - `PATCH_NOTES_USE_INTERNATIONAL_PROXY` 与 `PATCH_NOTES_INTERNATIONAL_PROXY` 用于控制外服补丁页面与外服静态资源是否走代理
 - 外服补丁翻译复用 `ANALYSIS_BASE_URL`、`ANALYSIS_API_KEY` 和对应模型配置，不再单独维护补丁翻译 key
 
@@ -158,17 +157,6 @@ curl http://127.0.0.1:18080/healthz
 
 更细的请求与响应格式后续可以单独整理成 API 文档。当前以 `overstats/src/server.py` 中实际暴露的路由为准。
 
-## 测试
-
-可以先运行这类基础测试：
-
-```bash
-python -m unittest overstats.test.test_dashen_profile_api
-python -m unittest overstats.test.test_dashen_summary_today
-```
-
-需要注意的是，`overstats/test/` 目录里有一部分文件更偏向本地联调脚本，不完全是纯单元测试，可能依赖本地资源、配置文件或已运行的服务。
-
 ## 首版说明
 
 当前第一版可以理解为：
@@ -184,9 +172,48 @@ python -m unittest overstats.test.test_dashen_summary_today
 
 - 不要提交真实的 `token`、`role_id`、Cookie 或 API key
 - 将 `overstats/config/config.py` 中的敏感值替换为占位符
-- 检查日志、截图、测试数据中是否包含敏感标识
+- 检查日志、截图中是否包含敏感标识
 
 `overstats/config/config.py` 是本地运行配置文件，不适合作为公开仓库中的密钥存储位置。
 
 
-外服数据获取参考项目：https://github.com/TeKrop/overfast-api
+## 扩展包使用方法
+
+扩展包提供猜一猜的可选资源，目前支持地图音乐。音频存放在 GitHub Release 附件中，不会随 `git clone` 或 `git pull` 下载。
+
+在项目根目录执行：
+
+```bash
+# 列出可用扩展包和已安装版本（不加参数也会列出）
+python packs.py list
+
+# 自动从 GitHub 下载并安装地图音乐包
+python packs.py install map-music
+
+# 更新全部已安装且在清单中的扩展包
+python packs.py update
+
+# 仅更新地图音乐包
+python packs.py update map-music
+
+# 卸载地图音乐包
+python packs.py uninstall map-music
+```
+
+扩展包版本和下载地址由 `res/ow_guess/packs.json` 管理。更新前先执行 `git pull` 获取最新清单，再执行更新命令。安装会校验资源完整性，安装失败时保留原版本。
+
+如果服务器无法访问 GitHub，可手动下载 Release 中的 ZIP，上传服务器后安装：
+
+```bash
+python packs.py install map-music --source /path/to/map-music-2026.10.19.2.zip
+```
+
+资源安装在 `res/ow_guess/packs/`，该目录已被 Git 忽略。安装完成后无需重启服务，使用已同步更新的 nb2 core 发送 `ow猜一猜 地图音乐` 即可开始；不加参数的随机出题也会包含地图音乐。未安装时，其他内置题型仍可正常使用。
+
+同一个 Release 可以上传多个扩展包 ZIP，每个包独立配置下载地址、版本和 SHA256，并独立安装、更新或卸载。下载附件必须已公开发布，文件名及 Release 标签需与清单中的地址一致；新增题型还需接入相应的出题和回复逻辑。
+
+## 参考项目
+
+- 外服数据获取：[TeKrop/overfast-api](https://github.com/TeKrop/overfast-api)
+- 游戏资源提取：[overtools/OWLib（DataTool）](https://github.com/overtools/OWLib)
+- 资料与地图音乐来源：[Overwatch Wiki](https://overwatch.fandom.com/wiki/Overwatch_Wiki)

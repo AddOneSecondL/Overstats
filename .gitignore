@@ -53,3 +53,7 @@ src/db/match_stats.sqlite3-shm
 
 # Remote resource cache (query_tool.json remains tracked)
 res/query_tool.runtime.json
+
+# Optional guess media packs
+/res/ow_guess/packs/
+/res/ow_guess/dist/

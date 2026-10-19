@@ -1281,3 +1281,26 @@ Common auto-route errors:
 ## 英雄对比
 
 `POST /api/v2/dashen-hero-compare` 和 `/api/v2/dashen-hero-compare/image` 接受 `player1`、`player2`、可选 `hero`、`mode`（默认quick）、`season`。默认各自当前赛季时长前三；无目标英雄数据时依次回查前三赛季，返回各列实际赛季。详见 `src/modules/dashen_hero_compare/README.md`。
+
+## 双方概览（Base64 导入）
+
+常用英雄按输入数据中的对手人数选择来源，统一应用于双方玩家。对手恰好 6 人时：6v6 竞技 → 5v5 竞技 → 6v6 快速 → 5v5 快速；其他人数时：5v5 竞技 → 5v5 快速 → 6v6 竞技 → 6v6 快速。取首个非空来源，按该模式游玩时间降序显示前三，不混合模式补足；图片和 JSON 的 `hero_source` 标明实际来源。人数依据导入的对手记录计算，查询失败不会改变人数判断。
+
+网页选择“双方概览”，粘贴 `player-id-exporter` 输出的版本 2 Base64，点击图片或 JSON 查询。
+
+- `POST /api/v2/dashen-team-overview`：返回结构化概览。
+- `POST /api/v2/dashen-team-overview/image`：返回 `image/png`，第一排队友，第二排对手。
+- 请求：`{"base64":"<导出器输出的字符串>"}`。
+- Base64 解码格式：`{"version":2,"players":[{"battletag":"玩家#1234","team_type":"teammate"},{"battletag":"对手#5678","team_type":"enemy"}]}`。
+
+接受 1–24 人，完整 ID 必须唯一，队伍仅接受 `teammate` / `enemy`。不接受无队伍标记的旧 ID 数组。仅展示导出器包含的玩家，未被导出的好友或自己不会补入。
+
+概览显示玩家头像、总游玩时间、本赛季四职责段位、竞技常用前三英雄（按 `gameTime` 排序；竞技无记录时回退快速并注明来源），以及英雄省级榜单，例如“源氏 · 广东省12强”。图片展示最靠前的两条省级记录，JSON `leaderboards` 保留全部。上榜接口失败显示“省榜暂不可用”，不冒充未上榜；单个玩家失败保留错误卡片，响应 `partial=true`。头像加载失败使用昵称首字占位。
+
+JSON 返回 `teams.teammate` 和 `teams.enemy`；每人含 `battletag`、`team_type`、`status`、`season`、`avatar_url`、`total_playtime_hours`、`hero_source`、`heroes`、`ranks`、`leaderboards`、`leaderboard_status`。`total_playtime_hours` 单位小时，缺失时为 `null`；`heroes[].game_time` 单位秒。仅图片请求下载头像，与省榜查询并行，头像请求限时 3 秒。每次请求最多并发查询三名玩家，每名限时 45 秒。段位和省榜沿用既有大神接口，图片沿用历史段位资源和字体。
+
+双方概览默认额外查询上一赛季段位，与头像及省榜并行，补查限时 10 秒，失败不影响当前资料。按职责仅填补当前缺失的段位，保留 `is_history` 和 `history_season`，图片在对应职责下标注来源赛季；不回退常用英雄。对手使用 5 像素外框，按补齐后四职责的最高已知段位着色：青铜棕、白银银、黄金金、白金青、翡翠绿、钻石蓝、大师紫、宗师橙、英杰红；未知为灰色。这是段位提示，不是胜率预测。
+
+每名玩家的 `recent_stats.quick` / `recent_stats.competitive` 分别统计快速和竞技最近最多 24 场，按 `beginTs` 倒序、`matchId` 去重，当前赛季不足时尝试上一赛季。两个模式并行补充分页，各限时 10 秒，不请求对局详情。字段包括 `sample_size`（实际场数）、`known_results`、`win_rate`（百分比）、`streak`（连胜正数、连败负数、平局为零）、`incomplete`。胜率为胜场 / 已知结果场数（包含平局）；未知结果不算胜负且中断连胜推断，最新结果未知时 `streak=null`。无战绩显示 `—`，部分读取失败保留已获取样本并在场数后标 `*`。连胜连败最多统计到这 24 场。胜率颜色分界为 45%、55%、70%；连胜或连败达到 5 场加深提示色。
+
+离线验证：`python validation/test_team_overview.py`。测试包含 Base64 校验、分队、英雄排序、上一赛季补齐与失败降级、边框段位顺序、战绩分页/去重/胜率/连胜连败、部分失败、并发限制、HTTP JSON/PNG/400 响应和示例图片渲染，不代表真实账号数据已验证。

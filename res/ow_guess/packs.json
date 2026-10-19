@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "packs": {
+    "map-music": {
+      "title": "地图音乐",
+      "version": "2026.10.19.2",
+      "questions": 80,
+      "url": "https://github.com/AddOneSecondL/Overstats/releases/download/guess-packs-2026.10.19/map-music-2026.10.19.2.zip",
+      "sha256": "2d1b64e325532f79d3a013132b3e0406f461b0f443a928e250d406976a996b22",
+      "maps": 49
+    }
+  }
+}
