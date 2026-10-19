@@ -5,7 +5,6 @@ from collections.abc import Awaitable
 from dataclasses import dataclass, field
 import datetime as dt
 from typing import Callable, Dict, Optional
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 try:
     from overstats.config import is_database_write_enabled
@@ -27,9 +26,11 @@ from .requests import OWHeroLeaderboardRequests
 
 def _load_beijing_timezone() -> dt.tzinfo:
     try:
+        from zoneinfo import ZoneInfo
+
         return ZoneInfo("Asia/Shanghai")
-    except ZoneInfoNotFoundError:
-        # Fall back to a fixed UTC+8 timezone when IANA tz data is unavailable.
+    except (ImportError, KeyError):
+        # Current leaderboard schedules use UTC+8, even without zoneinfo or tzdata.
         return dt.timezone(dt.timedelta(hours=8), name="Asia/Shanghai")
 
 
