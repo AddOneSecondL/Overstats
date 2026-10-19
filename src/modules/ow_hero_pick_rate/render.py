@@ -210,6 +210,17 @@ def render_pick_rate_ranking(*, game_mode, mmr, snapshot, heroes, theme=None, ti
     return _finish_ow(canvas)
 
 
+def _pick_rate_axis_ceiling(values):
+    import math
+    peak = max((float(value) for value in values if math.isfinite(float(value))), default=0)
+    if peak <= 0:
+        return 1.0
+    raw_step = peak * 1.08 / 5
+    magnitude = 10 ** math.floor(math.log10(raw_step))
+    step = next(factor * magnitude for factor in (1, 1.5, 2, 2.5, 4, 5, 7.5, 10) if factor * magnitude >= raw_step)
+    return step * 5
+
+
 def render_pick_rate_history(*, game_mode, mmr, hero, latest, history_total, history_limit, series, theme=None, tier_data=(), patch_events=(), patch_dates_available=True):
     role_heroes = next((row.get("role_heroes", []) for row in tier_data if str(row["mmr"]).lower()=="all"), [])
     canvas,draw=_ow_canvas(1050 + max(0, (len(role_heroes)+25)//26-1)*48)
@@ -225,9 +236,11 @@ def render_pick_rate_history(*, game_mode, mmr, hero, latest, history_total, his
     keys=[(int(p.get('season') or 0),str(p.get('ds') or '')) for p in series]
     lookups = {tier.lower(): {(int(p.get('season') or 0), str(p.get('ds') or '')): p for p in peers.get(tier.lower(), [])} for tier in TIER_ORDER}
     baselines = {str(tier['mmr']).lower(): {(int(p.get('season') or 0), str(p.get('ds') or '')): float(p.get('selection_ratio') or 0) for p in tier.get('baseline', [])} for tier in tier_data}
-    values = [float(p.get('selection_ratio') or 0) for lookup in lookups.values() for p in lookup.values()]
-    values += [v for lookup in baselines.values() for v in lookup.values()]
-    ceiling = max(values or [1]) * 1.15 or 1
+    # Scale only the points actually drawn, including the selected tier's baseline.
+    values = [float(lookup[key].get('selection_ratio') or 0) for lookup in lookups.values() for key in keys if key in lookup]
+    baseline = baselines.get(str(mmr).lower(), {})
+    values += [baseline[key] for key in keys if key in baseline]
+    ceiling = _pick_rate_axis_ceiling(values)
     try:
         days = [date.fromisoformat(k[1][:10]).toordinal() for k in keys]
         span = days[-1] - days[0]
@@ -258,6 +271,21 @@ def render_pick_rate_history(*, game_mode, mmr, hero, latest, history_total, his
         value=ceiling*tick/5;py=yy(value)
         draw.line((l,py,r,py),fill=(193,210,204))
         draw.text((44,py-8),f"{value:.1f}%",font=_font_chinese(12),fill=(116,135,157))
+    season_labels = []
+    for i in range(1, len(keys)):
+        if keys[i][0] == keys[i-1][0]:
+            continue
+        px = l + (r-l)*fractions[i]
+        color = (102, 123, 149)
+        _dashed_line(draw, (px,t), (px,b), (170,189,192), 1)
+        draw.polygon([(px-4,b+5),(px+4,b+5),(px,b)],fill=color)
+        label = f"{keys[i][1][5:]}  S{keys[i-1][0]} → S{keys[i][0]}"
+        font = _font_chinese(12)
+        width = _measure_text(draw,label,font)
+        x = max(l,min(r-width,px-width/2))
+        lane = 1 if season_labels and x < season_labels[-1]+8 else 0
+        draw.text((x,866+lane*18),label,font=font,fill=color)
+        season_labels.append(x+width)
     label_ends=[-100,-100]
     for event in sorted(patch_events,key=lambda row:row.get('date','')):
         try:

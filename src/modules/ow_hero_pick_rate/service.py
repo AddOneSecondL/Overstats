@@ -353,7 +353,7 @@ class OWHeroPickRateModule:
             key=lambda item: (self._safe_int(item.get("season")), str(item.get("ds") or "")),
         )
         history_total = len(sorted_rows)
-        # Use calendar days within the latest season, not a count of snapshots.
+        # Use a calendar-day window across seasons, not a count of snapshots.
         newest = sorted_rows[-1]
         latest_season = self._safe_int(newest.get("season"))
         def snapshot_day(row):
@@ -364,9 +364,12 @@ class OWHeroPickRateModule:
                 except ValueError:
                     continue
             raise ModuleError(error="invalid_snapshot_date", message="选取率快照日期格式无效。", status_code=502)
+        sorted_rows.sort(key=lambda row: (snapshot_day(row), self._safe_int(row.get("season"))))
+        newest = sorted_rows[-1]
         end_day = snapshot_day(newest)
         start_day = end_day - timedelta(days=query.history_limit - 1)
-        limited_rows = [row for row in sorted_rows if self._safe_int(row.get("season")) == latest_season and start_day <= snapshot_day(row) <= end_day]
+        by_day = {snapshot_day(row): row for row in sorted_rows if start_day <= snapshot_day(row) <= end_day}
+        limited_rows = list(by_day.values())
         series = tuple(self._to_history_point(row) for row in limited_rows)
         latest = self._to_history_point(sorted_rows[-1])
         peer_rows = self._fetch_rows(config, HERO_LEADERBOARD_CN_TABLE, game_mode=source_mode, hero_id=hero_meta.hero_guid)
@@ -385,7 +388,7 @@ class OWHeroPickRateModule:
             role_values = {str(row.get("hero_id")): self._safe_float(row.get("selection_ratio")) for row in baseline_rows if str(row.get("mmr")) == MMR_SOURCE_MAP[tier] and self._safe_int(row.get("season")) == latest.season and str(row.get("ds") or "") == latest.ds and str(row.get("hero_id")) in role_ids}
             own = role_values.get(hero_meta.hero_guid)
             role_rank = 1 + sum(value > own for value in role_values.values()) if own is not None else None
-            all_points = {snapshot_day(row): row for row in peer_rows if str(row.get("mmr")) == MMR_SOURCE_MAP[tier] and self._safe_int(row.get("season")) == latest.season}
+            all_points = {snapshot_day(row): row for row in sorted(peer_rows, key=lambda item: (snapshot_day(item), self._safe_int(item.get("season")))) if str(row.get("mmr")) == MMR_SOURCE_MAP[tier]}
             current = all_points.get(end_day)
             changes = {}
             relative_changes = {}
