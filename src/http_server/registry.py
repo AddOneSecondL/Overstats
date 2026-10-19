@@ -201,10 +201,12 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
     HTTPUIModuleSpec(
         id="dashen-match",
         title="近期对局",
-        description="查看近期对局列表，支持 JSON 或战绩图片。",
+        description="普通查询获取近期对局；填写地图或英雄后，检索最近两个赛季最多20场。",
         json_endpoint="/api/v2/dashen-match",
         image_endpoint="/api/v2/dashen-match/image",
         fields=(
+            HTTPUIFieldSpec("map", "地图", "map", placeholder="可选，如国王大道、尼泊尔"),
+            HTTPUIFieldSpec("hero", "英雄", "hero", placeholder="可选，支持英雄别名"),
             _number_field("limit", "数量", "limit", placeholder="默认 20", default="20"),
             _bool_field("include_fight", "包含角斗领域", "include_fight", default=True),
             _bool_field(
@@ -707,6 +709,7 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
                     HTTPUIFieldOption("skill_description_name", "技能描述猜技能名"),
                     HTTPUIFieldOption("hero_color", "代表色猜英雄"),
                     HTTPUIFieldOption("map_music", "地图音乐 · 需安装扩展包"),
+                    HTTPUIFieldOption("hero_conversation", "对话猜接话英雄 · 需安装扩展包"),
                     HTTPUIFieldOption("random", "随机"),
                 ),
             ),

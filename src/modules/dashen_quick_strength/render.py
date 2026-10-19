@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..map_modes import draw_map_mode_icon
+
 from ..dashen_promo import append_dashen_promo
 
 from dataclasses import dataclass
@@ -647,11 +649,13 @@ def _draw_chart(
     bottom_line_y = inner_bottom + 24 * scale
     for idx, (x, match) in enumerate(zip(x_positions, matches), start=1):
         label_text = f"{idx}. {_format_match_label(match, config)}"
-        label_text = _fit_text(draw, label_text, fonts["font_meta"], label_width_limit)
+        icon_size = 18 * scale
+        label_text = _fit_text(draw, label_text, fonts["font_meta"], max(1, label_width_limit - icon_size - 4 * scale))
         label_width = _measure_text(draw, label_text, fonts["font_meta"])
+        draw_map_mode_icon(canvas, match.get("map_guid"), x - (label_width + icon_size) / 2 - 4 * scale, bottom_line_y, icon_size)
         _draw_contrast_text(
             draw,
-            (int(x - label_width / 2), bottom_line_y),
+            (int(x - (label_width - icon_size) / 2), bottom_line_y),
             label_text,
             font=fonts["font_meta"],
             fill=(236, 242, 251, 255),

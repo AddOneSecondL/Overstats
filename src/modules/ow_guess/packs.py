@@ -14,10 +14,11 @@ import zipfile
 import httpx
 
 ROOT = Path(__file__).resolve().parents[3]
-PACK_ROOT = ROOT / 'res' / 'ow_guess' / 'packs'
+PACK_ROOT = Path(os.getenv('OVERSTATS_PACK_ROOT') or ROOT / 'res' / 'ow_guess' / 'packs').expanduser().resolve()
 INDEX = ROOT / 'res' / 'ow_guess' / 'packs.json'
-MAX_ARCHIVE = 128 * 1024 * 1024
+MAX_ARCHIVE = 512 * 1024 * 1024
 MAX_AUDIO = 2 * 1024 * 1024
+_QUESTION_CACHE = {}
 
 
 def _inside(path, root):
@@ -80,12 +81,22 @@ def questions(mode='map_music'):
             if not active:
                 continue
             folder, manifest = active
+            manifest_file = folder / 'manifest.json'
+            stamp = (str(folder), manifest_file.stat().st_mtime_ns, manifest_file.stat().st_size)
+            cache_key = (str(PACK_ROOT), root.name, mode)
+            cached = _QUESTION_CACHE.get(cache_key)
+            if cached and cached[0] == stamp:
+                result.extend(dict(question) for question in cached[1])
+                continue
+            entries = []
             for question in manifest['questions']:
                 if question['mode'] != mode:
                     continue
                 path = media_path(folder, question['media'])
                 if path.is_file() and 0 < path.stat().st_size <= MAX_AUDIO:
-                    result.append({**question, 'media_path': path, 'pack_id': root.name})
+                    entries.append({**question, 'media_path': path, 'pack_id': root.name})
+            _QUESTION_CACHE[cache_key] = (stamp, entries)
+            result.extend(dict(question) for question in entries)
         except (OSError, ValueError, KeyError, TypeError):
             continue
     return result
@@ -96,19 +107,26 @@ def _validate(folder, pack_id):
     if manifest.get('schema_version') != 1 or manifest.get('id') != pack_id or not isinstance(manifest.get('version'), str):
         raise ValueError('扩展包清单版本或名称不匹配')
     entries = manifest.get('questions')
-    if not isinstance(entries, list) or not entries or len(entries) > 2000:
+    if not isinstance(entries, list) or not entries or len(entries) > 10000:
         raise ValueError('扩展包题目数量不合法')
     seen = set()
     for entry in entries:
-        if entry.get('mode') != 'map_music' or not isinstance(entry.get('id'), str) or entry['id'] in seen:
+        if entry.get('mode') not in {'map_music', 'hero_conversation'} or not isinstance(entry.get('id'), str) or entry['id'] in seen:
             raise ValueError('不支持的题型或重复的题目 ID')
         seen.add(entry['id'])
         aliases = entry.get('answers')
         if not isinstance(aliases, list) or not aliases or any(not isinstance(a, str) or not a.strip() for a in aliases):
             raise ValueError('题目缺少有效答案')
-        maps = entry.get('maps', [aliases[0]])
-        if not isinstance(maps, list) or not maps or any(not isinstance(name, str) or name not in aliases for name in maps):
-            raise ValueError('地图列表必须包含在可接受答案中')
+        if entry['mode'] == 'map_music':
+            maps = entry.get('maps', [aliases[0]])
+            if not isinstance(maps, list) or not maps or any(not isinstance(name, str) or name not in aliases for name in maps):
+                raise ValueError('地图列表必须包含在可接受答案中')
+        else:
+            if any(not isinstance(entry.get(key), str) or not entry[key].strip()
+                   for key in ('prompt_hero', 'prompt_text', 'reply_hero', 'reply_text')):
+                raise ValueError('对话题目缺少角色或台词')
+            if entry['reply_hero'] not in aliases or entry['prompt_hero'] == entry['reply_hero']:
+                raise ValueError('对话题目的接话英雄不合法')
         path = media_path(folder, entry['media'])
         if path.suffix != '.mp3' or not 0 < path.stat().st_size <= MAX_AUDIO:
             raise ValueError('音频需为不超过 2 MiB 的 MP3')
@@ -195,7 +213,7 @@ def install(pack_id, source=None, proxy=None):
         unpacked.mkdir()
         with zipfile.ZipFile(archive) as bundle:
             members = bundle.infolist()
-            if len(members) > 4000 or sum(m.file_size for m in members) > MAX_ARCHIVE:
+            if len(members) > 20000 or sum(m.file_size for m in members) > MAX_ARCHIVE:
                 raise ValueError('解压大小超过限制')
             seen = set()
             for member in members:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..map_modes import draw_map_mode_icon
+
 from ..subroles import draw_subrole_badge, get_subrole
 
 from ..dashen_promo import append_dashen_promo
@@ -94,7 +96,7 @@ def render_match_list(
 
     config = _load_ow_config()
     recent_matches = list(matches or [])[:20]
-    row_h = 60
+    row_h = 80
     default_hint_text = "回复此图并@机器人发送 1 / 1* / 1**，可查看单场详情 / 全员详细 / AI锐评"
     rendered_footer_lines = [str(line).strip() for line in (footer_lines or []) if str(line).strip()]
     effective_hint_text = default_hint_text if hint_text is None else str(hint_text or "").strip()
@@ -102,7 +104,7 @@ def render_match_list(
         rendered_footer_lines.append(effective_hint_text)
     footer_h = max(58, 24 + 22 * max(len(rendered_footer_lines), 1))
     img_h = row_h * max(len(recent_matches), 1) + 70 + footer_h
-    img = Image.new("RGBA", (700, img_h), (22, 23, 30, 255))
+    img = Image.new("RGBA", (900, img_h), (22, 23, 30, 255))
     draw = ImageDraw.Draw(img, "RGBA")
 
     font_title = _font(24)
@@ -117,7 +119,7 @@ def render_match_list(
         title_entries = [(full_id, risk_status)]
     _draw_title_with_risk_statuses(
         draw,
-        title_text,
+        _fit_text(draw, title_text, font_title, 585),
         title_entries,
         x=20,
         y=15,
@@ -130,23 +132,23 @@ def render_match_list(
     win_rate = (wins_recent / total_recent * 100) if total_recent else 0
     wr_color = (100, 255, 120) if win_rate >= 50 else (255, 100, 100)
     wr_label = f"近 {total_recent} 场胜率:"
-    draw.text((430, 18), wr_label, fill=(220, 220, 220), font=font)
-    draw.text((430 + _text_width(draw, wr_label, font) + 10, 15), f"{win_rate:.1f}%", fill=wr_color, font=font_title)
+    draw.text((640, 18), wr_label, fill=(220, 220, 220), font=font)
+    draw.text((640 + _text_width(draw, wr_label, font) + 10, 15), f"{win_rate:.1f}%", fill=wr_color, font=font_title)
 
     y = 60
     if not recent_matches:
-        _rounded_rect(draw, [20, y, 680, y + 50], radius=8, fill=(35, 37, 45, 255))
+        _rounded_rect(draw, [20, y, 880, y + 50], radius=8, fill=(35, 37, 45, 255))
         draw.text((40, y + 15), "未找到可用对局。", fill=(230, 235, 245), font=font)
     for index, match in enumerate(recent_matches, start=1):
         _draw_match_row(draw, img, config, match, index, y, font, font_sm)
         y += row_h
 
     footer_top = img_h - footer_h
-    draw.line([(20, footer_top), (680, footer_top)], fill=(60, 67, 82, 255), width=1)
+    draw.line([(20, footer_top), (880, footer_top)], fill=(60, 67, 82, 255), width=1)
     for line_index, line_text in enumerate(rendered_footer_lines or [default_hint_text]):
         draw.text(
             (20, footer_top + 16 + line_index * 22),
-            _fit_text(draw, line_text, font_sm, 660),
+            _fit_text(draw, line_text, font_sm, 860),
             fill=(190, 198, 210),
             font=font_sm,
         )
@@ -282,7 +284,8 @@ def _render_scoreboard_match_detail(
     result_en = "VICTORY" if match_ret == 1 else "TIE" if match_ret == 0 else "DEFEAT"
     result_color = (100, 255, 120) if match_ret == 1 else (255, 255, 150) if match_ret == 0 else (255, 100, 100)
     draw.text((1165, 465), result_en, font=font_en_large, fill=result_color)
-    draw.text((1140, 20), _fit_text(draw, map_name, font_cn, 620), font=font_cn, fill="white")
+    draw_map_mode_icon(img, map_info, 1140, 24, 32)
+    draw.text((1180, 20), _fit_text(draw, map_name, font_cn, 580), font=font_cn, fill="white")
 
     team_score = data.get("teamScore", source_match.get("teamScore", "-"))
     opponent_score = data.get("opponentScore", source_match.get("opponentScore", "-"))
@@ -580,14 +583,16 @@ def _render_fight_match_detail(
     score_text = f"{total_count.get('teamScore', source_match.get('teamScore', 0))} : {total_count.get('opponentScore', source_match.get('opponentScore', 0))}"
     draw.rectangle((0, 0, image_w, top_h), fill=(28, 31, 42, 255))
     draw.text((32, 20), "STADIUM MATCH", font=font_title, fill=(255, 190, 60, 255))
-    draw.text((520, 25), _fit_text(draw, map_name, font_sm, 420), font=font_sm, fill=(245, 247, 250, 255))
+    draw_map_mode_icon(img, map_guid, 520, 25, 24)
+    draw.text((552, 25), _fit_text(draw, map_name, font_sm, 388), font=font_sm, fill=(245, 247, 250, 255))
     draw.text((520, 58), f"FINAL {score_text}", font=font_en, fill=(178, 184, 198, 255))
 
     y = top_h
     for idx, round_data in enumerate(rounds or [{}], 1):
         round_map = (_find_map(config, round_data.get("mapGuid") or map_guid) or {}).get("name") or map_name
         draw.rectangle((24, y, left_w - 14, y + round_h - 4), fill=(32, 38, 53, 255), outline=(255, 190, 60, 120), width=2)
-        draw.text((44, y + 24), _fit_text(draw, round_map, font_sm, 160), font=font_sm, fill=(245, 247, 250, 255))
+        draw_map_mode_icon(img, round_data.get("mapGuid") or map_guid, 44, y + 24, 22)
+        draw.text((72, y + 24), _fit_text(draw, round_map, font_sm, 132), font=font_sm, fill=(245, 247, 250, 255))
         draw.text((44, y + 56), f"第 {idx} 回合", font=font_sm, fill=(255, 190, 60, 255))
         draw.text((44, y + 92), f"{round_data.get('teamScore', 0)} : {round_data.get('opponentScore', 0)}", font=font_title, fill=(245, 247, 250, 255))
         draw.text((44, y + 150), _format_duration(round_data.get("gameTimeSec")), font=font_en, fill=(178, 184, 198, 255))
@@ -641,20 +646,65 @@ def _render_fight_match_detail(
     return RenderedImage(content=output.getvalue())
 
 
+def _match_stat_text(match: Dict[str, Any], key: str) -> str:
+    value = match.get(key)
+    if value is None or value == "":
+        return "—"
+    try:
+        return f"{int(float(value)):,}"
+    except (TypeError, ValueError, OverflowError):
+        return "—"
+
+
 def _draw_match_row(draw: Any, img: Any, config: Dict[str, Any], match: Dict[str, Any], index: int, y: int, font: Any, font_sm: Any) -> None:
-    _rounded_rect(draw, [20, y, 680, y + 50], radius=8, fill=(35, 37, 45, 255))
-    _draw_map_background(img, map_info := _find_map(config, match.get("mapGuid")), y)
-    _draw_row_accent(draw, y, match)
-
-    map_name = map_info.get("name") or "未知地图"
-    mode, mode_color = _mode_label(match)
-    begin_text = _format_begin_ts(match.get("beginTs"))
+    _rounded_rect(draw, [20, y + 3, 880, y + 75], radius=9, fill=(12, 17, 25, 255))
+    _rounded_rect(draw, [20, y, 880, y + 72], radius=9, fill=(34, 43, 57, 255))
+    map_info = _find_map(config, match.get("mapGuid") or match.get("mapId"))
+    _draw_map_background(img, map_info, y)
     result_text, result_color = _result_label(match.get("matchRet"))
-
-    draw.text((40, y + 15), f"{index}. {map_name}", fill=(255, 255, 255), font=font)
-    draw.text((375, y + 15), mode, fill=mode_color, font=font_sm)
-    draw.text((375 + _text_width(draw, mode, font_sm) + 6, y + 15), f"| {begin_text}", fill=(180, 180, 180), font=font_sm)
-    draw.text((580, y + 15), result_text, fill=result_color, font=font_sm)
+    draw.rounded_rectangle([20, y + 9, 24, y + 63], radius=2, fill=result_color)
+    map_info = _find_map(config, match.get("mapGuid") or match.get("mapId"))
+    hero_info = _resolve_player_hero(config, match)
+    _rounded_rect(draw, [36, y + 12, 84, y + 60], radius=8, fill=(19, 28, 40, 255))
+    if hero_info:
+        _draw_hero_icon(img, hero_info, 36, y + 12, 48)
+        _draw_player_role_icon(img, hero_info, match, 96, y + 41, 18)
+    else:
+        draw.text((51, y + 23), "?", font=font, fill=(137, 153, 173))
+    map_name = map_info.get("name") or "未知地图"
+    draw_map_mode_icon(img, map_info, 308, y + 10, 24)
+    draw.text((96, y + 9), _fit_text(draw, f"{index}. {map_name}", font, 205), font=font, fill=(245, 248, 253))
+    draw.text((120, y + 40), _fit_text(draw, hero_info.get("name") or "未记录", _font(14), 82), font=_font(14), fill=(166, 191, 217))
+    mode, mode_color = _mode_label(match)
+    draw.text((210, y + 40), mode, font=_font(13), fill=mode_color)
+    extra_heroes = []
+    seen_heroes = {hero_info.get("name")}
+    for raw_hero in match.get("heroList") or []:
+        info = _resolve_player_hero(config, raw_hero) if isinstance(raw_hero, dict) else _find_hero(config, raw_hero)
+        if info and info.get("name") not in seen_heroes:
+            seen_heroes.add(info.get("name"))
+            extra_heroes.append(info)
+    for offset, info in enumerate(extra_heroes[:2]):
+        _draw_hero_icon(img, info, 273 + offset * 23, y + 39, 20)
+    if len(extra_heroes) > 2:
+        draw.text((319, y + 41), f"+{len(extra_heroes)-2}", font=_font(10), fill=(166, 191, 217))
+    stats = [
+        (342, 146, "K / D / A", ("kill", "death", "assist")),
+        (496, 220, "伤害 / 治疗 / 抵挡", ("heroDamage", "cure", "resistDamage")),
+    ]
+    for x, width, label, keys in stats:
+        _rounded_rect(draw, [x, y + 8, x + width, y + 63], radius=6, fill=(22, 31, 44, 255))
+        label_font = _font(12)
+        value_font = _font(15)
+        value = " / ".join(_match_stat_text(match, key) for key in keys)
+        value = _fit_text(draw, value, value_font, width - 12)
+        draw.text((x + (width - _text_width(draw, label, label_font)) / 2, y + 14), label, font=label_font, fill=(154, 170, 191))
+        draw.text((x + (width - _text_width(draw, value, value_font)) / 2, y + 36), value, font=value_font, fill=(231, 236, 247))
+    draw.text((730, y + 12), _format_begin_ts(match.get("beginTs")), font=_font(12), fill=(157, 170, 188))
+    rank_info = match.get("rankInfo") or match.get("rank_info")
+    _draw_rank_badge(draw, img, rank_info, 730, y + 36, 76, 26,
+                     mode="fight" if "fight" in str(match.get("gameMode") or "").lower() else "normal")
+    draw.text((822, y + 38), result_text, font=font_sm, fill=result_color)
 
 
 def _draw_detail_map_background(img: Any, map_info: Dict[str, Any], width: int, height: int) -> None:
@@ -1116,7 +1166,7 @@ def _draw_rank_badge(
 
     score = _safe_int(get_rank_score(rank_info))
     tier = str(get_rank_sub_tier(rank_info) or "").strip()
-    if score <= 0 and not tier:
+    if score <= 0 and not tier and not get_rank_name(rank_info):
         return
 
     badge_image = _build_rank_badge_image(rank_info, width=width, height=height, mode=mode)
@@ -1211,11 +1261,17 @@ def _draw_map_background(img: Any, map_info: Dict[str, Any], y: int) -> None:
     if not local_path or not local_path.exists():
         return
     try:
-        from PIL import Image
+        from PIL import Image, ImageDraw, ImageChops
 
-        icon = Image.open(local_path).convert("RGBA")
-        bg = _crop_center_to_size(icon, (660, 50))
-        mask = _left_fade_mask((660, 50))
+        with Image.open(local_path) as source:
+            bg = _crop_center_to_size(source.convert("RGBA"), (860, 72))
+        shade = Image.new("RGBA", bg.size, (10, 17, 28, 125))
+        bg = Image.alpha_composite(bg, shade)
+        mask = Image.new("L", bg.size, 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, 859, 71), radius=9, fill=255)
+        gradient = Image.new("L", (860, 1))
+        gradient.putdata([int(255 * (1 - 0.75 * x / 859)) for x in range(860)])
+        mask = ImageChops.multiply(mask, gradient.resize(bg.size))
         img.paste(bg, (20, y), mask)
     except Exception:
         return

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass, field
 import datetime as dt
 from typing import Any, Dict, Iterable, List, Optional, Sequence
@@ -11,6 +12,11 @@ try:
 except ModuleNotFoundError:
     from src.client.apiclient import DashenAPIClient, dashen_api_client
     from src.modules.season_config import get_dashen_current_season, get_dashen_season_rollover_at
+
+
+from ..query_tool import read_query_tool
+from ..errors import ModuleError
+from ...constants.chara import iter_hero_alias_pairs
 
 
 DASHEN_SEASON_ROLLOVER_AT = get_dashen_season_rollover_at()
@@ -124,8 +130,69 @@ def is_fight_match(match: Dict[str, Any]) -> bool:
     return "fight" in str((match or {}).get("gameMode") or "").lower()
 
 
+def _filter_text(value):
+    return re.sub(r"[\s\-—_：:·.]", "", str(value or "")).casefold()
+
+
+def _resource_id(value):
+    value = str(value or "").strip()
+    try:
+        return str(int(value, 16 if value.lower().startswith("0x") else 10))
+    except ValueError:
+        return value.casefold()
+
+
+def resolve_match_filters(filters):
+    result = {key: value for key, value in (filters or {}).items() if key not in {"map", "hero", "search"} or str(value or "").strip()}
+    if not any(result.get(key) for key in ("hero", "map", "search")):
+        return result
+    config = read_query_tool(default={})
+    aliases = {_filter_text(a): name for a, name in iter_hero_alias_pairs()}
+    def resolve(kind, value):
+        text = _filter_text(value)
+        name = _filter_text(aliases.get(text, value)) if kind == "hero" else text
+        rows = config.get("heroList" if kind == "hero" else "mapList", [])
+        ids = set()
+        for row in rows:
+            row_name = _filter_text(row.get("name"))
+            raw_ids = [row.get(k) for k in (("heroGuid", "heroId", "id", "guid") if kind == "hero" else ("guid", "id", "mapGuid"))]
+            if name == row_name or (kind == "map" and name in row_name and len(name) >= 2) or _resource_id(value) in {_resource_id(v) for v in raw_ids if v}:
+                ids.update(_resource_id(v) for v in raw_ids if v)
+        return ids
+    for kind in ("hero", "map"):
+        value = result.pop(kind, None)
+        if value:
+            ids = resolve(kind, value)
+            if not ids:
+                raise ModuleError(error="invalid_match_filter", message=f"未识别的{'英雄' if kind == 'hero' else '地图'}：{value}", status_code=400)
+            result["_"+kind+"_ids"] = ids
+    search = str(result.pop("search", "") or "").strip()
+    for value in search.split():
+        candidates = [(kind, resolve(kind, value)) for kind in ("hero", "map")]
+        candidates = [(kind, ids) for kind, ids in candidates if ids]
+        if len(candidates) != 1:
+            raise ModuleError(error="invalid_match_filter", message=f"无法识别筛选条件：{value}，请使用 地图:名称 或 英雄:名称。", status_code=400)
+        kind, ids = candidates[0]
+        key = "_"+kind+"_ids"
+        result[key] = result[key] & ids if key in result else ids
+    return result
+
+
 def _matches_filters(match: Dict[str, Any], filters: Dict[str, Any]) -> bool:
     for key, expected in (filters or {}).items():
+        if key in {"_hero_ids", "_map_ids"}:
+            if key == "_map_ids":
+                values = [match.get("mapGuid"), match.get("mapId")]
+            else:
+                values = [match.get("heroGuid"), match.get("heroId")]
+                for hero in match.get("heroList") or []:
+                    if isinstance(hero, dict):
+                        values.extend([hero.get("heroGuid"), hero.get("heroId"), hero.get("id")])
+                    else:
+                        values.append(hero)
+            if not {_resource_id(v) for v in values if v} & expected:
+                return False
+            continue
         actual = match.get(key)
         if key in {"kill", "assist", "cure", "death", "heroDamage", "resistDamage"}:
             try:
@@ -153,6 +220,11 @@ class DashenMatchRequests:
         self.api_client = api_client or dashen_api_client
 
     async def list_recent_matches(self, query: DashenMatchQuery) -> List[Dict[str, Any]]:
+        filters = resolve_match_filters(query.filters)
+        if any(key in filters for key in ("_map_ids", "_hero_ids")):
+            allowed = get_recent_dashen_seasons(include_previous=query.include_previous_season)
+            seasons = [season for season in allowed if not query.seasons or season in query.seasons]
+            return await self._search_matches(query, seasons, max(1, min(20, int(query.target_count))), filters)
         seasons = list(query.seasons or get_recent_dashen_seasons(include_previous=query.include_previous_season))
         matches: List[Dict[str, Any]] = []
         for logical_season in seasons:
@@ -174,9 +246,52 @@ class DashenMatchRequests:
             if count_unique_match_entries(matches) >= query.target_count:
                 break
 
-        if query.filters:
-            matches = [match for match in matches if _matches_filters(match, query.filters)]
+        if filters:
+            matches = [match for match in matches if _matches_filters(match, filters)]
         return matches
+
+    async def _search_matches(self, query, seasons, limit, filters):
+        async def scan_mode(mode, fight, season):
+            found = []
+            for request_season in iter_dashen_season_request_values(season):
+                seen = set()
+                page = 1
+                while True:
+                    fetch = self.api_client.fight_query_match_list if fight else self.api_client.query_match_list
+                    payload = await fetch(query.customer_token, mode, page=page, season=request_season)
+                    if not isinstance(payload, (dict, list)) or (isinstance(payload, dict) and (payload.get("success") is False or payload.get("ok") is False or payload.get("code") not in (None, 0, 200, "0", "200"))):
+                        raise ModuleError(error="match_search_failed", message="对局检索失败，请稍后重试。", status_code=502)
+                    batch = extract_match_entries(payload)
+                    fresh = []
+                    for match in batch:
+                        key = str(match.get("matchId") or (match.get("beginTs"), match.get("mapGuid"), mode))
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        item = dict(match, _dashenSeason=season)
+                        item["gameMode"] = mode
+                        fresh.append(item)
+                    if not fresh:
+                        break
+                    found = merge_unique_match_entries(found, [m for m in fresh if _matches_filters(m, filters)])
+                    if len(found) >= limit:
+                        break
+                    page += 1
+                if seen:
+                    break
+            return found[:limit]
+
+        matches = []
+        modes = [("leisure", False), ("sport", False)]
+        if query.include_fight:
+            modes += [(mode, True) for mode in DEFAULT_FIGHT_MODES]
+        for season in seasons:
+            batches = await asyncio.gather(*(scan_mode(mode, fight, season) for mode, fight in modes))
+            for batch in batches:
+                matches = merge_unique_match_entries(matches, batch)
+            if len(matches) >= limit:
+                break
+        return matches[:limit]
 
     async def list_history_matches(
         self,

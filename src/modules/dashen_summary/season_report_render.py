@@ -1,6 +1,8 @@
 """Adaptive season-report image, sharing the daily summary's assets and typography."""
 from __future__ import annotations
 
+from ..map_modes import draw_map_mode_icon
+
 from ..dashen_promo import append_dashen_promo
 
 import datetime as dt
@@ -365,7 +367,8 @@ async def render_report(report, role_id):
         value = fmt(count) + " 场" if count is not None else fmt(row.get("value"))
         text(x + 16, y + 131, value, 31, GREEN, w - 105)
         text(x + 17, y + 173, title, 17, WHITE, w - 34)
-        text(x + 17, y + 204, f"{s._hero_name(row.get('hero'))} · {s._map_name(row.get('map'))}", 16, MUTED, w - 34)
+        draw_map_mode_icon(canvas, row.get("map"), x + 15, y + 204, 18)
+        text(x + 39, y + 204, f"{s._hero_name(row.get('hero'))} · {s._map_name(row.get('map'))}", 16, MUTED, w - 56)
         text(x + 17, y + 232, f"消灭 {fmt(row.get('kill'))}  助攻 {fmt(row.get('assist'))}  死亡 {fmt(row.get('death'))}", 15, MUTED, w - 34)
         for i, perk in enumerate(perks_for(row)):
             px, py = x + 16 + i * ((w - 32) // 2), y + 270

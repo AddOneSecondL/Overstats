@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..map_modes import draw_map_mode_icon
+
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -408,7 +410,8 @@ def _draw_map_card(
 
     text_x = box[0] + _px(22)
     text_y = box[1] + _px(18)
-    draw.text((text_x, text_y), str(map_update.get("name") or "地图更新"), font=fonts["title"], fill=TEXT_ACCENT)
+    has_mode_icon = draw_map_mode_icon(canvas, map_update.get("name"), text_x, text_y, _px(28))
+    draw.text((text_x + (_px(36) if has_mode_icon else 0), text_y), str(map_update.get("name") or "地图更新"), font=fonts["title"], fill=TEXT_ACCENT)
     text_y += _px(46)
 
     left_box = (text_x, text_y, text_x + image_w, text_y + image_h)

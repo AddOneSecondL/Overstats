@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..map_modes import draw_map_mode_icon
+
 from ..subroles import draw_subrole_badge, get_subrole
 
 from ..dashen_promo import append_dashen_promo
@@ -1470,6 +1472,7 @@ def render_analysis_report(
 
     draw.text((padding, 18), ">> AI锐评", font=font_title, fill=(255, 255, 255, 255))
     header_text = f"{map_name or '本场对局'} - {match_result or '总览'}"
+    draw_map_mode_icon(image, map_name, width - padding - measure(header_text, _font_chinese(22)) - 32, 27, 24)
     draw.text((width - padding - measure(header_text, _font_chinese(22)), 27), header_text, font=_font_chinese(22), fill=(255, 255, 255, 220))
 
     score_colors = {

@@ -8,6 +8,14 @@
       "url": "https://github.com/AddOneSecondL/Overstats/releases/download/guess-packs-2026.10.19/map-music-2026.10.19.2.zip",
       "sha256": "2d1b64e325532f79d3a013132b3e0406f461b0f443a928e250d406976a996b22",
       "maps": 49
+    },
+    "hero-conversation": {
+      "title": "对话猜接话英雄",
+      "version": "2026.10.19.1",
+      "questions": 2869,
+      "heroes": 53,
+      "url": "https://github.com/AddOneSecondL/Overstats/releases/download/guess-packs-2026.10.19/hero-conversation-2026.10.19.1.zip",
+      "sha256": "026c5637dadb2eafb6454c13dcc3c7300bf1b968d9bc31339e94f821d2c70940"
     }
   }
 }

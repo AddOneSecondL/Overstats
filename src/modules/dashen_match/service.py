@@ -233,6 +233,9 @@ class DashenMatchModule:
         if render:
             risk_status = await self._fetch_player_risk_status(query.customer_token)
             render_kwargs: Dict[str, Any] = {"full_id": full_id}
+            if query.filters:
+                labels = [f"{label}：{query.filters[key]}" for key, label in (("map", "地图"), ("hero", "英雄"), ("search", "筛选")) if query.filters.get(key)]
+                render_kwargs["footer_lines"] = [" / ".join(labels), "检索最近两个赛季，最多显示 20 场"]
             if risk_status is not None:
                 render_kwargs["risk_status"] = risk_status
             image = render_match_list(matches, **render_kwargs)
@@ -626,6 +629,8 @@ class DashenMatchModule:
                 "customer_token": query.customer_token,
                 "full_id": resolved_bnet.full_id if resolved_bnet else query.bnet_id,
                 "target_count": int(query.target_count),
+                "filters": query.filters,
+                "seasons": list(query.seasons or []),
                 "include_fight": bool(query.include_fight),
                 "include_previous_season": bool(query.include_previous_season),
             },

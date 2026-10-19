@@ -1,3 +1,4 @@
+from ...map_modes import draw_map_mode_icon
 from ...subroles import draw_subrole_badge, get_subrole
 from ...dashen_promo import append_dashen_promo
 
@@ -3209,8 +3210,9 @@ async def _draw_award_card(canvas, draw, box, title, entry, breakthrough=False):
     _draw_mode_badge(draw,right-106,y+77,entry["match"],canvas=canvas)
     dt = datetime.datetime.fromtimestamp(entry["timestamp"]/1000)
     result,result_color = _result_color(entry["result"])
-    map_name = _truncate_to_width(draw,_map_name(entry["map_guid"]),_load_font(18),330)
-    draw.text((x+25,y+177),map_name,font=_load_font(18),fill=(226,235,245))
+    map_name = _truncate_to_width(draw,_map_name(entry["map_guid"]),_load_font(18),304)
+    draw_map_mode_icon(canvas, entry["map_guid"], x+25, y+177, 20)
+    draw.text((x+51,y+177),map_name,font=_load_font(18),fill=(226,235,245))
     draw.text((x+25,y+207),f'{dt:%m-%d %H:%M} · {_fmt_time(entry["seconds"])} · {result}',font=_load_font(15),fill=result_color)
     draw.text((right-118,y+143),_award_grade(entry["score"]),font=_load_font(56,bold=True),fill=color)
     draw.text((right-118,y+208),"综合评价",font=_load_font(14),fill=(197,211,229))
@@ -3393,8 +3395,9 @@ async def _draw_match_timeline(canvas,draw,box,matches,streak_text,awards=None):
         _draw_mode_badge(draw,left+117,top+7,match,compact=True,canvas=canvas)
         _draw_summary_role(canvas,draw,record.get("role") or _role_label(hero),left+119,top+45,18)
         draw_subrole_badge(canvas, hero, left+96, top+44, 20)
-        name=_truncate_to_width(draw,_map_name(match.get("mapGuid")),_load_font(14),128)
-        draw.text((left+10,top+75),name,font=_load_font(14),fill=(220,231,245))
+        name=_truncate_to_width(draw,_map_name(match.get("mapGuid")),_load_font(14),106)
+        draw_map_mode_icon(canvas, match.get("mapGuid"), left+8, top+75, 18)
+        draw.text((left+30,top+75),name,font=_load_font(14),fill=(220,231,245))
         result,color=_result_color(match.get("matchRet"))
         draw.text((left+10,top+99),result,font=_load_font(14),fill=color)
         draw.text((left+89,top+95),label,font=_load_font(20,bold=True),fill=border)
@@ -3480,10 +3483,11 @@ async def _draw_teammate_spotlight(draw, canvas, box, title, entries, color, is_
             )
 
         kda_text = f"KDA {_num(entry.get('kda')):.2f}"
-        map_text = _truncate_to_width(draw, _map_name(entry.get("mapGuid")), _load_font(12), max(80, x2 - x1 - 300))
+        map_text = _truncate_to_width(draw, _map_name(entry.get("mapGuid")), _load_font(12), max(80, x2 - x1 - 320))
         kda_w = _text_size(draw, kda_text, _load_font(12, bold=True))[0]
         draw.text((x2 - 16 - kda_w, row_y + 2), kda_text, font=_load_font(12, bold=True), fill=(255, 218, 117))
-        draw.text((x1 + 46, row_y + 18), map_text, font=_load_font(12), fill=(160, 174, 194))
+        draw_map_mode_icon(canvas, entry.get("mapGuid"), x1 + 44, row_y + 18, 16)
+        draw.text((x1 + 64, row_y + 18), map_text, font=_load_font(12), fill=(160, 174, 194))
 
         if idx < min(len(entries[:3]), 3) - 1:
             draw.line((x1 + 12, row_y + 32, x2 - 12, row_y + 32), fill=(48, 52, 65), width=1)
@@ -3891,7 +3895,8 @@ async def _render_period_image(
             rate_w = _text_size(draw, rate_line, rate_font)[0]
             draw.text((cell_x + cell_w - 10 - rate_w, cell_y + 39), rate_line, font=rate_font, fill=(170, 182, 200))
             map_name = _map_name(item.get("map_guid"))
-            draw.text((cell_x + 10, cell_y + 55), _truncate_to_width(draw, map_name, _load_font(10), cell_w - 20), font=_load_font(10), fill=(145, 155, 170))
+            draw_map_mode_icon(canvas, item.get("map_guid"), cell_x + 8, cell_y + 55, 14)
+            draw.text((cell_x + 26, cell_y + 55), _truncate_to_width(draw, map_name, _load_font(10), cell_w - 36), font=_load_font(10), fill=(145, 155, 170))
     else:
         draw.text((735, stats_highlight_y), "暂无亮眼表现数据", font=_load_font(15), fill=(190, 204, 222))
     _render_step("SUMMARY_STATS_DONE", extra=f"stat_highlights={len(stat_highlights)}")
@@ -3905,8 +3910,9 @@ async def _render_period_image(
         if not await _paste_remote_cover(canvas, row_box, _map_icon_url(map_guid), radius=8, tint=(8, 12, 20, 145)):
             draw.rounded_rectangle(row_box, radius=8, fill=(28, 36, 50, 210))
         map_name = _map_name(map_guid)
-        map_font = _fit_text_font(draw, map_name, 300, 18, 12, bold=True)
-        draw.text((92, row_y + 12), map_name, font=map_font, fill=(246, 248, 255))
+        map_font = _fit_text_font(draw, map_name, 274, 18, 12, bold=True)
+        draw_map_mode_icon(canvas, map_guid, 90, row_y + 12, 22)
+        draw.text((118, row_y + 12), map_name, font=map_font, fill=(246, 248, 255))
         draw.text((402, row_y + 13), f'{data["total"]}场', font=_load_font(16), fill=(218, 228, 242))
         draw.text((515, row_y + 13), _fmt_pct(data["wins"], data["total"]), font=_load_font(16), fill=_summary_winrate_color(data["total"], data["wins"]))
     _render_step("MAP_CARD_DONE", extra=f"map_rows={len(map_rows)}")
@@ -4054,7 +4060,8 @@ async def _render_period_image(
                 hero_icon = _cover_fit(hero_icon, (30, 30))
                 canvas.paste(hero_icon, (90, row_y + 6), _rounded_mask((30, 30), 15))
             draw.text((132, row_y + 10), label, font=_load_font(16, bold=True), fill=(246, 248, 255))
-            draw.text((260, row_y + 11), _short_name(_map_name(entry.get("map_guid")), 12), font=_load_font(15), fill=(218, 228, 242))
+            draw_map_mode_icon(canvas, entry.get("map_guid"), 258, row_y + 11, 18)
+            draw.text((282, row_y + 11), _short_name(_map_name(entry.get("map_guid")), 10), font=_load_font(15), fill=(218, 228, 242))
             value_line = f"{entry.get('label')} {entry.get('value_text')}"
             value_line = _truncate_to_width(draw, value_line, _load_font(15), 180)
             draw.text((450, row_y + 11), value_line, font=_load_font(15), fill=(255, 218, 117))
@@ -4077,7 +4084,8 @@ async def _render_period_image(
         else:
             value = _fmt_time(entry["game_time"])
         draw.text((132, row_y + 10), label, font=_load_font(16, bold=True), fill=(246, 248, 255))
-        draw.text((260, row_y + 11), _short_name(_map_name(entry.get("map_guid")), 12), font=_load_font(15), fill=(218, 228, 242))
+        draw_map_mode_icon(canvas, entry.get("map_guid"), 258, row_y + 11, 18)
+        draw.text((282, row_y + 11), _short_name(_map_name(entry.get("map_guid")), 10), font=_load_font(15), fill=(218, 228, 242))
         value_font = _fit_text_font(draw, value, 133, 15, 11)
         draw.text((450, row_y + 11), value, font=value_font, fill=(255, 218, 117))
         draw.text((595, row_y + 11), result_text, font=_load_font(15), fill=color)
@@ -4181,13 +4189,15 @@ def _render_season_image(stats, resolved_target):
         key=lambda item: (item[1]["total"], item[1]["wins"]),
         reverse=True,
     )[:6]
+    for i, row in enumerate(map_rows):
+        draw_map_mode_icon(canvas, row[0], 75, 282 + i * 35, 20)
     max_map_total = max([row[1]["total"] for row in map_rows] or [1])
     _draw_top_rows(
         draw,
         map_rows,
-        75,
+        101,
         282,
-        550,
+        524,
         35,
         lambda row: _short_name(_map_name(row[0]), 16),
         lambda row: f'{row[1]["total"]}场  {_fmt_pct(row[1]["wins"], row[1]["total"])}',

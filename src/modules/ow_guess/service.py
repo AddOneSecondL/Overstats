@@ -44,23 +44,32 @@ class OWGuessModule:
         aliases.update({"地图局部": "map_crop", "地图模糊": "map_blur", "威能图标猜英雄": "perk_icon_hero"})
         from .packs import questions
         music_questions = await asyncio.to_thread(questions, "map_music")
+        conversation_questions = await asyncio.to_thread(questions, "hero_conversation")
         aliases.update({key: "map_music" for key in ("音乐", "地图音乐", "听歌猜地图", "map_music")})
-        available = tuple(LABELS) + (("map_music",) if music_questions else ())
+        aliases.update({key: "hero_conversation" for key in ("对话", "英雄对话", "接话", "猜接话英雄", "hero_conversation")})
+        available = tuple(LABELS) + (("map_music",) if music_questions else ()) + (("hero_conversation",) if conversation_questions else ())
         mode = self.random.choice(available) if value in ("", "随机", "random") else aliases.get(value)
-        if mode == "map_music":
-            if not music_questions:
-                raise ModuleError(error="ow_guess_pack_missing", message="未安装地图音乐扩展包，请在服务器执行 python -m src.modules.ow_guess.packs install map-music。", status_code=400)
-            entry = self.random.choice(music_questions)
+        if mode in {"map_music", "hero_conversation"}:
+            pool = music_questions if mode == "map_music" else conversation_questions
+            pack_id, label = ("map-music", "地图音乐猜地图") if mode == "map_music" else ("hero-conversation", "对话猜接话英雄")
+            if not pool:
+                raise ModuleError(error="ow_guess_pack_missing", message=f"未安装{label}扩展包，请在服务器执行 python packs.py install {pack_id}。", status_code=400)
+            entry = self.random.choice(pool)
             data = await asyncio.to_thread(entry["media_path"].read_bytes)
-            map_names = entry.get("maps") or [entry["answers"][0]]
-            answer_name = " / ".join(map_names)
-            answer_text = "答案：" + answer_name + ("\n以上地图共用此主题，任意一张均算正确。" if len(map_names) > 1 else "")
-            prompt = "地图音乐猜地图：听音频回复地图名称，限时45秒。"
+            if mode == "map_music":
+                map_names = entry.get("maps") or [entry["answers"][0]]
+                answer_name = " / ".join(map_names)
+                answer_text = "答案：" + answer_name + ("\n以上地图共用此主题，任意一张均算正确。" if len(map_names) > 1 else "")
+                prompt = "地图音乐猜地图：听音频回复地图名称，限时45秒。"
+            else:
+                answer_name = entry["reply_hero"]
+                answer_text = f"答案：{answer_name}\n{entry['prompt_hero']}：{entry['prompt_text']}\n{answer_name}：{entry['reply_text']}"
+                prompt = "对话猜接话英雄：播放的是前一句，请回答下一句由哪位英雄接话，限时45秒。"
             replies = [{"type": "text", "data": prompt}, {"type": "audio", "media_type": "audio/mpeg",
                        "filename": "question.mp3", "base64": base64.b64encode(data).decode("ascii")}]
             return OWGuessOutput({
                 "ok": True, "generated_at": datetime.now().isoformat(timespec="seconds"),
-                "question_type": mode, "question_type_label": "地图音乐猜地图", "question_id": entry["id"],
+                "question_type": mode, "question_type_label": label, "question_id": entry["id"],
                 "recommended_wait_seconds": 45, "duration_seconds": 45, "stage_seconds": 0,
                 "question": {"prompt_text": prompt, "media_kind": "audio"},
                 "answer": {"canonical": answer_name, "aliases": entry["answers"]},
@@ -68,7 +77,7 @@ class OWGuessModule:
                 "reveal_replies": [{"type": "text", "data": answer_text}],
             })
         if not mode:
-            raise ModuleError(error="ow_guess_invalid_type", message="猜一猜支持地图局部、地图模糊、威能、头像、英雄描述、技能猜英雄、技能名和代表色。", status_code=400)
+            raise ModuleError(error="ow_guess_invalid_type", message="猜一猜支持地图局部、地图模糊、威能、头像、英雄描述、技能猜英雄、技能名、代表色、地图音乐和对话。", status_code=400)
         text_only = mode in {"hero_description", "skill_description_hero", "skill_description_name"}
         last_error = None
         for _ in range(3):

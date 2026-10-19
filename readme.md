@@ -179,7 +179,7 @@ curl http://127.0.0.1:18080/healthz
 
 ## 扩展包使用方法
 
-扩展包提供猜一猜的可选资源，目前支持地图音乐。音频存放在 GitHub Release 附件中，不会随 `git clone` 或 `git pull` 下载。
+扩展包提供猜一猜的可选资源，支持地图音乐和英雄对话。音频存放在 GitHub Release 附件中，不会随 `git clone` 或 `git pull` 下载。
 
 在项目根目录执行：
 
@@ -189,6 +189,9 @@ python packs.py list
 
 # 自动从 GitHub 下载并安装地图音乐包
 python packs.py install map-music
+
+# 英雄对话：播放前一句，猜接话英雄
+python packs.py install hero-conversation
 
 # 使用代理下载（替换为服务器可访问的代理地址）
 python packs.py install map-music --proxy http://127.0.0.1:7890
@@ -204,6 +207,10 @@ python packs.py uninstall map-music
 ```
 
 扩展包版本和下载地址由 `res/ow_guess/packs.json` 管理。更新前先执行 `git pull` 获取最新清单，再执行更新命令。安装会校验资源完整性，安装失败时保留原版本。
+
+使用 `ow猜一猜 对话`（也支持 `接话`、`英雄对话`）开始对话题，限时 45 秒，揭晓时显示双方台词。未安装对应扩展包时不会随机抽到此题型。
+
+可通过环境变量 `OVERSTATS_PACK_ROOT` 将扩展包放在其他磁盘，例如 `E:\OverstatsResources\packs`；安装命令和服务启动时需使用相同的变量值。未设置时仍使用 `res/ow_guess/packs/`。
 
 如果服务器无法访问 GitHub，可手动下载 Release 中的 ZIP，上传服务器后安装：
 
