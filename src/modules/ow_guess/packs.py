@@ -19,6 +19,15 @@ MAX_ARCHIVE = 128 * 1024 * 1024
 MAX_AUDIO = 2 * 1024 * 1024
 
 
+def _inside(path, root):
+    # Path.is_relative_to is unavailable on Python 3.8.
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
 def catalog():
     return json.loads(INDEX.read_text(encoding='utf-8'))['packs']
 
@@ -27,7 +36,7 @@ def pack_path(pack_id):
     if not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', pack_id):
         raise ValueError('无效的扩展包名称')
     path = PACK_ROOT / pack_id
-    if path.is_symlink() or not path.resolve().is_relative_to(PACK_ROOT.resolve()):
+    if path.is_symlink() or not _inside(path, PACK_ROOT):
         raise ValueError('扩展包目录不合法')
     return path
 
@@ -42,7 +51,7 @@ def active_pack(pack_id):
     if not re.fullmatch(r'[0-9a-f]{64}', revision):
         raise ValueError('扩展包版本路径不合法')
     folder = root / revision
-    if folder.is_symlink() or not folder.resolve().is_relative_to(root.resolve()):
+    if folder.is_symlink() or not _inside(folder, root):
         raise ValueError('扩展包版本路径不合法')
     manifest = json.loads((folder / 'manifest.json').read_text(encoding='utf-8'))
     return folder, manifest
@@ -53,7 +62,7 @@ def media_path(folder, relative):
     if name.is_absolute() or '..' in name.parts or '\\' in relative or ':' in relative:
         raise ValueError('资源路径不合法')
     path = folder.joinpath(*name.parts)
-    if not path.resolve().is_relative_to(folder.resolve()) or path.is_symlink():
+    if not _inside(path, folder) or path.is_symlink():
         raise ValueError('资源路径超出扩展包')
     return path
 
