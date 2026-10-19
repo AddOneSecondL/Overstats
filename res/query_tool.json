@@ -1992,6 +1992,18 @@
       "cover": "",
       "destinyHeroBanner": "",
       "ddHeroIcon": ""
+    },
+    {
+      "id": "0x02E0000000000570",
+      "heroGuid": "207165582859044208",
+      "roleGuid": "972777519512029265",
+      "roleType": "healer",
+      "name": "血律",
+      "icon": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2492a15c575c12314907d0d77501ec337b4d56796bc7f03e5dfb50d415612bae.png",
+      "smallIconUrl": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/534fea21e25537daa24a40b68384f2cd0c4d22bac5f4cd58cbb8b4aa38b16f3e.png",
+      "cover": "https://img.166.net/gameyw-misc/opd/squash/20261010/131330-wtfbl0d4h9.png",
+      "destinyHeroBanner": "",
+      "ddHeroIcon": ""
     }
   ],
   "mapList": [

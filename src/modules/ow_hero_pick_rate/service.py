@@ -250,7 +250,7 @@ class OWHeroPickRateModule:
     def _query_ranking(self, query: OWHeroPickRateQuery, config: Dict[str, Any]) -> OWHeroPickRateOutput:
         source_mode = GAME_MODE_SOURCE_MAP[query.game_mode]
         source_mmr = MMR_SOURCE_MAP[query.mmr]
-        rows = self.db.fetch_rows(
+        rows = self._fetch_rows(config,
             HERO_LEADERBOARD_CN_TABLE,
             game_mode=source_mode,
             mmr=source_mmr,
@@ -294,7 +294,7 @@ class OWHeroPickRateModule:
             ds=latest_ds,
             hero_count=len(heroes),
         )
-        peer_rows = self.db.fetch_rows(
+        peer_rows = self._fetch_rows(config,
             HERO_LEADERBOARD_CN_TABLE, game_mode=source_mode,
             season=latest_season, ds=latest_ds,
         )
@@ -334,7 +334,7 @@ class OWHeroPickRateModule:
 
         source_mode = GAME_MODE_SOURCE_MAP[query.game_mode]
         source_mmr = MMR_SOURCE_MAP[query.mmr]
-        rows = self.db.fetch_rows(
+        rows = self._fetch_rows(config,
             HERO_LEADERBOARD_CN_TABLE,
             game_mode=source_mode,
             mmr=source_mmr,
@@ -369,9 +369,9 @@ class OWHeroPickRateModule:
         limited_rows = [row for row in sorted_rows if self._safe_int(row.get("season")) == latest_season and start_day <= snapshot_day(row) <= end_day]
         series = tuple(self._to_history_point(row) for row in limited_rows)
         latest = self._to_history_point(sorted_rows[-1])
-        peer_rows = self.db.fetch_rows(HERO_LEADERBOARD_CN_TABLE, game_mode=source_mode, hero_id=hero_meta.hero_guid)
+        peer_rows = self._fetch_rows(config, HERO_LEADERBOARD_CN_TABLE, game_mode=source_mode, hero_id=hero_meta.hero_guid)
         visible_dates = {(row.season, row.ds) for row in series}
-        baseline_rows = [row for season in sorted({s for s, _ in visible_dates}) for row in self.db.fetch_rows(HERO_LEADERBOARD_CN_TABLE, game_mode=source_mode, season=season)]
+        baseline_rows = [row for season in sorted({s for s, _ in visible_dates}) for row in self._fetch_rows(config, HERO_LEADERBOARD_CN_TABLE, game_mode=source_mode, season=season)]
         baseline_groups = {}
         for row in baseline_rows:
             stamp = (self._safe_int(row.get("season")), str(row.get("ds") or ""))
@@ -447,6 +447,17 @@ class OWHeroPickRateModule:
         config = self.config_loader()
         return config if isinstance(config, dict) else {}
 
+    def _fetch_rows(self, config, table, **filters):
+        hero_id = filters.pop("hero_id", None)
+        lookup = self._build_hero_lookup(config)
+        rows = []
+        for row in self.db.fetch_rows(table, **filters):
+            meta = self._resolve_hero_meta(str(row.get("hero_id") or ""), lookup)
+            normalized = dict(row, hero_id=meta.hero_guid) if meta else dict(row)
+            if hero_id is None or normalized.get("hero_id") == hero_id:
+                rows.append(normalized)
+        return rows
+
     def _build_hero_lookup(self, config: Dict[str, Any]) -> Dict[str, Dict[str, OWHeroPickRateHeroMeta]]:
         by_guid: Dict[str, OWHeroPickRateHeroMeta] = {}
         by_name: Dict[str, OWHeroPickRateHeroMeta] = {}
@@ -465,8 +476,16 @@ class OWHeroPickRateModule:
                 icon_url=icon_url,
             )
             by_guid[hero_guid] = hero_meta
+            if item.get("id"):
+                by_name[self._normalize_hero_name(str(item["id"]))] = hero_meta
             if hero_name:
                 by_name[self._normalize_hero_name(hero_name)] = hero_meta
+        from ...constants.chara import CHARA_NAME
+        for name, aliases in CHARA_NAME.items():
+            meta = by_name.get(self._normalize_hero_name(name))
+            if meta:
+                for alias in aliases:
+                    by_name[self._normalize_hero_name(alias)] = meta
         return {"by_guid": by_guid, "by_name": by_name}
 
     def _resolve_hero_meta(
