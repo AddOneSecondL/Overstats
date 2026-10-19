@@ -8,6 +8,7 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import tempfile
+import time
 import zipfile
 
 import httpx
@@ -116,7 +117,58 @@ def _validate(folder, pack_id):
     return manifest
 
 
-def install(pack_id, source=None):
+def _download(source, archive, proxy=None):
+    print('正在连接下载源…' + ('（使用指定代理）' if proxy else ''), flush=True)
+    started = time.monotonic()
+    size = 0
+    total = 0
+    last_update = 0
+
+    def progress(done=False):
+        elapsed = max(time.monotonic() - started, 0.001)
+        speed = size / elapsed
+        if total:
+            ratio = min(size / total, 1)
+            filled = int(ratio * 28)
+            bar = '#' * filled + '-' * (28 - filled)
+            status = f'[{bar}] {ratio:6.1%} {size / 1048576:.2f}/{total / 1048576:.2f} MiB'
+        else:
+            status = f'[总大小未知] {size / 1048576:.2f} MiB'
+        print(f'\r下载 {status}  {speed / 1024:.1f} KiB/s', end='\n' if done else '', flush=True)
+
+    try:
+        with httpx.stream('GET', source, follow_redirects=True, timeout=60,
+                          proxy=proxy, headers={'Accept-Encoding': 'identity'}) as response:
+            if response.status_code == 404:
+                raise ValueError('远程扩展包尚未发布或地址失效；可使用 --source 本地ZIP路径 安装')
+            response.raise_for_status()
+            try:
+                total = max(0, int(response.headers.get('content-length', '0')))
+            except ValueError:
+                total = 0
+            if total > MAX_ARCHIVE:
+                raise ValueError('扩展包下载超过大小限制')
+            started = time.monotonic()
+            progress()
+            with archive.open('wb') as stream:
+                for chunk in response.iter_bytes():
+                    size += len(chunk)
+                    if size > MAX_ARCHIVE:
+                        raise ValueError('扩展包下载超过大小限制')
+                    stream.write(chunk)
+                    now = time.monotonic()
+                    if now - last_update >= 0.2:
+                        progress()
+                        last_update = now
+            if total and size != total:
+                raise ValueError('下载未完成，原版本保持不变，请重试')
+            progress(done=True)
+    except BaseException:
+        print(flush=True)
+        raise
+
+
+def install(pack_id, source=None, proxy=None):
     root = pack_path(pack_id)
     expected = None
     if source is None:
@@ -129,22 +181,13 @@ def install(pack_id, source=None):
         stage = Path(temporary)
         archive = stage / 'pack.zip'
         if str(source).startswith('https://'):
-            with httpx.stream('GET', source, follow_redirects=True, timeout=60) as response:
-                if response.status_code == 404:
-                    raise ValueError("远程扩展包尚未发布或地址失效；可使用 --source 本地ZIP路径 安装")
-                response.raise_for_status()
-                size = 0
-                with archive.open('wb') as stream:
-                    for chunk in response.iter_bytes():
-                        size += len(chunk)
-                        if size > MAX_ARCHIVE:
-                            raise ValueError('扩展包下载超过大小限制')
-                        stream.write(chunk)
+            _download(source, archive, proxy)
         else:
             local = Path(source)
             if local.stat().st_size > MAX_ARCHIVE:
                 raise ValueError('扩展包超过大小限制')
             shutil.copyfile(local, archive)
+        print('下载完成，正在校验并解压…', flush=True)
         digest = hashlib.sha256(archive.read_bytes()).hexdigest()
         if expected and digest != expected:
             raise ValueError('扩展包 SHA256 校验失败，原版本保持不变')
@@ -191,6 +234,8 @@ def main():
                         help='list 列出；install 安装；update 更新；remove/uninstall 卸载；默认列出')
     parser.add_argument('pack', nargs='?')
     parser.add_argument('--source', help='本地 ZIP 路径或 HTTPS 地址；省略时自动从 GitHub Releases 下载')
+    parser.add_argument('--proxy', default=os.getenv('OVERSTATS_PACK_PROXY') or None,
+                        help='可选 HTTP 代理，如 http://127.0.0.1:7890；也可设置 OVERSTATS_PACK_PROXY')
     args = parser.parse_args()
     try:
         if args.action == 'list':
@@ -207,13 +252,15 @@ def main():
                 if active and not args.source and active[1]['version'] == catalog().get(key, {}).get('version'):
                     print(f'{key} 已是当前版本')
                 else:
-                    install(key, args.source)
+                    install(key, args.source, args.proxy)
         elif not args.pack:
             parser.error('请指定扩展包名称')
         elif args.action in ('remove', 'uninstall'):
             remove(args.pack)
         else:
-            install(args.pack, args.source)
+            install(args.pack, args.source, args.proxy)
+    except KeyboardInterrupt:
+        parser.exit(130, '\n已取消，原版本保持不变。\n')
     except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile, httpx.HTTPError) as exc:
         parser.exit(1, f'扩展包操作失败：{exc}\n')
 

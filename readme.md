@@ -190,6 +190,9 @@ python packs.py list
 # 自动从 GitHub 下载并安装地图音乐包
 python packs.py install map-music
 
+# 使用代理下载（替换为服务器可访问的代理地址）
+python packs.py install map-music --proxy http://127.0.0.1:7890
+
 # 更新全部已安装且在清单中的扩展包
 python packs.py update
 
