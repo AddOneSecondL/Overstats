@@ -30,6 +30,7 @@ CN_MONTH_URL = "https://ow.blizzard.cn/news/patch-notes/live/{year:04d}/{month:0
 EN_MONTH_URL = "https://overwatch.blizzard.com/en-us/news/patch-notes/live/{year:04d}/{month:02d}"
 SOURCE_NAMES = {"cn": "国服", "en": "外服"}
 PATCH_TRANSLATION_CACHE_VERSION = "2026-04-translate-v1"
+_CALENDAR_CACHE: Dict[tuple[int, int], tuple[float, list[Dict[str, Any]]]] = {}
 SCAN_LIMIT = 12
 HTTP_TIMEOUT = 20.0
 TRANSLATION_TIMEOUT = 300.0
@@ -853,6 +854,39 @@ def _build_async_client(
     return httpx.AsyncClient(**kwargs)
 
 
+
+def classify_hero_changes(updates):
+    """Conservative interpretation of explicit numeric balance changes."""
+    directions = set()
+    uncertain = False
+    for update in updates:
+        lines = list(update.get("general_changes") or [])
+        lines += [line for ability in update.get("abilities") or [] for line in ability.get("changes") or []]
+        if not lines:
+            uncertain = True
+        for line in lines:
+            text = str(line)
+            match = re.search(r"从?([0-9]+(?:\.[0-9]+)?)\s*[%％秒米点发]*\s*(?:增加|提高|提升|降低|减少|缩短|延长|调整|变更|改)至?为?到?\s*([0-9]+(?:\.[0-9]+)?)", text)
+            if not match or any(word in text for word in ("修复", "错误", "漏洞")) or len(re.findall(r"(?:增加|提高|提升|降低|减少|缩短|延长|调整)(?:至|为|到)", text)) > 1:
+                uncertain = True
+                continue
+            before, after = map(float, match.groups())
+            if before == after:
+                continue
+            prefix = text[:match.start()]
+            lower_is_better = any(word in prefix for word in ("冷却", "装填时间", "换弹时间", "终极技能消耗", "终极技能所需", "散布", "后坐力"))
+            higher_is_better = any(word in prefix for word in ("伤害", "治疗量", "治疗效果", "生命值", "护甲", "护盾", "弹药", "移动速度", "射速", "减伤"))
+            if lower_is_better:
+                directions.add(1 if after < before else -1)
+            elif higher_is_better and not any(word in prefix for word in ("衰减", "自身伤害", "自伤", "受到", "承受")):
+                directions.add(1 if after > before else -1)
+            else:
+                uncertain = True
+    if uncertain or len(directions) != 1:
+        return "调整"
+    return "增强" if 1 in directions else "削弱"
+
+
 class PatchNotesRequests:
     def __init__(
         self,
@@ -885,6 +919,47 @@ class PatchNotesRequests:
             response = await client.get(url)
             response.raise_for_status()
             return response.text
+
+    async def fetch_patch_calendar(self, start: dt.date, end: dt.date):
+        """Return dated CN live patches only, with bounded requests and monthly cache."""
+        months = []
+        cursor = start.replace(day=1)
+        while cursor <= end:
+            months.append((cursor.year, cursor.month))
+            cursor = (cursor.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+
+        async def fetch_month(year, month):
+            cached = _CALENDAR_CACHE.get((year, month))
+            if cached and time.time() - cached[0] < 21600:
+                return cached[1], True
+            url = CN_MONTH_URL.format(year=year, month=month)
+            try:
+                page = await asyncio.wait_for(self.fetch_patch_page_html(url, "cn"), timeout=8)
+                blocks = _extract_live_patch_blocks(page)
+                if not blocks:
+                    return (cached[1] if cached else []), False
+                events = []
+                for i, block in enumerate(blocks):
+                    candidate = _build_patch_candidate("cn", url, block, i)
+                    if candidate.get("date"):
+                        events.append({"date": candidate["date"].isoformat(), "title": candidate.get("title", "版本更新"), "url": url, "hero_updates": candidate.get("hero_updates") or []})
+                _CALENDAR_CACHE[(year, month)] = (time.time(), events)
+                return events, True
+            except Exception:
+                return (cached[1] if cached else []), False
+
+        results = await asyncio.gather(*(fetch_month(y, m) for y, m in months))
+        events = {}
+        for rows, _ in results:
+            for event in rows:
+                if start.isoformat() <= event["date"] <= end.isoformat():
+                    if event["date"] not in events:
+                        events[event["date"]] = dict(event, hero_updates=list(event.get("hero_updates") or []))
+                    else:
+                        for update in event.get("hero_updates") or []:
+                            if update not in events[event["date"]]["hero_updates"]:
+                                events[event["date"]]["hero_updates"].append(update)
+        return sorted(events.values(), key=lambda event: event["date"]), all(ok for _, ok in results)
 
     async def scan_patch_source(self, source_key: str, *, now_date: Optional[dt.date] = None) -> Dict[str, Optional[Dict[str, Any]]]:
         slots: Dict[str, Optional[Dict[str, Any]]] = {"latest": None, "small": None, "big": None}

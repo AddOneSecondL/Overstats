@@ -1,28 +1,21 @@
 from __future__ import annotations
 
-from ..subroles import draw_subrole_badge, get_subrole
+from ..subroles import draw_subrole_badge
 
 from ..dashen_promo import append_dashen_promo
+from ..dashen_quick_strength.render import QUICK_STRENGTH_THEME, COMPETITIVE_STRENGTH_THEME
 
 from dataclasses import dataclass
+from datetime import date
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence, Tuple
-
-from ...constants.backgrounds import build_random_map_background
+from typing import Any, Dict, Tuple
 
 try:
     from overstats.src.modules.query_tool import get_cached_asset_path
-    from overstats.src.modules.dashen_quick_strength.render import (
-        COMPETITIVE_STRENGTH_THEME,
-        QUICK_STRENGTH_THEME,
-    )
 except ModuleNotFoundError:
     from src.modules.query_tool import get_cached_asset_path
-    from src.modules.dashen_quick_strength.render import (
-        COMPETITIVE_STRENGTH_THEME,
-        QUICK_STRENGTH_THEME,
-    )
 
 try:
     from overstats.src.modules.font_resolver import load_font
@@ -43,7 +36,6 @@ def _resolve_resource_dir() -> Path:
 
 
 RESOURCE_DIR = _resolve_resource_dir()
-DEFAULT_THEME = dict(QUICK_STRENGTH_THEME)
 MMR_LABELS_CN = {
     "all": "全段位",
     "bronze": "青铜",
@@ -64,408 +56,396 @@ class RenderedImage:
     media_type: str = "image/png"
 
 
-def render_pick_rate_ranking(
-    *,
-    game_mode: str,
-    mmr: str,
-    snapshot: Dict[str, Any],
-    heroes: Sequence[Dict[str, Any]],
-    theme: Optional[Dict[str, Any]] = None,
-) -> RenderedImage:
+TIER_ORDER = ("all", "Bronze", "Silver", "Gold", "Platinum", "Emerald", "Diamond", "Master", "Grandmaster", "Champion")
+TIER_COLORS = ((239,145,44),(163,109,76),(120,136,155),(195,153,44),(61,157,159),(49,161,107),(75,141,210),(161,117,52),(173,81,92),(134,90,192))
+
+
+def _ow_canvas(height):
+    from PIL import Image, ImageDraw
+    canvas = Image.new("RGBA", (1600, height), (216,228,223,255))
+    draw = ImageDraw.Draw(canvas)
+    for y in range(height):
+        c = int(222 - 12*y/max(1,height))
+        draw.line((0,y,1600,y),fill=(c-5,c+5,c))
+    draw.polygon([(1050,0),(1600,0),(1600,370),(850,370)],fill=(209,223,219))
+    return canvas,draw
+
+
+def _ow_header(draw, title, subtitle, *, section, canvas=None, hero=None):
+    draw.rounded_rectangle((24,16,1576,124),radius=18,fill=(24,41,59))
+    draw.rounded_rectangle((44,33,51,106),radius=3,fill=(249,191,97))
+    x=76
+    if hero and canvas is not None:
+        _paste_icon_or_placeholder(canvas,draw,hero,position=(76,32),size=72,font=_font_chinese(32))
+        draw_subrole_badge(canvas,hero,129,84,24)
+        x=172
+    draw.text((x,38),title,font=_font_chinese(30,bold=True),fill=(248,250,254))
+    draw.text((x,86),subtitle,font=_font_chinese(17),fill=(177,197,216))
+    if hero and canvas is not None:
+        _draw_role(canvas,hero,1280,58,26)
+        draw.text((1318,58),_hero_role_label(hero.get("hero_role")),font=_font_chinese(20),fill=(205,222,237))
+
+
+def _rank_glyph(canvas, tier, x, y, size=44):
+    from PIL import Image
+    from ...constants.ranks import rank_name_to_icon_level
+    if tier == "all":
+        return
+    path = RESOURCE_DIR / "rank_flat" / f"{rank_name_to_icon_level(tier)}_pure.png"
     try:
-        from PIL import Image
-    except ModuleNotFoundError as exc:
-        raise RuntimeError("render.py requires Pillow to output images") from exc
+        with Image.open(path) as source:
+            im=source.convert("RGBA")
+        im.thumbnail((size,size),Image.Resampling.LANCZOS)
+        canvas.paste(im,(int(x+(size-im.width)/2),int(y+(size-im.height)/2)),im)
+    except OSError:
+        pass
 
-    active_theme = _resolve_theme(theme)
-    scale = 2
-    base_width = 1500
-    column_count = 2 if len(heroes) > 1 else 1
-    rows_per_column = max(1, (len(heroes) + column_count - 1) // column_count)
-    base_height = max(860, 270 + rows_per_column * 64)
-    width = base_width * scale
-    height = base_height * scale
-    canvas = Image.new("RGBA", (width, height), (11, 17, 28, 255))
-    draw = _new_draw(canvas)
-    fonts = _load_fonts(scale)
 
-    _draw_background(canvas, scale=scale)
-    _draw_panel(
-        draw,
-        (36 * scale, 24 * scale, width - 36 * scale, 156 * scale),
-        fill=(14, 22, 36, 220),
-        outline=(47, 62, 88, 255),
-        radius=16 * scale,
-    )
-    _draw_panel(
-        draw,
-        (36 * scale, 170 * scale, width - 36 * scale, height - 24 * scale),
-        fill=(12, 19, 31, 226),
-        outline=(47, 62, 88, 255),
-        radius=16 * scale,
-    )
-
-    _draw_ranking_header(
-        draw,
-        fonts=fonts,
-        scale=scale,
-        theme=active_theme,
-        game_mode=game_mode,
-        mmr=mmr,
-        snapshot=snapshot,
-        heroes=heroes,
-    )
-    _draw_ranking_rows(
-        canvas,
-        draw,
-        fonts=fonts,
-        scale=scale,
-        theme=active_theme,
-        heroes=heroes,
-        top=192 * scale,
-        bottom=height - 46 * scale,
-    )
-
-    output = BytesIO()
-    canvas = canvas.resize((base_width, base_height), Image.LANCZOS)
-    canvas = append_dashen_promo(canvas)
-    canvas.save(output, format="PNG")
+def _finish_ow(canvas):
+    from PIL import Image
+    compact = Image.new("RGBA", (canvas.width, canvas.height-50))
+    compact.paste(canvas.crop((0,0,canvas.width,124)), (0,0))
+    compact.paste(canvas.crop((0,174,canvas.width,canvas.height)), (0,124))
+    canvas = compact
+    output=BytesIO()
+    append_dashen_promo(canvas).save(output,format="PNG")
     return RenderedImage(content=output.getvalue())
 
 
-def render_pick_rate_history(
-    *,
-    game_mode: str,
-    mmr: str,
-    hero: Dict[str, Any],
-    latest: Dict[str, Any],
-    history_total: int,
-    history_limit: int,
-    series: Sequence[Dict[str, Any]],
-    theme: Optional[Dict[str, Any]] = None,
-) -> RenderedImage:
-    try:
-        from PIL import Image
-    except ModuleNotFoundError as exc:
-        raise RuntimeError("render.py requires Pillow to output images") from exc
-
-    active_theme = _resolve_theme(theme)
-    scale = 2
-    base_width = 1500
-    base_height = 980
-    width = base_width * scale
-    height = base_height * scale
-    canvas = Image.new("RGBA", (width, height), (11, 17, 28, 255))
-    draw = _new_draw(canvas)
-    fonts = _load_fonts(scale)
-
-    _draw_background(canvas, scale=scale)
-    _draw_panel(
-        draw,
-        (36 * scale, 24 * scale, width - 36 * scale, 158 * scale),
-        fill=(14, 22, 36, 220),
-        outline=(47, 62, 88, 255),
-        radius=16 * scale,
-    )
-    _draw_panel(
-        draw,
-        (36 * scale, 172 * scale, width - 36 * scale, height - 24 * scale),
-        fill=(12, 19, 31, 226),
-        outline=(47, 62, 88, 255),
-        radius=16 * scale,
-    )
-
-    _draw_history_header(
-        canvas,
-        draw,
-        fonts=fonts,
-        scale=scale,
-        theme=active_theme,
-        game_mode=game_mode,
-        mmr=mmr,
-        hero=hero,
-        latest=latest,
-        history_total=history_total,
-        history_limit=history_limit,
-        series=series,
-    )
-    _draw_history_chart(
-        draw,
-        fonts=fonts,
-        scale=scale,
-        theme=active_theme,
-        series=series,
-    )
-
-    output = BytesIO()
-    canvas = canvas.resize((base_width, base_height), Image.LANCZOS)
-    canvas = append_dashen_promo(canvas)
-    canvas.save(output, format="PNG")
-    return RenderedImage(content=output.getvalue())
+def render_pick_rate_overview(*, game_mode, mmr, snapshot, heroes, theme=None, tier_data=()):
+    canvas, draw = _ow_canvas(1068)
+    ink = (38, 58, 72)
+    muted = (99, 120, 124)
+    _ow_header(draw, "英雄选取率", f"{_game_mode_label(game_mode)}  /  {_mmr_label(mmr)}  /  S{snapshot.get('season') or '—'}  /  {snapshot.get('ds') or '—'}", section="META OVERVIEW")
+    metrics = (("selection_ratio", "选取率", (192,131,48)), ("win_ratio", "胜率", (49,133,113)), ("ban_ratio", "禁用率", (166,92,94)))
+    for col, (key, label, color) in enumerate(metrics):
+        x = 32 + col*516
+        draw.rounded_rectangle((x,186,x+504,737),18,fill=(233,240,234))
+        draw.rounded_rectangle((x,186,x+504,248),18,fill=(48,68,78))
+        draw.rectangle((x+18,204,x+23,230),fill=color)
+        draw.text((x+38,202), label + " TOP 6",font=_font_chinese(23,bold=True),fill=(244,247,241))
+        ordered = sorted(heroes,key=lambda h: (-float(h.get(key) or 0),str(h.get("hero_guid"))))[:6]
+        peak = max([float(h.get(key) or 0) for h in ordered] or [1]) or 1
+        for i,h in enumerate(ordered):
+            y=262+i*76
+            draw.text((x+18,y+13),str(i+1).zfill(2),font=_font_resource("BigNoodleToo.ttf",28),fill=color if i<3 else muted)
+            _paste_icon_or_placeholder(canvas,draw,h,position=(x+57,y+2),size=54,font=_font_chinese(18))
+            draw_subrole_badge(canvas,h,x+96,y+39,19)
+            draw.text((x+127,y+1),_fit_label(draw,h.get("hero_name"),_font_chinese(21,bold=True),210),font=_font_chinese(21,bold=True),fill=ink)
+            _draw_role(canvas,h,x+128,y+33,16)
+            draw.text((x+150,y+32),_hero_role_label(h.get("hero_role")),font=_font_chinese(13),fill=muted)
+            value=float(h.get(key) or 0)
+            text=f"{value:.2f}%"; font=_font_chinese(24,bold=True)
+            draw.text((x+481-_measure_text(draw,text,font),y+8),text,font=font,fill=color)
+            draw.rounded_rectangle((x+127,y+59,x+480,y+63),2,fill=(211,224,217))
+            if value>0: draw.rounded_rectangle((x+127,y+59,x+127+353*value/peak,y+63),2,fill=color)
+    for col, role in enumerate(("重装","输出","支援")):
+        x=32+col*516
+        entries=sorted([h for h in heroes if _hero_role_label(h.get("hero_role"))==role],key=lambda h:-float(h.get("selection_ratio") or 0))
+        draw.rounded_rectangle((x,764,x+504,1016),18,fill=(229,238,231))
+        if entries: _draw_role(canvas,entries[0],x+23,786,26)
+        draw.text((x+61,786),role,font=_font_chinese(23,bold=True),fill=ink)
+        draw.text((x+393,792),f"{len(entries)} 位",font=_font_chinese(16),fill=muted)
+        for i,h in enumerate(entries[:5]):
+            px=x+22+i*96
+            _paste_icon_or_placeholder(canvas,draw,h,position=(px,839),size=76,font=_font_chinese(20))
+            draw_subrole_badge(canvas,h,px+55,894,22)
+            draw.text((px,926),_fit_label(draw,h.get("hero_name"),_font_chinese(15,bold=True),88),font=_font_chinese(15,bold=True),fill=ink)
+            draw.text((px,960),f"{float(h.get('selection_ratio') or 0):.2f}%",font=_font_chinese(18,bold=True),fill=(64,119,109))
+    return _finish_ow(canvas)
 
 
-def _draw_ranking_header(
-    draw: Any,
-    *,
-    fonts: Dict[str, Any],
-    scale: int,
-    theme: Dict[str, Any],
-    game_mode: str,
-    mmr: str,
-    snapshot: Dict[str, Any],
-    heroes: Sequence[Dict[str, Any]],
-) -> None:
-    title = "英雄选取率榜单"
-    subtitle = f"{_game_mode_label(game_mode)} · {_mmr_label(mmr)} · 最新快照 S{snapshot.get('season')} · {snapshot.get('ds')}"
-    draw.text((70 * scale, 40 * scale), title, font=fonts["font_title_cn"], fill=(242, 247, 255, 255))
-    draw.text((72 * scale, 96 * scale), subtitle, font=fonts["font_sub"], fill=(165, 184, 210, 255))
-
-    if not heroes:
-        return
-
-    top_hero = heroes[0]
-    chips = [
-        ("英雄总数", str(int(snapshot.get("hero_count") or len(heroes)))),
-        ("Top1", str(top_hero.get("hero_name") or "--")),
-        ("最高选取率", _ratio_text(float(top_hero.get("selection_ratio") or 0))),
-    ]
-    chip_x = 860 * scale
-    for label, value in chips:
-        _draw_stat_chip(
-            draw,
-            (chip_x, 38 * scale, chip_x + 160 * scale, 120 * scale),
-            label=label,
-            value=value,
-            fonts=fonts,
-            theme=theme,
-            scale=scale,
-        )
-        chip_x += 176 * scale
-
-
-def _draw_ranking_rows(
-    canvas: Any,
-    draw: Any,
-    *,
-    fonts: Dict[str, Any],
-    scale: int,
-    theme: Dict[str, Any],
-    heroes: Sequence[Dict[str, Any]],
-    top: int,
-    bottom: int,
-) -> None:
-    if not heroes:
-        draw.text((78 * scale, top + 32 * scale), "暂无可用的英雄选取率快照", font=fonts["font_panel_title"], fill=(186, 198, 214, 255))
-        return
-
-    column_count = 2 if len(heroes) > 1 else 1
-    gap = 26 * scale
-    usable_width = 1500 * scale - 72 * scale * 2
-    column_width = int((usable_width - gap * (column_count - 1)) / column_count)
-    rows_per_column = max(1, (len(heroes) + column_count - 1) // column_count)
-    row_height = 58 * scale
-    max_ratio = max(float(item.get("selection_ratio") or 0) for item in heroes) or 1.0
-    bar_fill = _enhance_rgba(tuple(theme.get("range_color") or DEFAULT_THEME["range_color"]), brightness=1.18, contrast=1.12, alpha=228)
-    line_color = _enhance_rgba(tuple(theme.get("line_color") or DEFAULT_THEME["line_color"]), brightness=1.06, contrast=1.04, alpha=255)
-
-    for index, item in enumerate(heroes):
-        column_index = index // rows_per_column
-        row_index = index % rows_per_column
-        left = 72 * scale + column_index * (column_width + gap)
-        y = top + row_index * row_height
-        box = (left, y, left + column_width, y + row_height - 10 * scale)
-        draw.rounded_rectangle(box, radius=14 * scale, fill=(18, 29, 45, 206), outline=(50, 68, 97, 255), width=max(scale, 1))
-
-        _paste_icon_or_placeholder(
-            canvas,
-            draw,
-            item,
-            position=(left + 10 * scale, y + 8 * scale),
-            size=36 * scale,
-            font=fonts["font_meta"],
-        )
-        draw.text((left + 58 * scale, y + 6 * scale), str(item.get("hero_name") or "--"), font=fonts["font_panel_title"], fill=(242, 247, 255, 255))
-        draw.text((left + 58 * scale, y + 28 * scale), _hero_role_label(item.get("hero_role")), font=fonts["font_meta"], fill=(156, 175, 201, 255))
-
-        draw_subrole_badge(canvas, item, left+112*scale, y+27*scale, 20*scale)
-        rank_box = (left + 6 * scale, y + 6 * scale, left + 44 * scale, y + 40 * scale)
-        draw.rounded_rectangle(rank_box, radius=10 * scale, fill=_enhance_rgba(line_color, brightness=0.94, contrast=1.0, alpha=216))
-        _draw_text_center(draw, str(item.get("rank") or index + 1), rank_box, font=fonts["font_rank"], fill=(255, 255, 255, 255))
-
-        ratio = max(0.0, min(float(item.get("selection_ratio") or 0) / max_ratio, 1.0))
-        bar_left = left + 205 * scale
-        bar_right = left + column_width - 152 * scale
-        bar_top = y + 14 * scale
-        bar_bottom = y + 34 * scale
-        draw.rounded_rectangle((bar_left, bar_top, bar_right, bar_bottom), radius=10 * scale, fill=(27, 40, 60, 218))
-        draw.rounded_rectangle(
-            (bar_left, bar_top, int(bar_left + max(6 * scale, (bar_right - bar_left) * ratio)), bar_bottom),
-            radius=10 * scale,
-            fill=bar_fill,
-            outline=line_color,
-            width=max(scale, 1),
-        )
-        draw.text((left + column_width - 142 * scale, y + 8 * scale), _ratio_text(float(item.get("selection_ratio") or 0)), font=fonts["font_panel_title"], fill=(248, 252, 255, 255))
-        draw.text(
-            (left + column_width - 142 * scale, y + 30 * scale),
-            f"胜 {float(item.get('win_ratio') or 0):.1f}% · KDA {float(item.get('kda') or 0):.2f}",
-            font=fonts["font_meta"],
-            fill=(156, 175, 201, 255),
-        )
+def render_pick_rate_ranking(*, game_mode, mmr, snapshot, heroes, theme=None, tier_data=()):
+    # Align all columns to one snapshot, never fill absent tiers with older data.
+    peers={str(t["mmr"]).lower():{str(h.get("hero_guid")):h for h in t.get("heroes",[])} for t in tier_data}
+    peers[str(mmr).lower()]={str(h.get("hero_guid")):h for h in heroes}
+    all_heroes={str(h.get("hero_guid")):h for h in heroes}
+    for rows in peers.values():
+        for guid,hero in rows.items(): all_heroes.setdefault(guid,hero)
+    ordered=list(heroes)+[h for guid,h in all_heroes.items() if guid not in {str(h.get("hero_guid")) for h in heroes}]
+    height=378+max(1,len(ordered))*54
+    canvas,draw=_ow_canvas(height)
+    _ow_header(draw,"英雄选取率",f"{_game_mode_label(game_mode)}  /  S{snapshot.get('season') or '—'}  /  {snapshot.get('ds') or '日期未记录'}",section="HERO META")
+    draw.text((40,197),f"按{_mmr_label(mmr)}选取率排序",font=_font_chinese(23,bold=True),fill=(39,56,78))
+    draw.text((1300,204),"选取率  /  胜率 · BAN",font=_font_chinese(16),fill=(92,110,131))
+    left=310;cw=125
+    draw.rectangle((32,244,1568,324),fill=(54,70,91))
+    draw.text((58,270),"英雄 / 职责",font=_font_chinese(19,bold=True),fill="white")
+    for j,tier in enumerate(TIER_ORDER):
+        x=left+j*cw
+        if tier.lower()==str(mmr).lower():
+            draw.rectangle((x,244,x+cw-3,324),fill=(78,94,113))
+            draw.rectangle((x,244,x+cw-3,248),fill=(255,158,46))
+        _rank_glyph(canvas,tier,x+(cw-40)/2,250,40)
+        if tier=='all': draw.text((x+40,263),"ALL",font=_font_resource("BigNoodleToo.ttf",25),fill=(255,171,61))
+        name=_mmr_label(tier);f=_font_chinese(14,bold=True)
+        draw.text((x+(cw-_measure_text(draw,name,f))/2,298),name,font=f,fill="white")
+    if not ordered: draw.text((60,342),"暂无可用快照",font=_font_chinese(20),fill=(71,88,111))
+    for i,item in enumerate(ordered):
+        y=330+i*54;guid=str(item.get("hero_guid"));color=_role_color(item)
+        draw.rectangle((32,y,1568,y+50),fill=(228,237,231) if i%2==0 else (216,229,222))
+        draw.polygon([(32,y),(307,y),(294,y+50),(32,y+50)],fill=(56,73,96))
+        draw.rectangle((32,y,36,y+50),fill=color)
+        draw.text((45,y+10),str(i+1).zfill(2),font=_font_resource("BigNoodleToo.ttf",25),fill=(255,171,61) if i<3 else (171,191,214))
+        _paste_icon_or_placeholder(canvas,draw,item,position=(82,y+3),size=44,font=_font_chinese(18))
+        draw_subrole_badge(canvas,item,115,y+30,18)
+        draw.text((143,y+4),_fit_label(draw,item.get("hero_name"),_font_chinese(17,bold=True),145),font=_font_chinese(17,bold=True),fill="white")
+        _draw_role(canvas,item,143,y+29,13)
+        draw.text((162,y+28),_hero_role_label(item.get("hero_role")),font=_font_chinese(11),fill=color)
+        vals=[peers.get(t.lower(),{}).get(guid) for t in TIER_ORDER]
+        peak=max([float(v.get('selection_ratio') or 0) for v in vals if v] or [1]) or 1
+        marks = _metric_marks([float(v.get("selection_ratio") or 0) if v else None for v in vals])
+        for j,value in enumerate(vals):
+            x=left+j*cw
+            if value is None:
+                draw.text((x+54,y+13),"—",font=_font_chinese(18),fill=(160,173,188));continue
+            _draw_metric_mark(draw,x+7,y+11,marks[j])
+            pick=float(value.get('selection_ratio') or 0);win=float(value.get('win_ratio') or 0)
+            f=_font_chinese(19,bold=True);text=f"{pick:.2f}%"
+            draw.text((x+(cw-_measure_text(draw,text,f))/2,y+2),text,font=f,fill=(37,55,79))
+            text=f"{win:.1f}% · {float(value.get('ban_ratio') or 0):.1f}%";f=_font_chinese(11)
+            draw.text((x+(cw-_measure_text(draw,text,f))/2,y+27),text,font=f,fill=(35,124,107) if win>=50 else (146,93,83))
+            draw.rectangle((x+17,y+46,x+cw-17,y+48),fill=(213,222,233))
+            if pick>0:draw.rectangle((x+17,y+46,x+17+(cw-34)*pick/peak,y+48),fill=(244,159,56))
+    return _finish_ow(canvas)
 
 
-def _draw_history_header(
-    canvas: Any,
-    draw: Any,
-    *,
-    fonts: Dict[str, Any],
-    scale: int,
-    theme: Dict[str, Any],
-    game_mode: str,
-    mmr: str,
-    hero: Dict[str, Any],
-    latest: Dict[str, Any],
-    history_total: int,
-    history_limit: int,
-    series: Sequence[Dict[str, Any]],
-) -> None:
-    _paste_icon_or_placeholder(
-        canvas,
-        draw,
-        hero,
-        position=(70 * scale, 38 * scale),
-        size=84 * scale,
-        font=fonts["font_panel_title"],
-    )
-    draw_subrole_badge(canvas, hero, 128*scale, 96*scale, 26*scale)
-    draw.text((182 * scale, 38 * scale), str(hero.get("hero_name") or "--"), font=fonts["font_title_cn"], fill=(242, 247, 255, 255))
-    draw.text(
-        (184 * scale, 92 * scale),
-        f"{_game_mode_label(game_mode)} · {_mmr_label(mmr)} · {_hero_role_label(hero.get('hero_role'))}",
-        font=fonts["font_sub"],
-        fill=(165, 184, 210, 255),
-    )
-
-    values = [float(item.get("selection_ratio") or 0) for item in series] or [float(latest.get("selection_ratio") or 0)]
-    highest = max(values)
-    lowest = min(values)
-
-    chips = [
-        ("最新选取率", _ratio_text(float(latest.get("selection_ratio") or 0))),
-        ("历史最高", _ratio_text(highest)),
-        ("历史最低", _ratio_text(lowest)),
-        ("样本点", str(history_total)),
-    ]
-    chip_x = 806 * scale
-    for label, value in chips:
-        _draw_stat_chip(
-            draw,
-            (chip_x, 38 * scale, chip_x + 136 * scale, 120 * scale),
-            label=label,
-            value=value,
-            fonts=fonts,
-            theme=theme,
-            scale=scale,
-        )
-        chip_x += 152 * scale
-
-
-def _draw_history_chart(
-    draw: Any,
-    *,
-    fonts: Dict[str, Any],
-    scale: int,
-    theme: Dict[str, Any],
-    series: Sequence[Dict[str, Any]],
-) -> None:
-    x1 = 74 * scale
-    y1 = 202 * scale
-    x2 = 1426 * scale
-    y2 = 928 * scale
-    inner_left = x1 + 76 * scale
-    inner_right = x2 - 38 * scale
-    inner_top = y1 + 38 * scale
-    inner_bottom = y2 - 86 * scale
-
-    draw.text((x1, y1 - 28 * scale), "英雄选取率历史曲线", font=fonts["font_panel_title"], fill=(238, 245, 252, 255))
-    draw.text((x1 + 188 * scale, y1 - 24 * scale), "折线展示最新历史点；纵轴为选取率，横轴为快照时间。", font=fonts["font_meta"], fill=(144, 162, 186, 255))
-
+def render_pick_rate_history(*, game_mode, mmr, hero, latest, history_total, history_limit, series, theme=None, tier_data=(), patch_events=(), patch_dates_available=True):
+    role_heroes = next((row.get("role_heroes", []) for row in tier_data if str(row["mmr"]).lower()=="all"), [])
+    canvas,draw=_ow_canvas(1050 + max(0, (len(role_heroes)+25)//26-1)*48)
+    _ow_header(draw,f"{hero.get('hero_name') or '英雄'} · 选取率",f"{_game_mode_label(game_mode)}  /  {_mmr_label(mmr)}  /  {series[-1].get('ds') if series else '—'}",section="HERO TRENDS",canvas=canvas,hero=hero)
+    peers={str(t['mmr']).lower():t.get('series',[]) for t in tier_data}
+    peers[str(mmr).lower()]=series
+    draw.text((40,197),"选取率趋势",font=_font_chinese(25,bold=True),fill=(40,58,81))
+    draw.text((1040,197),"段位数据",font=_font_chinese(23,bold=True),fill=(40,58,81))
+    draw.rectangle((32,242,1008,909),fill=(228,237,231));draw.rectangle((1028,242,1568,1018),fill=(228,237,231))
     if not series:
-        draw.text((inner_left, inner_top + 64 * scale), "暂无可用的历史选取率数据", font=fonts["font_panel_title"], fill=(186, 198, 214, 255))
-        return
+        draw.text((60,300),"暂无可用历史数据",font=_font_chinese(23),fill=(84,103,125))
+        return _finish_ow(canvas)
+    keys=[(int(p.get('season') or 0),str(p.get('ds') or '')) for p in series]
+    lookups = {tier.lower(): {(int(p.get('season') or 0), str(p.get('ds') or '')): p for p in peers.get(tier.lower(), [])} for tier in TIER_ORDER}
+    baselines = {str(tier['mmr']).lower(): {(int(p.get('season') or 0), str(p.get('ds') or '')): float(p.get('selection_ratio') or 0) for p in tier.get('baseline', [])} for tier in tier_data}
+    values = [float(p.get('selection_ratio') or 0) for lookup in lookups.values() for p in lookup.values()]
+    values += [v for lookup in baselines.values() for v in lookup.values()]
+    ceiling = max(values or [1]) * 1.15 or 1
+    try:
+        days = [date.fromisoformat(k[1][:10]).toordinal() for k in keys]
+        span = days[-1] - days[0]
+        fractions = [(d-days[0])/span if span>0 else .5 for d in days]
+    except ValueError:
+        fractions = [i/(len(keys)-1) if len(keys)>1 else .5 for i in range(len(keys))]
+    metrics = [('selection_ratio',1180),('win_ratio',1280),('ban_ratio',1380),('kda',1480)]
+    marks = {metric: _metric_marks([float(lookups[t.lower()][keys[-1]].get(metric) or 0) if keys[-1] in lookups[t.lower()] else None for t in TIER_ORDER]) for metric,_ in metrics}
+    selected = next((row for row in tier_data if str(row['mmr']).lower()=='all'), {})
+    role = _hero_role_label(hero.get('hero_role'))
+    for y, label, rank_key, total_key in [(860, '全段位选取率', 'role_rank', 'role_total'), (886, '全段位胜率', 'role_win_rank', 'role_win_total')]:
+        rank = selected.get(rank_key)
+        text = f"{label} · {role}内 {rank}/{selected.get(total_key)} 名" if rank else f"{label} · {role}内 —"
+        draw.text((1050,y),text,font=_font_chinese(16,bold=True),fill=(57,78,104))
+    draw.line((1045,918,1550,918),fill=(193,210,204))
+    for px,label in [(1050,'全段位变化率'),(1250,'选取率'),(1410,'胜率')]:
+        draw.text((px,930),label,font=_font_chinese(14),fill=(104,125,149))
+    for days,py in [(7,958),(30,987)]:
+        draw.text((1050,py),f"近 {days} 天",font=_font_chinese(16),fill=(57,78,104))
+        for metric,px in [('selection_ratio',1250),('win_ratio',1410)]:
+            delta=selected.get('relative_changes',{}).get(str(days),{}).get(metric)
+            label=f"{delta:+.2f}%" if delta is not None else '—'
+            color=(38,151,126) if delta is not None and delta>0 else (206,105,99) if delta is not None and delta<0 else (110,130,151)
+            draw.text((px,py),label,font=_font_chinese(14,bold=True),fill=color)
+    l,r,t,b=103,870,300,817
+    yy=lambda v:b-v/ceiling*(b-t)
+    for tick in range(6):
+        value=ceiling*tick/5;py=yy(value)
+        draw.line((l,py,r,py),fill=(193,210,204))
+        draw.text((44,py-8),f"{value:.1f}%",font=_font_chinese(12),fill=(116,135,157))
+    label_ends=[-100,-100]
+    for event in sorted(patch_events,key=lambda row:row.get('date','')):
+        try:
+            patch_day=date.fromisoformat(event['date']).toordinal()
+            first_day=date.fromisoformat(keys[0][1][:10]).toordinal()
+            last_day=date.fromisoformat(keys[-1][1][:10]).toordinal()
+        except (ValueError,KeyError):continue
+        if not first_day<=patch_day<=last_day:continue
+        px=l+(r-l)*(patch_day-first_day)/(last_day-first_day) if last_day>first_day else (l+r)/2
+        kind=event.get("kind","更新")
+        marker_color={"增强":(38,143,113),"削弱":(193,103,98),"调整":(157,124,69)}.get(kind,(153,143,115))
+        _dashed_line(draw,(px,t),(px,b),tuple(int(v*.65+base*.35) for v,base in zip(marker_color,(228,237,231))),1)
+        draw.polygon([(px-4,t-5),(px+4,t-5),(px,t)],fill=marker_color)
+        for lane in range(2):
+            label_x=max(l,min(r-88,px-35))
+            if label_x>label_ends[lane]+6:
+                draw.text((label_x,254+lane*20),event['date'][5:]+' '+kind,font=_font_chinese(12),fill=marker_color)
+                label_ends[lane]=label_x+84
+                break
+    if not patch_dates_available:
+        draw.text((50,876),'更新日期暂不可用',font=_font_chinese(12),fill=(137,145,155))
+    curve_draw = _CurveLayer((98, 280, 880, 824))
+    previous=None
+    for fraction,key in zip(fractions,keys):
+        base=baselines.get(str(mmr).lower(),{}).get(key)
+        if base is None:previous=None;continue
+        pos=(l+(r-l)*fraction,yy(base))
+        if previous:_dashed_line(curve_draw,previous,pos,(125,140,160),2)
+        previous=pos
+    labels=[]
+    for j,tier in enumerate(TIER_ORDER):
+        color=TIER_COLORS[j];lookup=lookups[tier.lower()];end=lookup.get(keys[-1]);previous=None
+        emphasized=tier.lower()==str(mmr).lower()
+        for fraction,key in zip(fractions,keys):
+            point=lookup.get(key)
+            if point is None:previous=None;continue
+            pos=(l+(r-l)*fraction,yy(float(point.get('selection_ratio') or 0)))
+            if previous:
+                if j%2 and not emphasized:_dashed_line(curve_draw,previous,pos,color,2)
+                else:curve_draw.line((previous,pos),fill=color,width=4 if emphasized else 2)
+            previous=pos
+        if end:
+            py=yy(float(end.get('selection_ratio') or 0))
+            curve_draw.ellipse((r-3,py-3,r+3,py+3),fill=color)
+            labels.append((py,tier,color))
+        y=300+j*55
+        _rank_glyph(canvas,tier,1040,y,38)
+        draw.text((1090,y+10),_mmr_label(tier),font=_font_chinese(16,bold=True),fill=color)
+        for metric,px in metrics:
+            text=(f"{float(end.get(metric) or 0):.2f}"+('%' if metric!='kda' else '')) if end else '—'
+            _draw_metric_mark(draw,px-10,y+19,marks[metric][j])
+            draw.text((px,y+12),text,font=_font_chinese(15,bold=True),fill=(54,73,96))
+        draw.line((1045,y+48,1550,y+48),fill=(193,210,204))
+    curve_draw.paste_onto(canvas)
+    labels.sort()
+    placed=[]
+    for py,tier,color in labels:
+        label_y=max(py,placed[-1][0]+24 if placed else t)
+        placed.append((label_y,py,tier,color))
+    overflow=max(0,(placed[-1][0] if placed else b)-b)
+    for label_y,py,tier,color in placed:
+        label_y-=overflow
+        draw.line((r+5,py,r+22,label_y,r+29,label_y),fill=color,width=1)
+        draw.text((r+34,label_y-9),_mmr_label(tier),font=_font_chinese(14,bold=True),fill=color)
+    for i in sorted({0,len(keys)//2,len(keys)-1}):
+        text=keys[i][1];font=_font_chinese(12);px=l+(r-l)*fractions[i]
+        draw.text((px-_measure_text(draw,text,font)/2,842),text,font=font,fill=(108,128,150))
+    for x,label in [(1180,'选取率'),(1280,'胜率'),(1380,'BAN'),(1480,'KDA')]:draw.text((x,268),label,font=_font_chinese(14),fill=(110,127,147))
+    _dashed_line(draw,(46,932),(76,932),(125,140,160),2)
+    draw.text((84,921),f'{_mmr_label(mmr)} · 全英雄均值',font=_font_chinese(13),fill=(95,116,140))
+    draw.text((350,921),f"{keys[0][1]} — {keys[-1][1]}",font=_font_chinese(13),fill=(95,116,140))
+    draw.text((44,952),f"{_hero_role_label(hero.get('hero_role'))} · 全段位选取率排行",font=_font_chinese(14,bold=True),fill=(70,97,104))
+    if not role_heroes:
+        draw.text((44,984),'暂无排行数据',font=_font_chinese(13),fill=(115,137,140))
+    for i, item in enumerate(role_heroes):
+        x=47+(i%26)*36; y=980+(i//26)*48
+        _paste_icon_or_placeholder(canvas,draw,item,position=(x,y),size=30,font=_font_chinese(13))
+        current=str(item.get('hero_guid'))==str(hero.get('hero_guid'))
+        if current:
+            draw.rounded_rectangle((x-3,y-3,x+33,y+33),radius=5,outline=(212,139,42),width=3)
+        label=str(item.get('rank') or i+1);font=_font_chinese(10,bold=current)
+        draw.text((x+15-_measure_text(draw,label,font)/2,y+33),label,font=font,fill=(155,103,31) if current else (89,115,122))
+    return _finish_ow(canvas)
 
-    values = [float(item.get("selection_ratio") or 0) for item in series]
-    min_value = min(values)
-    max_value = max(values)
-    floor_value = 0.0 if min_value > 1 else max(0.0, min_value - 0.5)
-    ceil_value = max_value + max(1.0, (max_value - floor_value) * 0.12)
-
-    def y_for(value: float) -> int:
-        if ceil_value <= floor_value:
-            return int((inner_top + inner_bottom) / 2)
-        ratio = (float(value) - floor_value) / max(ceil_value - floor_value, 1.0)
-        ratio = max(0.0, min(1.0, ratio))
-        return int(inner_bottom - ratio * (inner_bottom - inner_top))
-
-    tick_count = 5
-    for idx in range(tick_count):
-        tick_value = floor_value + (ceil_value - floor_value) * idx / max(tick_count - 1, 1)
-        y = y_for(tick_value)
-        draw.line((inner_left, y, inner_right, y), fill=(36, 51, 74, 198), width=max(scale, 1))
-        draw.text((x1, y - 10 * scale), _ratio_text(tick_value), font=fonts["font_axis"], fill=(216, 226, 239, 255))
-
-    line_color = _enhance_rgba(tuple(theme.get("line_color") or DEFAULT_THEME["line_color"]), brightness=1.04, contrast=1.04, alpha=255)
-    fill_color = _enhance_rgba(tuple(theme.get("range_color") or DEFAULT_THEME["range_color"]), brightness=1.12, contrast=1.08, alpha=112)
-    point_color = _enhance_rgba(line_color, brightness=1.08, contrast=1.02, alpha=255)
-
-    if len(series) == 1:
-        x_positions = [int((inner_left + inner_right) / 2)]
-    else:
-        step = (inner_right - inner_left) / max(len(series) - 1, 1)
-        x_positions = [int(inner_left + step * idx) for idx in range(len(series))]
-
-    line_points = [(x, y_for(float(item.get("selection_ratio") or 0))) for x, item in zip(x_positions, series)]
-
-    if len(line_points) >= 2:
-        polygon = [(line_points[0][0], inner_bottom)] + line_points + [(line_points[-1][0], inner_bottom)]
-        draw.polygon(polygon, fill=fill_color)
-        draw.line(line_points, fill=line_color, width=max(3 * scale, 5))
-
-    for point_x, point_y in line_points:
-        draw.ellipse(
-            (point_x - 5 * scale, point_y - 5 * scale, point_x + 5 * scale, point_y + 5 * scale),
-            fill=point_color,
-            outline=(255, 255, 255, 210),
-            width=max(scale, 1),
-        )
-
-    label_step = max(1, len(series) // 6)
-    for idx, (x, item) in enumerate(zip(x_positions, series)):
-        if idx % label_step != 0 and idx != len(series) - 1:
-            continue
-        label = f"S{int(item.get('season') or 0)}"
-        date_text = str(item.get("ds") or "")[5:] or str(item.get("ds") or "")
-        label_width = _measure_text(draw, label, fonts["font_meta"])
-        date_width = _measure_text(draw, date_text, fonts["font_meta"])
-        draw.text((int(x - label_width / 2), inner_bottom + 22 * scale), label, font=fonts["font_meta"], fill=(224, 233, 244, 255))
-        draw.text((int(x - date_width / 2), inner_bottom + 44 * scale), date_text, font=fonts["font_meta"], fill=(168, 184, 204, 255))
 
 
-def _draw_stat_chip(
-    draw: Any,
-    box: Tuple[int, int, int, int],
-    *,
-    label: str,
-    value: str,
-    fonts: Dict[str, Any],
-    theme: Dict[str, Any],
-    scale: int,
-) -> None:
-    line_color = tuple(theme.get("line_color") or DEFAULT_THEME["line_color"])
-    fill_color = _enhance_rgba(line_color, brightness=0.78, contrast=0.96, alpha=188)
-    draw.rounded_rectangle(box, radius=14 * scale, fill=fill_color, outline=(255, 255, 255, 38), width=max(scale, 1))
-    draw.text((box[0] + 16 * scale, box[1] + 12 * scale), label, font=fonts["font_meta"], fill=(214, 224, 236, 255))
-    draw.text((box[0] + 16 * scale, box[1] + 38 * scale), value, font=fonts["font_panel_title"], fill=(248, 252, 255, 255))
+class _CurveLayer:
+    """Supersample curves independently, preserving the existing layout scale."""
+    def __init__(self, box):
+        from PIL import Image, ImageDraw
+        self.box = box
+        self.scale = 4
+        self.image = Image.new('RGBA', ((box[2]-box[0])*4, (box[3]-box[1])*4))
+        self.draw = ImageDraw.Draw(self.image)
+
+    def _coordinates(self, xy):
+        if isinstance(xy[0], (tuple, list)):
+            return [((x-self.box[0])*4, (y-self.box[1])*4) for x,y in xy]
+        return [(v-self.box[i%2])*4 for i,v in enumerate(xy)]
+
+    def line(self, xy, *, fill, width=1):
+        self.draw.line(self._coordinates(xy), fill=fill, width=width*4)
+
+    def ellipse(self, xy, *, fill):
+        self.draw.ellipse(self._coordinates(xy), fill=fill)
+
+    def paste_onto(self, canvas):
+        from PIL import Image
+        image = self.image.resize((self.box[2]-self.box[0], self.box[3]-self.box[1]), Image.Resampling.LANCZOS)
+        canvas.paste(image, self.box[:2], image)
+
+
+def _metric_marks(values):
+    valid = [v for v in values if v is not None]
+    unique = sorted(set(valid))
+    if not valid:
+        return [None] * len(values)
+    ordered = sorted(valid)
+    middle = {ordered[(len(ordered)-1)//2], ordered[len(ordered)//2]}
+    result=[]
+    for v in values:
+        if v is None: mark=None
+        elif v in middle: mark='median'
+        elif v == unique[-1]: mark='top1'
+        elif v == unique[0]: mark='bottom1'
+        elif len(unique)>2 and v == unique[-2]: mark='top2'
+        elif len(unique)>2 and v == unique[1]: mark='bottom2'
+        else: mark=None
+        result.append(mark)
+    return result
+
+
+def _draw_metric_mark(draw,x,y,mark):
+    if mark is None:return
+    if mark=='median':
+        draw.line((x-3,y,x+3,y),fill=(115,131,151),width=2);return
+    up=mark.startswith('top');color=(38,151,126) if up else (206,105,99)
+    for i in range(2 if mark.endswith('2') else 1):
+        cy=y+i*5
+        vertices=[(x,cy-4),(x-4,cy+2),(x+4,cy+2)] if up else [(x,cy+4),(x-4,cy-2),(x+4,cy-2)]
+        draw.polygon(vertices,fill=color)
+
+
+def _dashed_line(draw,start,end,color,width):
+    import math
+    dx,dy=end[0]-start[0],end[1]-start[1];length=math.hypot(dx,dy)
+    if length==0:return
+    for d in range(0,int(length)+1,10):
+        stop=min(d+5,length)
+        draw.line((start[0]+dx*d/length,start[1]+dy*d/length,start[0]+dx*stop/length,start[1]+dy*stop/length),fill=color,width=width)
+
+
+ROLE_COLORS = {"tank": (113, 180, 255), "dps": (255, 153, 121), "healer": (106, 219, 179), "support": (106, 219, 179)}
+
+
+def _role_color(item):
+    return ROLE_COLORS.get(str(item.get("hero_role") or "").lower(), (167, 187, 215))
+
+
+@lru_cache(maxsize=24)
+def _role_icon(role, size):
+    from PIL import Image
+
+    role = "healer" if role == "support" else role
+    if role not in {"tank", "dps", "healer"}:
+        return None
+    try:
+        with Image.open(RESOURCE_DIR / f"{role}.png") as source:
+            icon = source.convert("RGBA")
+        icon.thumbnail((size, size), Image.Resampling.LANCZOS)
+        return icon
+    except OSError:
+        return None
+
+
+def _draw_role(canvas, item, x, y, size):
+    icon = _role_icon(str(item.get("hero_role") or "").lower(), size)
+    if icon is not None:
+        canvas.paste(icon, (int(x), int(y)), icon)
+
+
+def _fit_label(draw, text, font, width):
+    text = str(text or "—")
+    if _measure_text(draw, text, font) <= width:
+        return text
+    while text and _measure_text(draw, text + "…", font) > width:
+        text = text[:-1]
+    return text + "…"
 
 
 def _paste_icon_or_placeholder(
@@ -507,56 +487,6 @@ def _load_hero_icon(payload: Dict[str, Any], *, size: int) -> Any:
     return icon
 
 
-def _draw_background(canvas: Any, *, scale: int) -> None:
-    from PIL import Image, ImageFilter
-
-    map_background = build_random_map_background(
-        canvas.size,
-        blur_radius=18 * scale,
-        overlay=(9, 14, 23, 92),
-        brightness=0.76,
-        color=0.86,
-    )
-    if map_background is not None:
-        canvas.alpha_composite(map_background)
-
-    overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-    draw = _new_draw(overlay)
-    gradient_alpha = 116 if map_background is not None else 255
-    for idx in range(canvas.height):
-        ratio = idx / max(canvas.height - 1, 1)
-        red = int(8 + (22 - 8) * ratio)
-        green = int(14 + (24 - 14) * ratio)
-        blue = int(25 + (40 - 25) * ratio)
-        draw.line((0, idx, canvas.width, idx), fill=(red, green, blue, gradient_alpha))
-
-    glow = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-    glow_draw = _new_draw(glow)
-    glow_draw.ellipse((-120 * scale, -80 * scale, 680 * scale, 520 * scale), fill=(34, 95, 179, 125))
-    glow_draw.ellipse((canvas.width - 720 * scale, 30 * scale, canvas.width + 80 * scale, 600 * scale), fill=(29, 160, 187, 70))
-    glow = glow.filter(ImageFilter.GaussianBlur(radius=48 * scale))
-    overlay.alpha_composite(glow)
-    canvas.alpha_composite(overlay)
-
-
-def _draw_panel(
-    draw: Any,
-    box: Tuple[int, int, int, int],
-    *,
-    fill: Tuple[int, int, int, int],
-    outline: Tuple[int, int, int, int],
-    radius: int,
-) -> None:
-    draw.rounded_rectangle(box, radius=radius, fill=fill, outline=outline, width=max(2, radius // 10))
-
-
-def _resolve_theme(theme: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    resolved = dict(DEFAULT_THEME)
-    if isinstance(theme, dict):
-        resolved.update({key: value for key, value in theme.items() if value is not None})
-    return resolved
-
-
 def _game_mode_label(game_mode: str) -> str:
     return "竞技" if str(game_mode or "").strip().lower() == "competitive" else "快速"
 
@@ -595,17 +525,6 @@ def _new_draw(image: Any) -> Any:
     return ImageDraw.Draw(image, "RGBA")
 
 
-def _load_fonts(scale: int) -> Dict[str, Any]:
-    return {
-        "font_title_cn": _font_chinese(30 * scale, bold=True),
-        "font_panel_title": _font_chinese(17 * scale, bold=True),
-        "font_sub": _font_chinese(13 * scale),
-        "font_meta": _font_chinese(10 * scale),
-        "font_axis": _font_chinese(11 * scale, bold=True),
-        "font_rank": _font_resource("BigNoodleToo.ttf", 19 * scale, fallback="en.ttf"),
-    }
-
-
 def _font_resource(name: str, size: int, *, fallback: str | None = None) -> Any:
     return load_font(size, name=name, fallback=fallback)
 
@@ -634,27 +553,6 @@ def _measure_text_height(draw: Any, text: str, font: Any) -> int:
         return int(box[3] - box[1])
     except Exception:
         return int(font.size if hasattr(font, "size") else 12)
-
-
-def _enhance_rgba(
-    color: Tuple[int, int, int, int],
-    *,
-    brightness: float = 1.0,
-    contrast: float = 1.0,
-    alpha: Optional[int] = None,
-) -> Tuple[int, int, int, int]:
-    red, green, blue = (
-        _clamp_color((128 + (channel - 128) * contrast) * brightness)
-        for channel in color[:3]
-    )
-    resolved_alpha = color[3] if len(color) >= 4 else 255
-    if alpha is not None:
-        resolved_alpha = _clamp_color(alpha)
-    return (red, green, blue, resolved_alpha)
-
-
-def _clamp_color(value: float) -> int:
-    return max(0, min(255, int(round(value))))
 
 
 __all__ = [

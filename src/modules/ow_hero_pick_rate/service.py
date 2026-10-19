@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 
 try:
@@ -20,13 +21,15 @@ except ModuleNotFoundError:
         QUICK_STRENGTH_THEME,
     )
 
-from .render import RenderedImage, render_pick_rate_history, render_pick_rate_ranking
+from .render import RenderedImage, render_pick_rate_history, render_pick_rate_ranking, render_pick_rate_overview
 from .requests import (
     GAME_MODE_COMPETITIVE,
     GAME_MODE_SOURCE_MAP,
     HISTORY_LIMIT_DEFAULT,
     MMR_SOURCE_MAP,
+    SUPPORTED_MMRS,
     OWHeroPickRateQuery,
+    VIEW_OVERVIEW,
     VIEW_HISTORY,
     VIEW_RANKING,
     normalize_game_mode,
@@ -126,6 +129,9 @@ class OWHeroPickRateOutput:
     latest: Optional[OWHeroPickRateHistoryPoint] = None
     series: Sequence[OWHeroPickRateHistoryPoint] = ()
     image: Optional[RenderedImage] = None
+    tier_data: Sequence[Dict[str, Any]] = ()
+    patch_events: Sequence[Dict[str, Any]] = ()
+    patch_dates_available: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
@@ -134,8 +140,11 @@ class OWHeroPickRateOutput:
             "region": self.region,
             "game_mode": self.game_mode,
             "mmr": self.mmr,
+            "tier_data": list(self.tier_data),
+            "patch_events": list(self.patch_events),
+            "patch_dates_available": self.patch_dates_available,
         }
-        if self.view == VIEW_RANKING:
+        if self.view in (VIEW_RANKING, VIEW_OVERVIEW):
             payload["snapshot"] = self.snapshot.to_dict() if self.snapshot else None
             payload["heroes"] = [item.to_dict() for item in self.heroes]
             return payload
@@ -166,16 +175,22 @@ class OWHeroPickRateModule:
     ) -> OWHeroPickRateOutput:
         resolved_query = self._normalize_query(query)
         config = self._load_ow_config()
-        if resolved_query.view == VIEW_RANKING:
-            output = self._query_ranking(resolved_query, config)
+        if resolved_query.view == VIEW_OVERVIEW and resolved_query.hero.strip():
+            resolved_query = replace(resolved_query, view=VIEW_HISTORY)
+        if resolved_query.view == VIEW_HISTORY and not resolved_query.hero.strip():
+            resolved_query = replace(resolved_query, view=VIEW_OVERVIEW)
+        if resolved_query.view in (VIEW_RANKING, VIEW_OVERVIEW):
+            output = replace(self._query_ranking(resolved_query, config), view=resolved_query.view)
             if render:
                 theme = self._theme_for_game_mode(resolved_query.game_mode)
-                image = render_pick_rate_ranking(
+                renderer = render_pick_rate_overview if output.view == VIEW_OVERVIEW else render_pick_rate_ranking
+                image = renderer(
                     game_mode=resolved_query.game_mode,
                     mmr=resolved_query.mmr,
                     snapshot=output.snapshot.to_dict() if output.snapshot else {},
                     heroes=[item.to_dict() for item in output.heroes],
                     theme=theme,
+                    tier_data=output.tier_data,
                 )
                 output = OWHeroPickRateOutput(
                     view=output.view,
@@ -185,10 +200,21 @@ class OWHeroPickRateModule:
                     snapshot=output.snapshot,
                     heroes=output.heroes,
                     image=image,
+                    tier_data=output.tier_data,
                 )
             return output
 
         output = self._query_history(resolved_query, config)
+        if output.series:
+            from ..patch_notes.requests import PatchNotesRequests, classify_hero_changes
+            start = datetime.strptime(output.series[0].ds[:10].replace("-", ""), "%Y%m%d").date()
+            end = datetime.strptime(output.series[-1].ds[:10].replace("-", ""), "%Y%m%d").date()
+            events, available = await PatchNotesRequests().fetch_patch_calendar(start, end)
+            labeled_events = []
+            for event in events:
+                updates = [update for update in event.get("hero_updates", []) if str(update.get("name") or "").strip(' \"“”「」') == output.hero.hero_name and not any(word in str(update.get("group_title") or "").lower() for word in ("角斗", "stadium"))]
+                labeled_events.append({key: value for key, value in event.items() if key != "hero_updates"} | {"kind": classify_hero_changes(updates) if updates else "更新"})
+            output = replace(output, patch_events=labeled_events, patch_dates_available=available)
         if render:
             theme = self._theme_for_game_mode(resolved_query.game_mode)
             image = render_pick_rate_history(
@@ -200,6 +226,9 @@ class OWHeroPickRateModule:
                 history_limit=output.history_limit,
                 series=[item.to_dict() for item in output.series],
                 theme=theme,
+                tier_data=output.tier_data,
+                patch_events=output.patch_events,
+                patch_dates_available=output.patch_dates_available,
             )
             output = OWHeroPickRateOutput(
                 view=output.view,
@@ -212,6 +241,9 @@ class OWHeroPickRateModule:
                 latest=output.latest,
                 series=output.series,
                 image=image,
+                tier_data=output.tier_data,
+                patch_events=output.patch_events,
+                patch_dates_available=output.patch_dates_available,
             )
         return output
 
@@ -262,6 +294,15 @@ class OWHeroPickRateModule:
             ds=latest_ds,
             hero_count=len(heroes),
         )
+        peer_rows = self.db.fetch_rows(
+            HERO_LEADERBOARD_CN_TABLE, game_mode=source_mode,
+            season=latest_season, ds=latest_ds,
+        )
+        tier_data = []
+        for tier in SUPPORTED_MMRS:
+            peers = [row for row in peer_rows if str(row.get("mmr")) == MMR_SOURCE_MAP[tier]]
+            peers.sort(key=lambda row: -self._safe_float(row.get("selection_ratio")))
+            tier_data.append({"mmr": tier, "heroes": [self._to_ranked_hero_row(i+1, row, hero_lookup).to_dict() for i, row in enumerate(peers)]})
         return OWHeroPickRateOutput(
             view=VIEW_RANKING,
             region="cn",
@@ -269,6 +310,7 @@ class OWHeroPickRateModule:
             mmr=query.mmr,
             snapshot=snapshot,
             heroes=heroes,
+            tier_data=tier_data,
         )
 
     def _query_history(self, query: OWHeroPickRateQuery, config: Dict[str, Any]) -> OWHeroPickRateOutput:
@@ -311,9 +353,57 @@ class OWHeroPickRateModule:
             key=lambda item: (self._safe_int(item.get("season")), str(item.get("ds") or "")),
         )
         history_total = len(sorted_rows)
-        limited_rows = sorted_rows[-query.history_limit :]
+        # Use calendar days within the latest season, not a count of snapshots.
+        newest = sorted_rows[-1]
+        latest_season = self._safe_int(newest.get("season"))
+        def snapshot_day(row):
+            text = str(row.get("ds") or "")
+            for fmt in ("%Y-%m-%d", "%Y%m%d"):
+                try:
+                    return datetime.strptime(text[:10] if "-" in text else text[:8], fmt).date()
+                except ValueError:
+                    continue
+            raise ModuleError(error="invalid_snapshot_date", message="选取率快照日期格式无效。", status_code=502)
+        end_day = snapshot_day(newest)
+        start_day = end_day - timedelta(days=query.history_limit - 1)
+        limited_rows = [row for row in sorted_rows if self._safe_int(row.get("season")) == latest_season and start_day <= snapshot_day(row) <= end_day]
         series = tuple(self._to_history_point(row) for row in limited_rows)
         latest = self._to_history_point(sorted_rows[-1])
+        peer_rows = self.db.fetch_rows(HERO_LEADERBOARD_CN_TABLE, game_mode=source_mode, hero_id=hero_meta.hero_guid)
+        visible_dates = {(row.season, row.ds) for row in series}
+        baseline_rows = [row for season in sorted({s for s, _ in visible_dates}) for row in self.db.fetch_rows(HERO_LEADERBOARD_CN_TABLE, game_mode=source_mode, season=season)]
+        baseline_groups = {}
+        for row in baseline_rows:
+            stamp = (self._safe_int(row.get("season")), str(row.get("ds") or ""))
+            if stamp in visible_dates:
+                baseline_groups.setdefault((str(row.get("mmr")), *stamp), {})[str(row.get("hero_id"))] = self._safe_float(row.get("selection_ratio"))
+        tier_data = []
+        for tier in SUPPORTED_MMRS:
+            peers = [row for row in peer_rows if str(row.get("mmr")) == MMR_SOURCE_MAP[tier] and (self._safe_int(row.get("season")), str(row.get("ds") or "")) in visible_dates]
+            peers.sort(key=lambda row: (self._safe_int(row.get("season")), str(row.get("ds") or "")))
+            role_ids = {guid for guid, meta in hero_lookup["by_guid"].items() if meta.hero_role == hero_meta.hero_role}
+            role_values = {str(row.get("hero_id")): self._safe_float(row.get("selection_ratio")) for row in baseline_rows if str(row.get("mmr")) == MMR_SOURCE_MAP[tier] and self._safe_int(row.get("season")) == latest.season and str(row.get("ds") or "") == latest.ds and str(row.get("hero_id")) in role_ids}
+            own = role_values.get(hero_meta.hero_guid)
+            role_rank = 1 + sum(value > own for value in role_values.values()) if own is not None else None
+            all_points = {snapshot_day(row): row for row in peer_rows if str(row.get("mmr")) == MMR_SOURCE_MAP[tier] and self._safe_int(row.get("season")) == latest.season}
+            current = all_points.get(end_day)
+            changes = {}
+            relative_changes = {}
+            for days in (7, 30):
+                earlier = all_points.get(end_day - timedelta(days=days))
+                changes[str(days)] = {key: self._safe_float(current.get(key)) - self._safe_float(earlier.get(key)) if current and earlier else None for key in ("selection_ratio", "win_ratio")}
+                relative_changes[str(days)] = {}
+                for key in ("selection_ratio", "win_ratio"):
+                    delta = changes[str(days)][key]
+                    previous = self._safe_float(earlier.get(key)) if earlier else 0
+                    relative_changes[str(days)][key] = delta / previous * 100 if delta is not None and previous else 0.0 if delta == 0 else None
+
+
+            win_values = {str(row.get("hero_id")): self._safe_float(row.get("win_ratio")) for row in baseline_rows if str(row.get("mmr")) == MMR_SOURCE_MAP["all"] and self._safe_int(row.get("season")) == latest.season and str(row.get("ds") or "") == latest.ds and str(row.get("hero_id")) in role_ids}
+            own_win = win_values.get(hero_meta.hero_guid)
+            win_rank = 1 + sum(value > own_win for value in win_values.values()) if own_win is not None else None
+            role_heroes = [dict(hero_lookup["by_guid"][guid].to_dict(), selection_ratio=value, rank=1+sum(other>value for other in role_values.values())) for guid, value in sorted(role_values.items(), key=lambda item: (-item[1],item[0]))]
+            tier_data.append({"mmr": tier, "role_rank": role_rank, "role_total": len(role_values), "role_win_rank": win_rank, "role_win_total": len(win_values), "changes": changes, "relative_changes": relative_changes, "role_heroes": role_heroes, "series": [self._to_history_point(row).to_dict() for row in peers], "baseline": [{"season": season, "ds": ds, "selection_ratio": sum(values.values()) / len(values)} for (source, season, ds), values in baseline_groups.items() if source == MMR_SOURCE_MAP[tier] and values]})
         return OWHeroPickRateOutput(
             view=VIEW_HISTORY,
             region="cn",
@@ -324,6 +414,7 @@ class OWHeroPickRateModule:
             history_total=history_total,
             latest=latest,
             series=series,
+            tier_data=tier_data,
         )
 
     def _normalize_query(self, query: OWHeroPickRateQuery) -> OWHeroPickRateQuery:

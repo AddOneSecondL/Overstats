@@ -475,8 +475,9 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
                 "view",
                 "视图",
                 "view",
-                default="ranking",
+                default="overview",
                 options=(
+                    HTTPUIFieldOption("overview", "全局概览"),
                     HTTPUIFieldOption("ranking", "榜单"),
                     HTTPUIFieldOption("history", "历史"),
                 ),
@@ -485,7 +486,7 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
                 "game_mode",
                 "模式",
                 "game_mode",
-                default="quick",
+                default="competitive",
                 options=(
                     HTTPUIFieldOption("quick", "快速"),
                     HTTPUIFieldOption("competitive", "竞技"),
@@ -518,10 +519,10 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
             ),
             _number_field(
                 "history_limit",
-                "历史条数",
+                "历史天数（最多60天）",
                 "history_limit",
-                placeholder="默认 20，仅 history 视图使用",
-                default="20",
+                placeholder="默认 60，仅 history 视图使用",
+                default="60",
                 help_text="仅 history 视图使用。",
             ),
         ),

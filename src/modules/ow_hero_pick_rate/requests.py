@@ -6,7 +6,8 @@ from typing import Any
 
 VIEW_RANKING = "ranking"
 VIEW_HISTORY = "history"
-SUPPORTED_VIEWS = (VIEW_RANKING, VIEW_HISTORY)
+VIEW_OVERVIEW = "overview"
+SUPPORTED_VIEWS = (VIEW_OVERVIEW, VIEW_RANKING, VIEW_HISTORY)
 
 GAME_MODE_QUICK = "quick"
 GAME_MODE_COMPETITIVE = "competitive"
@@ -42,27 +43,27 @@ MMR_SOURCE_MAP = {
     "Champion": "Champion",
 }
 
-HISTORY_LIMIT_DEFAULT = 20
+HISTORY_LIMIT_DEFAULT = 60
 
 
 @dataclass(frozen=True)
 class OWHeroPickRateQuery:
-    view: str = VIEW_RANKING
-    game_mode: str = GAME_MODE_QUICK
+    view: str = VIEW_OVERVIEW
+    game_mode: str = GAME_MODE_COMPETITIVE
     mmr: str = MMR_ALL
     hero: str = ""
     history_limit: int = HISTORY_LIMIT_DEFAULT
 
 
 def normalize_view(value: Any) -> str:
-    normalized = str(value or VIEW_RANKING).strip().lower()
+    normalized = str(value or VIEW_OVERVIEW).strip().lower()
     if normalized in SUPPORTED_VIEWS:
         return normalized
     raise ValueError(f"Unsupported view: {value!r}")
 
 
 def normalize_game_mode(value: Any) -> str:
-    normalized = str(value or GAME_MODE_QUICK).strip().lower()
+    normalized = str(value or GAME_MODE_COMPETITIVE).strip().lower()
     if normalized in SUPPORTED_GAME_MODES:
         return normalized
     raise ValueError(f"Unsupported game_mode: {value!r}")
@@ -84,4 +85,4 @@ def normalize_history_limit(value: Any) -> int:
     if value in (None, ""):
         return HISTORY_LIMIT_DEFAULT
     limit = int(value)
-    return max(1, limit)
+    return max(1, min(60, limit))
