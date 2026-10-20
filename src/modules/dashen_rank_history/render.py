@@ -84,7 +84,7 @@ def collect_missing_assets(seasons: Sequence[Dict[str, Any]]) -> List[str]:
         season = int(item.get("season") or 0)
         if season <= 0:
             continue
-        if not (SEASON_LOGO_DIR / f"s{season}.png").exists():
+        if not _season_banner_path(season).exists():
             _append(f"overstats/res/season_logo/s{season}.png")
         for payload_key, rows_key, prefix in (
             ("sport_payload", "guideCountData", ""),
@@ -331,12 +331,79 @@ def _draw_season_desc(draw: Any, config: Dict[str, Any], season: int, fonts: Dic
         draw.text((15, 270), text, font=fonts["font_cn_small_ex"], fill=(180, 190, 205))
 
 
+def _season_banner_path(season):
+    for directory in (SEASON_LOGO_DIR, QUERY_TOOL_ASSET_DIR / "season_banners"):
+        for suffix in (".png", ".jpg", ".webp", ".jpeg"):
+            path = directory / f"s{season}{suffix}"
+            if path.is_file():
+                return path
+    return SEASON_LOGO_DIR / f"s{season}.png"
+
+
+_banner_checked_at = 0.0
+
+
+async def ensure_season_banners(seasons):
+    import asyncio
+    import html
+    import re
+    import time
+    import httpx
+    from PIL import Image
+
+    global _banner_checked_at
+    missing = {int(item.get("season") or 0) for item in seasons if int(item.get("season") or 0)>0 and not _season_banner_path(int(item["season"])).exists()}
+    if not missing or time.monotonic() - _banner_checked_at < 3600:
+        return
+    _banner_checked_at = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+            response = await client.get("https://overwatch.blizzard.com/en-us/news/")
+            response.raise_for_status()
+            candidates = {}
+            for card in re.findall(r'<a\b[^>]*>.*?</a>', response.text, re.S):
+                title_match = re.search(r'<h[1-6][^>]*>(.*?)</h[1-6]>', card, re.S)
+                image_match = re.search(r'<blz-image[^>]*src="([^"]+)"', card)
+                date_match = re.search(r'timestamp="(\d{4})', card)
+                if not title_match or not image_match or not date_match:
+                    continue
+                title = html.unescape(re.sub('<[^>]+>', '', title_match[1]))
+                number = re.search(r'\bSeason\s+(\d+)\b', title, re.I)
+                if not number or re.search(r'mid.?cycle|mid.?season|director|recall|trailer|trials', title, re.I):
+                    continue
+                year, season = int(date_match[1]), int(number[1])
+                # 2026 restarted public season numbering; Dashen continues at 21.
+                if year == 2026 and 'reign of talon' in title.lower():
+                    season += 20
+                elif year >= 2026:
+                    continue
+                if season in missing:
+                    candidates.setdefault(season, html.unescape(image_match[1]))
+            directory = QUERY_TOOL_ASSET_DIR / "season_banners"
+            for season, url in candidates.items():
+                try:
+                    response = await client.get(url)
+                    response.raise_for_status()
+                    with Image.open(BytesIO(response.content)) as source:
+                        source.load()
+                        banner = source.convert("RGBA")
+                    directory.mkdir(parents=True, exist_ok=True)
+                    path = directory / f"s{season}.png"
+                    temporary = path.with_suffix(".tmp")
+                    banner.save(temporary, format="PNG")
+                    temporary.replace(path)
+                except (httpx.HTTPError, OSError, ValueError):
+                    continue
+    except (httpx.HTTPError, OSError, ValueError):
+        return
+
+
 def _paste_season_banner(rect: Any, season: int) -> None:
     from PIL import Image, ImageDraw
 
     # Keep every season card aligned even when its artwork is unavailable.
     ImageDraw.Draw(rect).rectangle((10, 10, 489, 179), fill=(105, 110, 118, 255))
-    banner = _load_local_rgba(SEASON_LOGO_DIR / f"s{season}.png")
+    banner = _load_local_rgba(_season_banner_path(season))
     if banner is None:
         return
     target_width = 480

@@ -423,7 +423,7 @@ def _draw_metric_mark(draw,x,y,mark):
     if mark=='median':
         draw.line((x-3,y,x+3,y),fill=(115,131,151),width=2);return
     up=mark.startswith('top');color=(38,151,126) if up else (206,105,99)
-    for i in range(2 if mark.endswith('2') else 1):
+    for i in range(2 if mark.endswith('1') else 1):
         cy=y+i*5
         vertices=[(x,cy-4),(x-4,cy+2),(x+4,cy+2)] if up else [(x,cy+4),(x-4,cy-2),(x+4,cy-2)]
         draw.polygon(vertices,fill=color)
