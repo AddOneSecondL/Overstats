@@ -727,11 +727,20 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
     HTTPUIModuleSpec(
         id="patch-notes",
         title="补丁说明",
-        description="查看最新补丁，或按类型查看补丁说明。",
+        description="大小补丁均默认一张精简改动图，增强、削弱、调整分色；支持章节与英雄查询。",
         json_endpoint="/api/v2/patch-notes",
         image_endpoint="/api/v2/patch-notes/image",
         requires_target=False,
         fields=(
+            _select_field("view", "阅读视图", "view", default="auto", options=(
+                HTTPUIFieldOption("auto", "自动（精简改动图）"),
+                HTTPUIFieldOption("overview", "一图速读（英雄改动全量）"),
+                HTTPUIFieldOption("detail", "完整正文分页"),
+            )),
+            HTTPUIFieldSpec(id="section", label="章节", payload_key="section", placeholder="目录编号 s1 或章节名称"),
+            HTTPUIFieldSpec(id="hero", label="英雄", payload_key="hero", placeholder="例如：路霸"),
+            _number_field("page", "页码", "page", default="1"),
+            HTTPUIFieldSpec(id="patch_id", label="固定补丁", payload_key="patch_id", placeholder="可留空；翻页按钮自动固定版本"),
             _select_field(
                 "patch_kind",
                 "补丁类型",

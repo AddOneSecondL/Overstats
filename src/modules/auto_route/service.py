@@ -560,11 +560,14 @@ class AutoRouteModule:
                 "type": "function",
                 "function": {
                     "name": "patch_notes",
-                    "description": "Query patch notes.",
+                    "description": "Query patch notes. Auto shows overview for large patches. Use detail with page, section or hero to read full content. A next-page request needs explicit page and patch_id; do not guess hidden conversation state.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "patch_kind": {"type": "string", "enum": ["latest", "small", "big"]},
+                            "view": {"type": "string", "enum": ["auto", "overview", "detail"]},
+                            "section": {"type": "string"}, "hero": {"type": "string"},
+                            "page": {"type": "integer", "minimum": 1}, "patch_id": {"type": "string"},
                         },
                         "additionalProperties": False,
                     },
@@ -842,6 +845,7 @@ class AutoRouteModule:
 
     def _build_patch_notes_selection(self, arguments: Dict[str, Any]) -> AutoRouteSelection:
         payload = {"patch_kind": _normalize_tool_patch_kind(arguments.get("patch_kind"))}
+        payload.update({key: arguments[key] for key in ("view", "section", "hero", "page", "patch_id") if key in arguments})
         return AutoRouteSelection(
             tool_name="patch_notes",
             module_name="patch_notes",

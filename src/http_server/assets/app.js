@@ -12,6 +12,7 @@
     MATCH_DETAIL_MODULE_ID,
     SAMEPLAY_DETAIL_MODULE_ID,
     OW_GUESS_MODULE_ID,
+    "patch-notes",
   ]);
 
   const state = {
@@ -41,6 +42,7 @@
     responseMeta: document.getElementById("responseMeta"),
     jsonPreview: document.getElementById("jsonPreview"),
     imagePreview: document.getElementById("imagePreview"),
+    patchNavigation: document.getElementById("patchNavigation"),
     imagePlaceholder: document.getElementById("imagePlaceholder"),
     replyPreview: document.getElementById("replyPreview"),
     replyPlaceholder: document.getElementById("replyPlaceholder"),
@@ -59,6 +61,7 @@
     if (!module) {
       return "";
     }
+    if (module.id === "patch-notes") return "/api/v2/patch-notes/replies";
     if (isReplyBundleModule(module)) {
       return module.json_endpoint;
     }
@@ -469,7 +472,54 @@
     syncRawPayload(false);
   }
 
+  function renderPatchNavigation(reader) {
+    const nav = elements.patchNavigation;
+    nav.replaceChildren();
+    nav.classList.toggle("hidden", !reader);
+    if (!reader) return;
+    const navigate = (request) => {
+      if (!request || elements.submitButton.disabled) return;
+      const payload = Object.assign({section: "", hero: "", page: 1}, request);
+      elements.dynamicFields.querySelectorAll("[data-payload-key]").forEach((control) => {
+        if (Object.prototype.hasOwnProperty.call(payload, control.dataset.payloadKey)) {
+          control.value = payload[control.dataset.payloadKey];
+        }
+      });
+      elements.payloadEditor.value = formatJson(payload);
+      state.rawDirty = true;
+      sendRequest({preventDefault() {}});
+    };
+    const status = document.createElement("span");
+    status.textContent = (reader.view === "overview" ? "总览" : "正文") + " · " + reader.page + " / " + reader.page_count;
+    nav.appendChild(status);
+    [["总览", reader.overview_request], ["完整正文", reader.detail_request],
+      ["上一页", reader.previous_request], ["下一页", reader.next_request]].forEach(([title, request]) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = title;
+      button.disabled = !request;
+      button.addEventListener("click", () => navigate(request));
+      nav.appendChild(button);
+    });
+    const select = document.createElement("select");
+    const placeholder = document.createElement("option");
+    placeholder.textContent = "跳转章节";
+    placeholder.value = "";
+    select.appendChild(placeholder);
+    (reader.sections || []).forEach((section, index) => {
+      const option = document.createElement("option");
+      option.value = String(index);
+      option.textContent = section.id + " · " + section.title;
+      select.appendChild(option);
+    });
+    select.addEventListener("change", () => {
+      if (select.value !== "") navigate(reader.sections[Number(select.value)].request);
+    });
+    nav.appendChild(select);
+  }
+
   function render() {
+    renderPatchNavigation(null);
     renderModuleNav();
     renderDynamicFields();
     updateTargetVisibility();
@@ -479,6 +529,7 @@
 
   async function sendRequest(event) {
     event.preventDefault();
+    if (elements.submitButton.disabled) return;
     const activeModule = getActiveModule();
     if (!activeModule) {
       setStatus("No module available");
@@ -510,6 +561,7 @@
     setStatus("Request in progress...");
     setResponseMeta("Requesting " + endpoint);
     elements.submitButton.disabled = true;
+    renderPatchNavigation(null);
 
     try {
       const response = await fetch(endpoint, {
@@ -545,6 +597,7 @@
       }
 
       elements.jsonPreview.textContent = formatJson(sanitizePreviewData(parsedBody, ""));
+      if (activeModule.id === "patch-notes" && response.ok) renderPatchNavigation(parsedBody.reader);
 
       if (parsedBody && Array.isArray(parsedBody.replies)) {
         renderReplyPreview(parsedBody.replies);

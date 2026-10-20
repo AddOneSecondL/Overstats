@@ -1,50 +1,29 @@
 from __future__ import annotations
 
-from ..map_modes import draw_map_mode_icon
-
 from dataclasses import dataclass
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 import re
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 
-from ...constants.backgrounds import build_random_map_background
+from ..font_resolver import load_font
+from ...constants.chara import iter_hero_alias_pairs
+from .parser import iter_entries as _entries
 
-try:
-    from overstats.src.modules.font_resolver import load_font
-except ModuleNotFoundError:
-    from src.modules.font_resolver import load_font
-
-
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-RES_DIR = PROJECT_ROOT / "res"
-FINAL_BG = (12, 17, 26)
-BACKGROUND_TOP = (8, 13, 21)
-BACKGROUND_BOTTOM = (18, 28, 43)
-BACKGROUND_GLOW_PRIMARY = (50, 112, 255, 72)
-BACKGROUND_GLOW_SECONDARY = (27, 198, 255, 52)
-BACKGROUND_LINE = (255, 255, 255, 18)
-CARD_BG = (24, 31, 45)
-CARD_ALT_BG = (31, 40, 57)
-CARD_SOFT_BG = (19, 25, 37)
-CARD_OUTLINE = (75, 95, 132)
-TEXT_PRIMARY = (244, 247, 255)
-TEXT_SECONDARY = (221, 229, 241)
-TEXT_MUTED = (166, 186, 214)
-TEXT_ACCENT = (139, 208, 255)
-TEXT_WARNING = (255, 217, 145)
-TEXT_SUCCESS = (182, 255, 204)
-TEXT_DANGER = (255, 167, 167)
-BASE_CANVAS_WIDTH = 1520
-BASE_FALLBACK_WIDTH = 1200
-CANVAS_WIDTH = 1920
-RENDER_SCALE = CANVAS_WIDTH / float(BASE_CANVAS_WIDTH)
-CANVAS_MARGIN = max(1, int(round(36 * RENDER_SCALE)))
-CARD_GAP = max(1, int(round(20 * RENDER_SCALE)))
-HEADER_RADIUS = max(1, int(round(18 * RENDER_SCALE)))
-CARD_RADIUS = max(1, int(round(16 * RENDER_SCALE)))
-IMAGE_RADIUS = max(1, int(round(14 * RENDER_SCALE)))
-LABEL_RADIUS = max(1, int(round(11 * RENDER_SCALE)))
+RENDER_VERSION = "reader-2026-10-digest-v4"
+WIDTH, MAX_HEIGHT, MARGIN = 1200, 1900, 48
+TOP, FOOTER, GAP = 190, 100, 18
+BG, CARD = (16, 22, 32), (25, 34, 48)
+WHITE, MUTED, ACCENT = (237, 242, 250), (157, 176, 198), (121, 196, 244)
+LABELS = {
+    "hero updates": "英雄更新", "general updates": "综合更新",
+    "hotfix update": "热修复", "bug fixes": "问题修复",
+    "map updates": "地图更新", "stadium updates": "角斗领域更新",
+    "tank": "重装", "damage": "输出", "support": "支援",
+    "competitive play updates": "竞技比赛更新", "6v6 updates": "6v6 更新",
+    "patch notes": "补丁说明",
+}
 
 
 @dataclass(frozen=True)
@@ -53,527 +32,305 @@ class RenderedImage:
     media_type: str = "image/png"
 
 
-def _px(value: int | float) -> int:
-    return max(1, int(round(float(value) * RENDER_SCALE)))
+@lru_cache(maxsize=12)
+def _font(size, bold=False):
+    return load_font(size, name="simhei.ttf", prefer_cjk=True, bold=bold)
 
 
-def render_patch_notes(
-    candidate: Mapping[str, Any],
-    *,
-    summary_text: str,
-    asset_paths: Mapping[str, Path],
-) -> RenderedImage:
-    try:
-        from PIL import Image, ImageDraw
-    except ModuleNotFoundError as exc:
-        raise RuntimeError("render.py requires Pillow to output images") from exc
+def label(value):
+    return " / ".join(LABELS.get(part.strip().lower(), part.strip()) for part in str(value or "补丁说明").split(" / "))
 
-    fonts = {
-        "headline": _load_font(_px(50), bold=True),
-        "section": _load_font(_px(34), bold=True),
-        "title": _load_font(_px(28), bold=True),
-        "body": _load_font(_px(22)),
-        "small": _load_font(_px(19)),
-        "label": _load_font(_px(18), bold=True),
-    }
 
-    final_height = max(
-        _draw_patch_notes_content(
-            canvas=None,
-            draw=None,
-            candidate=candidate,
-            summary_text=summary_text,
-            asset_paths={},
-            fonts=fonts,
-        )
-        + CANVAS_MARGIN,
-        _px(240),
+def _wrap(text, size, width):
+    font = _font(size)
+    output = []
+    for paragraph in str(text or "").splitlines():
+        current = ""
+        # Character fallback also handles an unbroken URL or very long English word.
+        for token in re.findall(r"[A-Za-z0-9]+(?:['’.-][A-Za-z0-9]+)*|[^A-Za-z0-9]", paragraph):
+            if font.getlength(current + token) <= width:
+                current += token
+            else:
+                if current.strip():
+                    output.append(current.rstrip())
+                current = ""
+                for char in token.lstrip():
+                    if current and font.getlength(current + char) > width:
+                        output.append(current)
+                        current = ""
+                    current += char
+        if current.strip():
+            output.append(current.rstrip())
+    return output
+
+
+def _key(value):
+    return re.sub(r"[^a-z0-9一-鿿]", "", str(value).lower())
+
+
+def _hero_key(value):
+    aliases = {_key(alias): _key(name) for alias, name in iter_hero_alias_pairs()}
+    return aliases.get(_key(value), _key(value))
+
+
+def _numeric_change(text):
+    match = re.fullmatch(
+        r"(.+?)从\s*(\d+(?:\.\d+)?\s*[%％秒米点发]?)\s*"
+        r"(?:增加|提高|提升|降低|减少|缩短|延长|调整|变更|改)(?:至|为|到)?\s*"
+        r"(\d+(?:\.\d+)?\s*[%％秒米点发]?)\s*[。.]?", str(text),
     )
-    canvas = Image.new("RGBA", (CANVAS_WIDTH, final_height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(canvas, "RGBA")
-    _draw_patch_notes_content(
-        canvas=canvas,
-        draw=draw,
-        candidate=candidate,
-        summary_text=summary_text,
-        asset_paths=asset_paths,
-        fonts=fonts,
-    )
-    background = _build_background(CANVAS_WIDTH, final_height)
-    background.alpha_composite(canvas)
-
-    output = BytesIO()
-    background.convert("RGB").save(output, format="PNG", optimize=True)
-    return RenderedImage(content=output.getvalue())
-
-    y = CANVAS_MARGIN
-    y = _draw_header_card(draw, candidate, summary_text, fonts, y)
-
-    for section in candidate.get("sections") or []:
-        y = _draw_section_title(draw, section.get("title", ""), fonts, y)
-        intro = list(section.get("intro") or [])
-        if intro:
-            y = _draw_text_card(
-                draw,
-                title="概览",
-                body_lines=intro,
-                fonts=fonts,
-                y=y,
-                accent=TEXT_ACCENT,
-            )
-
-        for hero_update in section.get("hero_updates") or []:
-            y = _draw_hero_card(canvas, draw, hero_update, asset_paths, fonts, y)
-        for map_update in section.get("map_updates") or []:
-            y = _draw_map_card(canvas, draw, map_update, asset_paths, fonts, y)
-        for general_update in section.get("general_updates") or []:
-            lines = []
-            lines.extend(general_update.get("paragraphs") or [])
-            lines.extend(f"• {item}" for item in (general_update.get("bullets") or []))
-            if general_update.get("dev_note"):
-                lines.append(f"开发者说明：{general_update.get('dev_note')}")
-            y = _draw_text_card(
-                draw,
-                title=general_update.get("title", "补丁条目"),
-                body_lines=lines,
-                fonts=fonts,
-                y=y,
-                accent=TEXT_SUCCESS if general_update.get("dev_note") else TEXT_ACCENT,
-            )
-
-    final_height = max(y + CANVAS_MARGIN, 240)
-    canvas = canvas.crop((0, 0, CANVAS_WIDTH, final_height))
-    background = _build_background(CANVAS_WIDTH, final_height)
-    background.alpha_composite(canvas)
-
-    output = BytesIO()
-    background.convert("RGB").save(output, format="PNG", optimize=True)
-    return RenderedImage(content=output.getvalue())
+    if match and _font(30).getlength(match[1]) < 600 and all(_font(30).getlength(value) < 128 for value in match.groups()[1:]):
+        return [part.strip() for part in match.groups()]
+    return None
 
 
-def _draw_patch_notes_content(
-    *,
-    canvas: Any | None,
-    draw: Any | None,
-    candidate: Mapping[str, Any],
-    summary_text: str,
-    asset_paths: Mapping[str, Path],
-    fonts: Mapping[str, Any],
-) -> int:
-    y = CANVAS_MARGIN
-    y = _draw_header_card(draw, candidate, summary_text, fonts, y)
 
-    for section in candidate.get("sections") or []:
-        y = _draw_section_title(draw, section.get("title", ""), fonts, y)
-        intro = list(section.get("intro") or [])
-        if intro:
-            y = _draw_text_card(
-                draw,
-                title="概览",
-                body_lines=intro,
-                fonts=fonts,
-                y=y,
-                accent=TEXT_ACCENT,
-            )
-
-        for hero_update in section.get("hero_updates") or []:
-            y = _draw_hero_card(canvas, draw, hero_update, asset_paths, fonts, y)
-        for map_update in section.get("map_updates") or []:
-            y = _draw_map_card(canvas, draw, map_update, asset_paths, fonts, y)
-        for general_update in section.get("general_updates") or []:
-            lines = []
-            lines.extend(general_update.get("paragraphs") or [])
-            lines.extend(f"• {item}" for item in (general_update.get("bullets") or []))
-            if general_update.get("dev_note"):
-                lines.append(f"开发者说明：{general_update.get('dev_note')}")
-            y = _draw_text_card(
-                draw,
-                title=general_update.get("title", "补丁条目"),
-                body_lines=lines,
-                fonts=fonts,
-                y=y,
-                accent=TEXT_SUCCESS if general_update.get("dev_note") else TEXT_ACCENT,
-            )
-    return y
-
-
-def render_patch_fallback(candidate: Mapping[str, Any], *, summary_text: str) -> RenderedImage:
-    try:
-        from PIL import Image, ImageDraw
-    except ModuleNotFoundError as exc:
-        raise RuntimeError("render.py requires Pillow to output images") from exc
-
-    width = _px(BASE_FALLBACK_WIDTH)
-    margin = _px(56)
-    fonts = {
-        "headline": _load_font(_px(34), bold=True),
-        "meta": _load_font(_px(20), bold=True),
-        "body": _load_font(_px(20)),
-    }
-
-    title_lines = _wrap_text(str(candidate.get("title") or ""), fonts["headline"], width - margin * 2)
-    summary_lines = _wrap_text(summary_text, fonts["meta"], width - margin * 2)
-    body_lines = _wrap_text(str(candidate.get("text") or ""), fonts["body"], width - margin * 2)
-
-    height = (
-        margin * 2
-        + max(1, len(title_lines)) * _px(46)
-        + _px(24)
-        + max(1, len(summary_lines)) * _px(28)
-        + _px(28)
-        + max(1, len(body_lines)) * _px(28)
-        + _px(48)
-    )
-    image = _build_background(width, height)
-    draw = ImageDraw.Draw(image, "RGBA")
-    draw.rounded_rectangle(
-        (_px(24), _px(24), width - _px(24), height - _px(24)),
-        radius=HEADER_RADIUS,
-        fill=CARD_BG + (242,),
-        outline=CARD_OUTLINE,
-        width=max(1, _px(2)),
-    )
-
-    y = margin
-    for line in title_lines:
-        draw.text((margin, y), line, font=fonts["headline"], fill=TEXT_PRIMARY)
-        y += _px(46)
-    y += _px(12)
-    for line in summary_lines:
-        draw.text((margin, y), line, font=fonts["meta"], fill=TEXT_ACCENT)
-        y += _px(28)
-    y += _px(12)
-    for line in body_lines:
-        draw.text((margin, y), line, font=fonts["body"], fill=TEXT_SECONDARY)
-        y += _px(28)
-
-    output = BytesIO()
-    image.convert("RGB").save(output, format="PNG", optimize=True)
-    return RenderedImage(content=output.getvalue())
-
-
-def _draw_header_card(draw: Any | None, candidate: Mapping[str, Any], summary_text: str, fonts: Mapping[str, Any], y: int) -> int:
-    content_width = CANVAS_WIDTH - CANVAS_MARGIN * 2 - _px(40)
-    title_lines = _wrap_text(str(candidate.get("title") or "补丁说明"), fonts["headline"], content_width)
-    summary_lines = []
-    for line in str(summary_text or "").splitlines():
-        wrapped = _wrap_text(line, fonts["small"], content_width)
-        summary_lines.extend(wrapped or [""])
-
-    meta_lines = [
-        f"来源：{candidate.get('source_name', '')}",
-        f"分类：{candidate.get('bucket_name', '')}",
-        f"日期：{candidate.get('date_text', '')}",
-    ]
-    meta_height = len(meta_lines) * _px(28)
-    body_height = len(summary_lines) * _px(24)
-    title_height = len(title_lines) * _px(58)
-    card_h = _px(36) + title_height + _px(20) + meta_height + _px(20) + body_height + _px(28)
-    card_box = (
-        CANVAS_MARGIN,
-        y,
-        CANVAS_WIDTH - CANVAS_MARGIN,
-        y + card_h,
-    )
-    if draw is None:
-        return card_box[3] + _px(28)
-    draw.rounded_rectangle(card_box, radius=HEADER_RADIUS, fill=CARD_BG + (242,), outline=CARD_OUTLINE, width=max(1, _px(2)))
-
-    inner_x = card_box[0] + _px(22)
-    inner_y = card_box[1] + _px(20)
-    for line in title_lines:
-        draw.text((inner_x, inner_y), line, font=fonts["headline"], fill=TEXT_PRIMARY)
-        inner_y += _px(58)
-    inner_y += _px(4)
-    for line in meta_lines:
-        draw.text((inner_x, inner_y), line, font=fonts["label"], fill=TEXT_WARNING)
-        inner_y += _px(28)
-    inner_y += _px(8)
-    for line in summary_lines:
-        draw.text((inner_x, inner_y), line, font=fonts["small"], fill=TEXT_SECONDARY)
-        inner_y += _px(24)
-    return card_box[3] + _px(28)
-
-
-def _draw_section_title(draw: Any | None, title: str, fonts: Mapping[str, Any], y: int) -> int:
-    if draw is not None:
-        draw.text((CANVAS_MARGIN, y), str(title or "补丁章节"), font=fonts["section"], fill=TEXT_ACCENT)
-    return y + _px(54)
-
-
-def _draw_text_card(
-    draw: Any | None,
-    *,
-    title: str,
-    body_lines: Sequence[str],
-    fonts: Mapping[str, Any],
-    y: int,
-    accent: tuple[int, int, int],
-) -> int:
-    wrapped_lines = []
-    for line in body_lines:
-        if not str(line or "").strip():
-            continue
-        wrapped_lines.extend(_wrap_text(str(line), fonts["body"], CANVAS_WIDTH - CANVAS_MARGIN * 2 - _px(44)))
-
-    card_h = _px(26) + _px(36) + _px(16) + max(1, len(wrapped_lines)) * _px(28) + _px(22)
-    box = (CANVAS_MARGIN, y, CANVAS_WIDTH - CANVAS_MARGIN, y + card_h)
-    if draw is None:
-        return box[3] + CARD_GAP
-    draw.rounded_rectangle(box, radius=CARD_RADIUS, fill=CARD_SOFT_BG + (242,), outline=CARD_OUTLINE, width=max(1, _px(1)))
-    inner_x = box[0] + _px(22)
-    inner_y = box[1] + _px(18)
-    draw.text((inner_x, inner_y), str(title or "补丁条目"), font=fonts["title"], fill=accent)
-    inner_y += _px(44)
-    for line in wrapped_lines:
-        draw.text((inner_x, inner_y), line, font=fonts["body"], fill=TEXT_SECONDARY)
-        inner_y += _px(28)
-    return box[3] + CARD_GAP
-
-
-def _draw_hero_card(
-    canvas: Any | None,
-    draw: Any | None,
-    hero_update: Mapping[str, Any],
-    asset_paths: Mapping[str, Path],
-    fonts: Mapping[str, Any],
-    y: int,
-) -> int:
-    right_w = CANVAS_WIDTH - CANVAS_MARGIN * 2 - _px(44)
-    text_w = right_w - _px(118)
-    line_groups: list[tuple[str, tuple[int, int, int]]] = []
-    for change in hero_update.get("general_changes") or []:
-        line_groups.append((f"• {change}", TEXT_SECONDARY))
-    for ability in hero_update.get("abilities") or []:
-        line_groups.append((str(ability.get("name") or "技能调整"), TEXT_WARNING))
-        for change in ability.get("changes") or []:
-            line_groups.append((f"  - {change}", TEXT_SECONDARY))
-    if hero_update.get("dev_note"):
-        line_groups.append((f"开发者说明：{hero_update.get('dev_note')}", TEXT_SUCCESS))
-
-    wrapped_lines: list[tuple[str, tuple[int, int, int]]] = []
-    for text, color in line_groups:
-        lines = _wrap_text(text, fonts["body"], text_w)
-        wrapped_lines.extend((line, color) for line in lines)
-
-    card_h = max(_px(148), _px(30) + _px(36) + _px(12) + len(wrapped_lines) * _px(28) + _px(24))
-    box = (CANVAS_MARGIN, y, CANVAS_WIDTH - CANVAS_MARGIN, y + card_h)
-    if draw is None:
-        return box[3] + CARD_GAP
-    draw.rounded_rectangle(box, radius=CARD_RADIUS, fill=CARD_ALT_BG + (242,), outline=CARD_OUTLINE, width=max(1, _px(1)))
-
-    icon_box = (box[0] + _px(20), box[1] + _px(20), box[0] + _px(108), box[1] + _px(108))
-    _paste_card_image(canvas, asset_paths.get(str(hero_update.get("icon_url") or "")), icon_box)
-
-    text_x = icon_box[2] + _px(18)
-    text_y = box[1] + _px(18)
-    draw.text((text_x, text_y), str(hero_update.get("name") or "英雄改动"), font=fonts["title"], fill=TEXT_PRIMARY)
-    text_y += _px(40)
-    if hero_update.get("group_title"):
-        draw.text((text_x, text_y), str(hero_update.get("group_title") or ""), font=fonts["small"], fill=TEXT_MUTED)
-        text_y += _px(28)
-    for line, color in wrapped_lines:
-        draw.text((text_x, text_y), line, font=fonts["body"], fill=color)
-        text_y += _px(28)
-    return box[3] + CARD_GAP
-
-
-def _draw_map_card(
-    canvas: Any | None,
-    draw: Any | None,
-    map_update: Mapping[str, Any],
-    asset_paths: Mapping[str, Path],
-    fonts: Mapping[str, Any],
-    y: int,
-) -> int:
-    image_h = _px(220)
-    half_gap = _px(10)
-    image_w = int((CANVAS_WIDTH - CANVAS_MARGIN * 2 - _px(44) - half_gap) / 2)
-    line_groups: list[tuple[str, tuple[int, int, int]]] = []
-    if map_update.get("comparison_label"):
-        line_groups.append((str(map_update.get("comparison_label") or ""), TEXT_WARNING))
-    for paragraph in map_update.get("paragraphs") or []:
-        line_groups.append((str(paragraph), TEXT_SECONDARY))
-    for bullet in map_update.get("bullets") or []:
-        line_groups.append((f"• {bullet}", TEXT_SECONDARY))
-
-    wrapped_lines: list[tuple[str, tuple[int, int, int]]] = []
-    for text, color in line_groups:
-        lines = _wrap_text(text, fonts["body"], CANVAS_WIDTH - CANVAS_MARGIN * 2 - _px(44))
-        wrapped_lines.extend((line, color) for line in lines)
-
-    card_h = _px(28) + _px(36) + _px(18) + image_h + _px(18) + max(1, len(wrapped_lines)) * _px(28) + _px(22)
-    box = (CANVAS_MARGIN, y, CANVAS_WIDTH - CANVAS_MARGIN, y + card_h)
-    if draw is None:
-        return box[3] + CARD_GAP
-    draw.rounded_rectangle(box, radius=CARD_RADIUS, fill=CARD_SOFT_BG + (242,), outline=CARD_OUTLINE, width=max(1, _px(1)))
-
-    text_x = box[0] + _px(22)
-    text_y = box[1] + _px(18)
-    has_mode_icon = draw_map_mode_icon(canvas, map_update.get("name"), text_x, text_y, _px(28))
-    draw.text((text_x + (_px(36) if has_mode_icon else 0), text_y), str(map_update.get("name") or "地图更新"), font=fonts["title"], fill=TEXT_ACCENT)
-    text_y += _px(46)
-
-    left_box = (text_x, text_y, text_x + image_w, text_y + image_h)
-    right_box = (left_box[2] + half_gap, text_y, left_box[2] + half_gap + image_w, text_y + image_h)
-    _paste_card_image(canvas, asset_paths.get(str(map_update.get("before_image_url") or "")), left_box)
-    _paste_card_image(canvas, asset_paths.get(str(map_update.get("after_image_url") or "")), right_box)
-    _draw_box_label(draw, left_box, "变更前", fonts["small"])
-    _draw_box_label(draw, right_box, "变更后", fonts["small"])
-
-    text_y = left_box[3] + _px(18)
-    for line, color in wrapped_lines:
-        draw.text((text_x, text_y), line, font=fonts["body"], fill=color)
-        text_y += _px(28)
-    return box[3] + CARD_GAP
-
-
-def _draw_box_label(draw: Any, box: Sequence[int], text: str, font: Any) -> None:
-    label_w = max(_px(76), int(_text_width(text, font)) + _px(24))
-    draw.rounded_rectangle(
-        (box[0] + _px(12), box[1] + _px(12), box[0] + _px(12) + label_w, box[1] + _px(42)),
-        radius=LABEL_RADIUS,
-        fill=(0, 0, 0, 150),
-    )
-    draw.text((box[0] + _px(24), box[1] + _px(18)), text, font=font, fill=TEXT_PRIMARY)
-
-
-def _paste_card_image(canvas: Any | None, image_path: Path | None, box: Sequence[int]) -> None:
-    from PIL import Image, ImageDraw
-
-    if canvas is None:
-        return
-    width = int(box[2] - box[0])
-    height = int(box[3] - box[1])
-    holder = Image.new("RGBA", (width, height), CARD_BG + (255,))
-    if image_path is not None and image_path.exists():
-        try:
-            with Image.open(image_path) as source_image:
-                source = source_image.convert("RGB")
-                ratio = max(width / float(source.width), height / float(source.height))
-                resized = source.resize(
-                    (max(1, int(source.width * ratio)), max(1, int(source.height * ratio))),
-                    _resampling_lanczos(),
-                )
-                left = max(0, (resized.width - width) // 2)
-                top = max(0, (resized.height - height) // 2)
-                holder.paste(resized.crop((left, top, left + width, top + height)), (0, 0))
-        except Exception:
-            pass
-
-    mask = Image.new("L", (width, height), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    mask_draw.rounded_rectangle((0, 0, width, height), radius=IMAGE_RADIUS, fill=255)
-    holder.putalpha(mask)
-    canvas.alpha_composite(holder, (int(box[0]), int(box[1])))
-
-
-def _build_background(width: int, height: int) -> Any:
-    from PIL import Image, ImageDraw, ImageFilter
-
-    background = build_random_map_background(
-        (width, height),
-        blur_radius=_px(18),
-        overlay=(9, 14, 22, 112),
-        brightness=0.78,
-        color=0.88,
-    )
-    if background is None:
-        background = Image.new("RGBA", (width, height), FINAL_BG + (255,))
-        gradient_alpha = 255
+def _card(section, kind, item):
+    rows = []
+    title = item.get("name") or item.get("title") or label(section["title"])
+    def add(text, style="body"):
+        if str(text or "").strip():
+            rows.append({"text": str(text), "style": style})
+    if kind == "hero":
+        order = item.get("order") or ([{"kind": "general", "index": i} for i in range(len(item.get("general_changes") or []))]
+            + [{"kind": "ability", "index": i} for i in range(len(item.get("abilities") or []))])
+        for entry in order:
+            if entry["kind"] == "ability":
+                ability = item["abilities"][entry["index"]]
+                add(ability.get("name"), "ability")
+                for change in ability.get("changes") or []:
+                    add(change)
+            elif entry["kind"] == "dev":
+                add("开发者说明：" + item.get("dev_note", ""), "note")
+            else:
+                add(item["general_changes"][entry["index"]], "note" if entry["kind"] == "note" else "body")
+        if not any(entry["kind"] == "dev" for entry in order):
+            add(item.get("dev_note"), "note")
     else:
-        gradient_alpha = 118
-
-    gradient_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(gradient_layer, "RGBA")
-    max_height = max(1, height - 1)
-    for y in range(height):
-        blend = y / float(max_height)
-        color = tuple(
-            int(BACKGROUND_TOP[index] + (BACKGROUND_BOTTOM[index] - BACKGROUND_TOP[index]) * blend)
-            for index in range(3)
-        )
-        draw.line((0, y, width, y), fill=color + (gradient_alpha,))
-    background.alpha_composite(gradient_layer)
-
-    glow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    glow_draw = ImageDraw.Draw(glow, "RGBA")
-    glow_draw.ellipse(
-        (-_px(180), -_px(80), int(width * 0.58), int(height * 0.34)),
-        fill=BACKGROUND_GLOW_PRIMARY,
-    )
-    glow_draw.ellipse(
-        (int(width * 0.48), int(height * 0.08), width + _px(220), int(height * 0.58)),
-        fill=BACKGROUND_GLOW_SECONDARY,
-    )
-
-    stripe_step = _px(170)
-    for offset in range(-height, width + height, stripe_step):
-        glow_draw.line((offset, 0, offset + height, height), fill=BACKGROUND_LINE, width=max(1, _px(2)))
-
-    glow = glow.filter(ImageFilter.GaussianBlur(_px(26)))
-    background.alpha_composite(glow)
-    return background
+        for paragraph in item.get("paragraphs") or []:
+            add(paragraph)
+        for bullet in item.get("bullets") or []:
+            add(bullet)
+        add(item.get("dev_note"), "note")
+        if kind == "map":
+            add(item.get("comparison_label"), "note")
+            urls = [item.get("before_image_url"), item.get("after_image_url")]
+            if any(urls):
+                rows.append({"style": "images", "urls": urls})
+        else:
+            images = item.get("images") or []
+            for start in range(0, len(images), 2):
+                rows.append({"style": "images", "urls": images[start:start + 2],
+                             "labels": [f"原文图片 {start + i + 1}" for i in range(len(images[start:start + 2]))]})
+    return {"title": title, "section": label(section["title"]), "icon": item.get("icon_url", ""), "rows": rows}
 
 
-def _wrap_text(text: str, font: Any, max_width: int) -> list[str]:
-    if not text:
-        return []
-    token_pattern = re.compile(r"[一-鿿]|[A-Za-z0-9][A-Za-z0-9'’/().,+%:-]*|\s+|.", re.UNICODE)
-    lines: list[str] = []
-    for paragraph in str(text).split("\n"):
-        paragraph = paragraph.rstrip()
-        if not paragraph.strip():
+def _layout(cards):
+    pages, page, used = [], [], TOP
+    for card in cards:
+        title_lines = _wrap(card["title"], 36, WIDTH - 2 * MARGIN - 132)
+        rows = []
+        if len(title_lines) > 4:
+            original_title = card["title"]
+            card = dict(card, title="补丁条目")
+            title_lines = ["补丁条目"]
+            card["rows"] = [{"text": original_title, "style": "body"}] + card["rows"]
+        title_h = max(96 if card.get("icon") else 70, 32 + len(title_lines) * 44)
+        for row in card["rows"]:
+            if row["style"] == "images":
+                rows.append(dict(row, height=288))
+                continue
+            style = row["style"]
+            size = 31 if style == "ability" else 30
+            change = _numeric_change(row["text"]) if style == "body" else None
+            if change:
+                rows.append({"text": row["text"], "style": "body", "height": 48, "change": change})
+                continue
+            wrapped = _wrap(row["text"], size, WIDTH - MARGIN * 2 - 64)
+            for i, line in enumerate(wrapped):
+                rows.append({"text": line, "style": style, "height": 46 if style == "ability" else 42, "first": i == 0})
+        if not rows:
+            rows = [{"text": "此条目仅包含标题。", "style": "note", "height": 42}]
+        offset, continuation, last_ability = 0, False, None
+        while offset < len(rows):
+            head = title_h + 22
+            extra = []
+            if continuation and last_ability and rows[offset]["style"] != "ability":
+                extra = [dict(last_ability, text=last_ability["text"] + "（续）")]
+            minimum = rows[offset]["height"]
+            # Keep an ability heading with at least its first body line.
+            if rows[offset]["style"] == "ability" and offset + 1 < len(rows):
+                minimum += rows[offset + 1]["height"]
+            if page and used + head + sum(r["height"] for r in extra) + minimum + 24 > MAX_HEIGHT - FOOTER:
+                pages.append(page); page, used = [], TOP
+            available = MAX_HEIGHT - FOOTER - used - head - 24
+            chunk = list(extra)
+            consumed = sum(r["height"] for r in chunk)
+            start = offset
+            while offset < len(rows):
+                row = rows[offset]
+                needed = row["height"]
+                if row["style"] == "ability" and offset + 1 < len(rows):
+                    needed += rows[offset + 1]["height"]
+                if consumed + needed > available:
+                    break
+                chunk.append(row); consumed += row["height"]; offset += 1
+                if row["style"] == "ability":
+                    last_ability = row
+            if offset == start:
+                # On a fresh page the fixed header + one text row always fits.
+                raise ValueError("补丁内容块超过页面可用高度。")
+            height = head + consumed + 24
+            page.append(dict(card, title_lines=title_lines, continuation=continuation,
+                             lines=chunk, height=height, title_height=title_h))
+            used += height + GAP
+            continuation = True
+            if offset < len(rows):
+                pages.append(page); page, used = [], TOP
+    if page:
+        pages.append(page)
+    return pages or [[]]
+
+
+def build_reader(candidate, *, view="auto", section="", hero=""):
+    if view not in {"auto", "overview", "detail"}:
+        raise ValueError("view 必须为 auto、overview 或 detail。")
+    directory, cards = [], []
+    matched = not section and not hero
+    for index, part in enumerate(candidate.get("sections") or []):
+        sid = f"s{index + 1}"
+        entries = list(_entries(part))
+        names = [item.get("name", "") for kind, item in entries if kind == "hero"]
+        directory.append({"id": sid, "title": label(part["title"]), "hero_names": names, "entry_count": len(entries)})
+        section_match = not section or section == sid or any(_key(section) == _key(value)
+            for value in [part["title"], label(part["title"]), *part["title"].split(" / "), *label(part["title"]).split(" / ")])
+        if not section_match:
             continue
-
-        current_line = ""
-        for token in token_pattern.findall(paragraph):
-            if not current_line and token.isspace():
+        for kind, item in entries:
+            if hero and (kind != "hero" or _hero_key(hero) != _hero_key(item.get("name", ""))):
                 continue
-            test_line = current_line + token
-            if not current_line or _text_width(test_line, font) <= max_width:
-                current_line = test_line
-                continue
-            stripped = current_line.rstrip()
-            if stripped:
-                lines.append(stripped)
-            current_line = token.lstrip()
-            if current_line and _text_width(current_line, font) > max_width:
-                hard_line = ""
-                for char in current_line:
-                    if not hard_line or _text_width(hard_line + char, font) <= max_width:
-                        hard_line += char
-                    else:
-                        lines.append(hard_line.rstrip())
-                        hard_line = char
-                current_line = hard_line
-        if current_line.strip():
-            lines.append(current_line.rstrip())
-    return lines
+            matched = True
+            cards.append(_card(part, kind, item))
+    if not matched:
+        raise LookupError("本次补丁没有匹配的章节或英雄。请从目录中选择。")
+    if not cards:
+        cards = [{"title": "补丁原文", "section": "正文", "icon": "", "rows": [
+            {"text": candidate.get("raw_text") or candidate.get("text") or "暂无正文", "style": "body"}]}]
+    details = _layout(cards)
+    chosen = "detail" if section or hero or view == "detail" else "overview"
+    if chosen == "overview":
+        from .digest import build_digest
+        pages = [[{"digest": build_digest(candidate)}]]
+    else:
+        pages = details
+    return {"view": chosen, "pages": pages, "page_count": len(pages), "detail_page_count": len(details), "sections": directory}
 
 
-def _text_width(text: str, font: Any) -> float:
-    if hasattr(font, "getlength"):
-        return float(font.getlength(text))
-    bbox = font.getbbox(text)
-    return float((bbox[2] - bbox[0]) if bbox else 0)
+def page_assets(page):
+    if page and "digest" in page[0]:
+        from .digest import digest_assets
+        return digest_assets(page[0]["digest"])
+    urls = []
+    for card in page:
+        if card.get("icon"):
+            urls.append(card["icon"])
+        for row in card["lines"]:
+            if row["style"] == "images":
+                urls.extend(url for url in row["urls"] if url)
+    return list(dict.fromkeys(urls))
 
 
-def _load_font(size: int, *, bold: bool = False) -> Any:
-    fallback = "GrotaRoundedExtraBold.otf" if bold else "en2.ttf"
-    extra = ("BigNoodleToo.ttf", "en.ttf") if bold else ("en.ttf", "BigNoodleToo.ttf")
-    return load_font(
-        size,
-        name="simhei.ttf",
-        fallback=fallback,
-        prefer_cjk=True,
-        bold=bold,
-        extra=extra,
-    )
+def render_patch_notes(candidate: Mapping[str, Any], *, summary_text="", asset_paths=None) -> RenderedImage:
+    from PIL import Image, ImageDraw, ImageOps
+    assets = asset_paths or {}
+    page = candidate.get("_reader_page")
+    meta = candidate.get("_reader_meta") or {}
+    if page is None:
+        reader = build_reader(candidate)
+        page = reader["pages"][0]
+        meta = {"view": reader["view"], "page": 1, "page_count": reader["page_count"]}
+    if page and "digest" in page[0]:
+        from .digest import render_digest
+        return render_digest(candidate, page[0]["digest"], assets)
+    height = min(MAX_HEIGHT, max(520, TOP + sum(card["height"] + GAP for card in page) + FOOTER))
+    canvas = Image.new("RGB", (WIDTH, height), BG)
+    draw = ImageDraw.Draw(canvas)
+    draw.rectangle((MARGIN, 38, MARGIN + 6, 116), fill=ACCENT)
+    draw.text((MARGIN + 24, 38), "守望先锋 · 补丁说明", font=_font(44, True), fill=WHITE)
+    date = str(candidate.get("date") or candidate.get("date_text") or "")[:40]
+    source = str(candidate.get("source_name") or "")
+    draw.text((MARGIN + 24, 100), f"{date}   /   {source}   /   {'总览' if meta.get('view') == 'overview' else '完整正文'}", font=_font(24), fill=MUTED)
+    draw.line((MARGIN, 156, WIDTH - MARGIN, 156), fill=(47, 65, 84), width=2)
+
+    def paste(url, box):
+        path = assets.get(url)
+        if path:
+            try:
+                with Image.open(path) as raw:
+                    thumb = ImageOps.fit(raw.convert("RGB"), (box[2] - box[0], box[3] - box[1]))
+                    canvas.paste(thumb, box[:2])
+                    return
+            except (OSError, ValueError):
+                pass
+        draw.rectangle(box, fill=(34, 44, 59))
+        draw.text((box[0] + 12, box[1] + 12), "图片不可用", font=_font(20), fill=MUTED)
+
+    y = TOP
+    for card in page:
+        draw.rounded_rectangle((MARGIN, y, WIDTH - MARGIN, y + card["height"]), radius=16, fill=CARD)
+        tx = MARGIN + 24
+        if card.get("icon") and assets.get(card["icon"]):
+            paste(card["icon"], (tx, y + 20, tx + 64, y + 84)); tx += 84
+        ty = y + 18
+        for i, line in enumerate(card["title_lines"]):
+            draw.text((tx, ty), line, font=_font(36, True), fill=WHITE)
+            ty += 44
+        if card["continuation"]:
+            draw.text((WIDTH - MARGIN - 84, y + 24), "续", font=_font(24), fill=ACCENT)
+        ty = y + card["title_height"]
+        # Section context is retained on every card, including continuation pages.
+        context = card.get("section", "")
+        context_lines = _wrap(context, 19, WIDTH - MARGIN * 2 - 56)
+        if context_lines:
+            # Full section titles also remain in the directory; this is a compact breadcrumb.
+            draw.text((MARGIN + 24, ty - 4), context_lines[0], font=_font(19), fill=MUTED)
+        ty += 22
+        for row in card["lines"]:
+            if row["style"] == "images":
+                x, w = MARGIN + 24, (WIDTH - MARGIN * 2 - 64) // 2
+                for slot, url in enumerate(row["urls"]):
+                    if url:
+                        paste(url, (x + slot * (w + 16), ty + 28, x + slot * (w + 16) + w, ty + 268))
+                        captions = row.get("labels") or ["变更前", "变更后"]
+                        draw.text((x + slot * (w + 16), ty), captions[slot], font=_font(20), fill=MUTED)
+            else:
+                style = row["style"]
+                color = ACCENT if style == "ability" else MUTED if style == "note" else WHITE
+                if row.get("change"):
+                    name, before, after = row["change"]
+                    draw.text((MARGIN + 28, ty), name, font=_font(30), fill=WHITE)
+                    vx = WIDTH - MARGIN - 350
+                    draw.text((vx, ty), before, font=_font(30), fill=MUTED)
+                    # Draw the arrow rather than depend on a Unicode glyph.
+                    ax, ay = vx + 150, ty + 20
+                    draw.line((ax, ay, ax + 30, ay), fill=MUTED, width=2)
+                    draw.polygon([(ax + 30, ay), (ax + 22, ay - 5), (ax + 22, ay + 5)], fill=MUTED)
+                    draw.text((vx + 205, ty), after, font=_font(30, True), fill=ACCENT)
+                else:
+                    draw.text((MARGIN + 28, ty), row["text"], font=_font(31 if style == "ability" else 30, style == "ability"), fill=color)
+            ty += row["height"]
+        y += card["height"] + GAP
+    footer = f"第 {meta.get('page', 1)} / {meta.get('page_count', 1)} 页"
+    if meta.get("view") == "overview":
+        footer += "   ·   查看章节或英雄获取完整内容"
+    else:
+        footer += "   ·   同一补丁内分页，原文内容保留"
+    draw.text((MARGIN, height - 68), footer, font=_font(23), fill=MUTED)
+    buf = BytesIO()
+    canvas.save(buf, format="PNG", compress_level=3)
+    return RenderedImage(buf.getvalue())
 
 
-def _resampling_lanczos() -> Any:
-    from PIL import Image
-
-    resampling = getattr(Image, "Resampling", Image)
-    return getattr(resampling, "LANCZOS")
+def render_patch_fallback(candidate, *, summary_text=""):
+    # The same bounded layout handles raw text; never silently crop a long fallback.
+    return render_patch_notes(candidate, summary_text=summary_text, asset_paths={})

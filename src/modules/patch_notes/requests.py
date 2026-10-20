@@ -29,7 +29,7 @@ from ...constants.chara import iter_hero_alias_pairs
 CN_MONTH_URL = "https://ow.blizzard.cn/news/patch-notes/live/{year:04d}/{month:02d}/"
 EN_MONTH_URL = "https://overwatch.blizzard.com/en-us/news/patch-notes/live/{year:04d}/{month:02d}"
 SOURCE_NAMES = {"cn": "国服", "en": "外服"}
-PATCH_TRANSLATION_CACHE_VERSION = "2026-04-translate-v1"
+PATCH_TRANSLATION_CACHE_VERSION = "2026-10-ordered-v3"
 _CALENDAR_CACHE: Dict[tuple[int, int], tuple[float, list[Dict[str, Any]]]] = {}
 SCAN_LIMIT = 12
 HTTP_TIMEOUT = 20.0
@@ -545,35 +545,8 @@ def _extract_hero_updates(block_html: str, group_title: str = "") -> list[Dict[s
 
 
 def _extract_patch_sections(block_html: str) -> list[Dict[str, Any]]:
-    sections = []
-    for section_block in _extract_div_blocks_by_class(block_html, "PatchNotes-section"):
-        title = _extract_first_patch_field(section_block, "h4", "PatchNotes-sectionTitle")
-        intro_block = _extract_first_block_by_class(section_block, "PatchNotes-sectionDescription")
-        intro = _dedupe_text_items(_extract_paragraphs(intro_block))
-        hero_updates = _extract_hero_updates(section_block, group_title=title)
-        map_updates = _extract_map_updates(section_block, section_title=title)
-        general_updates = _extract_general_updates(section_block, section_title=title)
-
-        if hero_updates:
-            section_type = "hero"
-        elif map_updates:
-            section_type = "map"
-        elif intro or general_updates:
-            section_type = "general"
-        else:
-            continue
-
-        sections.append(
-            {
-                "type": section_type,
-                "title": title or "Patch Notes",
-                "intro": intro,
-                "hero_updates": hero_updates,
-                "map_updates": map_updates,
-                "general_updates": general_updates,
-            }
-        )
-    return sections
+    from .parser import parse_sections
+    return parse_sections(block_html)
 
 
 def _flatten_hero_updates(sections: Sequence[Mapping[str, Any]]) -> list[Dict[str, Any]]:
@@ -639,31 +612,31 @@ def _parse_patch_date(date_text: Any) -> Optional[dt.date]:
 
 
 def _build_candidate_text(candidate: Mapping[str, Any]) -> str:
-    lines = [candidate.get("title", ""), candidate.get("section_title", "")]
+    from .parser import iter_entries
+    lines = [candidate.get("title", ""), candidate.get("date_text", "")]
     for section in candidate.get("sections") or []:
         lines.append(section.get("title", ""))
-        lines.extend(section.get("intro") or [])
-
-        for update in section.get("general_updates") or []:
-            lines.append(update.get("title", ""))
-            lines.append(update.get("dev_note", ""))
-            lines.extend(update.get("paragraphs") or [])
-            lines.extend(update.get("bullets") or [])
-
-        for map_update in section.get("map_updates") or []:
-            lines.append(map_update.get("name", ""))
-            lines.append(map_update.get("comparison_label", ""))
-            lines.extend(map_update.get("paragraphs") or [])
-            lines.extend(map_update.get("bullets") or [])
-
-        for hero_update in section.get("hero_updates") or []:
-            lines.append(hero_update.get("name", ""))
-            lines.append(hero_update.get("dev_note", ""))
-            lines.extend(hero_update.get("general_changes") or [])
-            for ability in hero_update.get("abilities") or []:
-                lines.append(ability.get("name", ""))
-                lines.extend(ability.get("changes") or [])
-
+        for kind, item in iter_entries(section):
+            lines.append(item.get("name") or item.get("title") or "")
+            if kind == "hero":
+                order = item.get("order") or ([{"kind": "general", "index": i} for i in range(len(item.get("general_changes") or []))]
+                    + [{"kind": "ability", "index": i} for i in range(len(item.get("abilities") or []))])
+                for entry in order:
+                    if entry["kind"] == "ability":
+                        ability = item["abilities"][entry["index"]]
+                        lines.append(ability.get("name", ""))
+                        lines.extend(ability.get("changes") or [])
+                    elif entry["kind"] == "dev":
+                        lines.append(item.get("dev_note", ""))
+                    else:
+                        lines.append(item["general_changes"][entry["index"]])
+                if not any(entry["kind"] == "dev" for entry in order):
+                    lines.append(item.get("dev_note", ""))
+            else:
+                lines.extend(item.get("paragraphs") or [])
+                lines.extend(item.get("bullets") or [])
+                lines.append(item.get("dev_note", ""))
+                lines.append(item.get("comparison_label", ""))
     return "\n".join(line for line in lines if line)
 
 
@@ -672,15 +645,24 @@ def _build_patch_candidate(source_key: str, month_url: str, block_html: str, blo
     section_title = _extract_first_patch_field(block_html, "h4", "PatchNotes-sectionTitle")
     date_text = _extract_first_patch_field(block_html, "div", "PatchNotes-date") or title
     sections = _extract_patch_sections(block_html)
+    from .parser import raw_text
+    original_text = raw_text(block_html)
     plain_text = _build_candidate_text(
         {
             "title": title,
             "section_title": section_title,
+            "date_text": date_text,
             "sections": sections,
         }
     )
-    if not plain_text:
-        plain_text = _clean_patch_text(block_html)
+    normalized = re.sub(r"\s+", "", plain_text)
+    missing = [line for line in original_text.splitlines() if re.sub(r"\s+", "", line) not in normalized]
+    if missing:
+        sections.append({"type": "general", "title": "其他原文（解析补充）", "intro": [],
+            "hero_updates": [], "map_updates": [], "general_updates": [
+                {"title": "以下原文未能归入已识别条目", "paragraphs": missing, "bullets": [], "dev_note": ""}],
+            "order": [{"kind": "general", "index": 0}]})
+        plain_text += "\n" + "\n".join(missing)
     text_length = len(plain_text)
     bucket = "big" if text_length >= MAJOR_LENGTH_THRESHOLD else "small"
     return {
@@ -697,6 +679,8 @@ def _build_patch_candidate(source_key: str, month_url: str, block_html: str, blo
         "bucket_name": "大更新" if bucket == "big" else "小更新",
         "text": plain_text,
         "html": block_html,
+        "raw_text": original_text,
+        "extraction": {"source_line_count": len(original_text.splitlines()), "recovered_line_count": len(missing)},
         "sections": sections,
         "hero_updates": _flatten_hero_updates(sections),
     }
@@ -961,7 +945,7 @@ class PatchNotesRequests:
                                 events[event["date"]]["hero_updates"].append(update)
         return sorted(events.values(), key=lambda event: event["date"]), all(ok for _, ok in results)
 
-    async def scan_patch_source(self, source_key: str, *, now_date: Optional[dt.date] = None) -> Dict[str, Optional[Dict[str, Any]]]:
+    async def scan_patch_source(self, source_key: str, *, now_date: Optional[dt.date] = None, requested_kind: str | None = None) -> Dict[str, Optional[Dict[str, Any]]]:
         slots: Dict[str, Optional[Dict[str, Any]]] = {"latest": None, "small": None, "big": None}
         current_date = now_date or self.today_factory()
         for year, month in _iter_recent_months(now_date=current_date):
@@ -982,15 +966,19 @@ class PatchNotesRequests:
                     slots["latest"] = candidate
                 if slots[candidate["bucket"]] is None:
                     slots[candidate["bucket"]] = candidate
+                if requested_kind and slots.get(requested_kind):
+                    return slots
                 if slots["latest"] and slots["small"] and slots["big"]:
                     return slots
         return slots
 
-    async def scan_sources(self, *, now_date: Optional[dt.date] = None) -> tuple[Dict[str, Any], Dict[str, Any]]:
-        cn_slots, en_slots = await asyncio.gather(
-            self.scan_patch_source("cn", now_date=now_date),
-            self.scan_patch_source("en", now_date=now_date),
-        )
+    async def scan_sources(self, *, now_date=None, requested_kind=None):
+        async def bounded(source):
+            try:
+                return await asyncio.wait_for(self.scan_patch_source(source, now_date=now_date, requested_kind=requested_kind), timeout=30)
+            except asyncio.TimeoutError:
+                return {"latest": None, "small": None, "big": None}
+        cn_slots, en_slots = await asyncio.gather(bounded("cn"), bounded("en"))
         return cn_slots, en_slots
 
     async def translate_patch_candidate(self, candidate: Mapping[str, Any]) -> tuple[Dict[str, Any], bool]:

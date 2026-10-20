@@ -467,3 +467,8 @@ pre {
     grid-column: auto;
   }
 }
+
+.patch-navigation { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+.patch-navigation.hidden { display: none; }
+.patch-navigation button, .patch-navigation select { padding: 8px 12px; border-radius: 8px; font: inherit; max-width: 100%; }
+.patch-navigation button:disabled { opacity: .45; cursor: default; }

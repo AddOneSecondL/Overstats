@@ -875,25 +875,38 @@ class OverstatsCoreService:
         result = await ow_guess_module.query_guess_replies(query)
         return result.to_dict()
 
+    @staticmethod
+    def _patch_reader_args(payload):
+        return {
+            "patch_kind": payload.get("patch_kind", payload.get("kind")),
+            "view": payload.get("view") or "auto", "section": payload.get("section") or "",
+            "hero": payload.get("hero") or "", "page": payload.get("page", 1),
+            "patch_id": payload.get("patch_id") or "",
+        }
+
     async def handle_patch_notes(self, payload: Dict[str, object]) -> Dict[str, object]:
-        patch_kind = payload.get("patch_kind")
-        if patch_kind is None:
-            patch_kind = payload.get("kind")
-        result = await patch_notes_module.query_patch_notes(patch_kind=patch_kind, render=False)
+        result = await patch_notes_module.query_patch_notes(**self._patch_reader_args(payload), render=False)
         return result.to_dict()
 
     async def handle_patch_notes_image(self, payload: Dict[str, object]) -> bytes:
-        patch_kind = payload.get("patch_kind")
-        if patch_kind is None:
-            patch_kind = payload.get("kind")
-        result = await patch_notes_module.query_patch_notes(patch_kind=patch_kind, render=True)
+        result = await patch_notes_module.query_patch_notes(**self._patch_reader_args(payload), render=True)
         if not result.image:
-            raise ModuleError(
-                error="render_failed",
-                message="Patch notes image was not generated.",
-                status_code=500,
-            )
+            raise ModuleError(error="render_failed", message="Patch notes image was not generated.", status_code=500)
         return result.image.content
+
+    async def handle_patch_notes_replies(self, payload: Dict[str, object]) -> Dict[str, object]:
+        result = await patch_notes_module.query_patch_notes(**self._patch_reader_args(payload), render=True)
+        output = result.to_dict()
+        meta = result.reader
+        message = f"{'更新总览' if meta['view'] == 'overview' else '补丁正文'} · 第 {meta['page']}/{meta['page_count']} 页"
+        if meta['view'] == 'overview':
+            message += "\n精简改动图：不按条数省略，省去开发者评价。绿色增强、红色削弱、黄色调整；完整上下文见原文。"
+        message += "\n原文：" + str(meta.get('source_url') or '')
+        output["replies"] = [{"type": "text", "data": message}]
+        if result.image:
+            output["replies"].append({"type": "image", "media_type": "image/png",
+                "base64": base64.b64encode(result.image.content).decode("ascii")})
+        return output
 
     async def handle_ow_hero_perk(self, payload: Dict[str, object]) -> Dict[str, object]:
         query = _build_ow_hero_perk_query(payload)
@@ -2007,6 +2020,10 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
                 self._handle_patch_notes_image_post()
                 return
 
+            if path == "/api/v2/patch-notes/replies":
+                self._handle_patch_notes_post(replies=True)
+                return
+
             if path == "/api/v2/patch-notes":
                 self._handle_patch_notes_post()
                 return
@@ -2993,7 +3010,7 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
 
             self._send_json(HTTPStatus.OK, result)
 
-        def _handle_patch_notes_post(self) -> None:
+        def _handle_patch_notes_post(self, *, replies=False) -> None:
             try:
                 payload = self._read_json_body()
             except ValueError as exc:
@@ -3008,7 +3025,7 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
                 return
 
             try:
-                result = async_runner.run(service.handle_patch_notes(payload))
+                result = async_runner.run(service.handle_patch_notes_replies(payload) if replies else service.handle_patch_notes(payload))
             except ModuleError as exc:
                 self._send_json(
                     HTTPStatus(exc.status_code),
