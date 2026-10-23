@@ -9,6 +9,7 @@ from .requests import (
     merge_unique_match_entries,
 )
 from .service import (
+    DashenMatchDetailLlmOutput,
     DashenMatchDetailOutput,
     DashenMatchListOutput,
     DashenMatchModule,
@@ -18,6 +19,7 @@ from .service import (
 
 __all__ = [
     "DashenMatchDetail",
+    "DashenMatchDetailLlmOutput",
     "DashenMatchDetailOutput",
     "DashenMatchListOutput",
     "DashenMatchModule",
