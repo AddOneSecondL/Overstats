@@ -57,3 +57,6 @@ res/query_tool.runtime.json
 # Optional guess media packs
 /res/ow_guess/packs/
 /res/ow_guess/dist/
+
+# Config
+config/config.py

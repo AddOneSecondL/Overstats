@@ -771,10 +771,10 @@ The `/image` endpoint returns `image/png` in the same visual family as quick str
 
 常见错误码：
 
-| 错误码 | 场景 | 解决方式 |
-|--------|------|----------|
+| 错误码              | 场景                                 | 解决方式                                  |
+| ---------------- | ---------------------------------- | ------------------------------------- |
 | `bnet_not_found` | 无法将 `bnet_id` 解析为 `customer_token` | 检查大小写和 `#` 后数字；或直接传入 `customer_token` |
-| `invalid_json` | 请求体格式错误 | 检查 `Content-Type` 和 JSON 语法 |
+| `invalid_json`   | 请求体格式错误                            | 检查 `Content-Type` 和 JSON 语法           |
 
 ## 1. `dashen_profile`
 
@@ -991,6 +991,107 @@ The `/image` endpoint returns `image/png` in the same visual family as quick str
 - `show_all_heroes=true` 且 `analyze=true`：主战绩图 + 全员瀑布图 + AI锐评图
 - `match_kind == "fight"`：只返回角斗主图；若请求全员详细 / AI锐评，会追加文本说明
 
+### 2.2.1 LLM 结构化详情
+
+端点：
+
+- `POST /api/v2/dashen-match/detail/llm`
+
+用于把单局详细数据以**归一化、snake_case、可直接被 LLM 读取分析**的 JSON 返回，不生成图片。请求选择方式与 `/api/v2/dashen-match/detail` 一致，二选一：
+
+1. `bnet_id|customer_token + index`
+2. `customer_token + match_id`
+
+可选字段与 `/detail/replies` 一致：
+
+- `show_all_heroes: bool`（为 `true` 时补全全员英雄详细）
+- `analyze: bool`（为 `true` 时附加 AI 锐评，且隐含 `show_all_heroes=true`）
+- 其余列表参数（`limit` / `include_fight` / `include_previous_season`）在 `index` 方式下生效
+
+请求示例（两种方式可混入同一份 payload，服务按 `match_id` 优先）：
+
+```json
+{
+  "index": "0",
+  "limit": "20",
+  "include_fight": true,
+  "include_previous_season": true,
+  "show_all_heroes": true,
+  "analyze": false,
+  "bnet_id": "X#12345",
+  "match_id": "b0d15473-...",
+  "customer_token": "..."
+}
+```
+
+**返回结构：**
+
+```json
+{
+  "ok": true,
+  "customer_token": "...",
+  "resolved": { "query": "X#12345", "full_id": "X#12345", "bnet_id": "12345", "has_customer_token": true },
+  "match_id": "b0d15473-...",
+  "match_kind": "normal",
+  "match": {
+    "result": "胜利",
+    "result_code": 1,
+    "map_name": "阿努比斯神殿",
+    "map_mode": "攻防作战",
+    "map_guid": "576460752303423579",
+    "team_score": 2,
+    "opponent_score": 0,
+    "game_time_sec": 1234,
+    "duration": "20:34",
+    "mode_label": "竞技",
+    "start_time": "2026-04-25 14:47",
+    "begin_ts": 1777098388787
+  },
+  "teammates": [
+    {
+      "name": "X#12345"
+      "bnet_id": "12345",
+      "customer_token": "...",
+      "team_type": "teammate",
+      "is_focus": true,
+      "hero": "死神",
+      "hero_guid": "207165582859042818",
+      "role_type": "dps",
+      "role_label": "输出",
+      "rank": { "rank_name": "Platinum", "rank_name_cn": "白金", "division": "5", "rank_score": 395, "label": "白金5", "raw": { } },
+      "stats": { "kill": 9, "assist": 10, "death": 2, "final_hit": 5, "target_competing_time": 0, "hero_damage": 1966, "damage_taken": 1234, "cure": 8408, "healing_taken": 500, "resist_damage": 1000 },
+      "heroes": [
+        {
+          "hero_guid": "207165582859042818",
+          "hero_name": "死神",
+          "role_type": "dps",
+          "stats": [
+            { "guid": "603482350067646495", "label": "消灭", "value_text": "9", "value_type": "通用数据", "band": "above_median", "avg_text": "8.5" }
+          ]
+        }
+      ]
+    }
+  ],
+  "enemies": [],
+  "focus_player": { "name": "X#12345", "team_type": "teammate" },
+  "scores": { "anti_pressure": 76, "teamwork": 85, "aggressiveness": 63, "match_quality": 78 },
+  "carry_index": [
+    { "name": "X", "team": "teammate", "score": 6503, "hero": "死神" }
+  ],
+  "analysis": { "player_id": "先生#5X#12345score": "S", "…": "…" }
+}
+```
+
+说明：
+
+- `match` 已把地图/模式/结果/比分/时长解析为中文与可读文本，全部为结构化 JSON。
+- 每位玩家附带归一化的 `rank`（中文段位 + 分段）、核心 `stats`，以及各自的 `heroes` 英雄详细（`show_all_heroes=false` 时仅焦点玩家有）。
+- `carry_index` 按全场表现分降序，不含图片字节，可直接 JSON 序列化。
+- `scores` 为四项团队属性分（抗压 / 协作 / 侵略 / 对局质量）。
+- `analysis` 仅在 `analyze=true` 时出现；其内部 `carry_index_data` 已剥离图片对象。
+- 角斗对局（`match_kind == "fight"`）返回 `total_count` 与 `rounds`，`teammates` / `enemies` 为空。
+- 若 `customer_token` 已过期或 `match_id` 不可访问，上游会返回空 `data`，此时接口返回 `404 match_detail_empty`，提示刷新 token 或改用 `bnet_id + index`。
+
 ## 2.3 `dashen_sameplay`
 
 端点：
@@ -1123,11 +1224,11 @@ The `/image` endpoint returns `image/png` in the same visual family as quick str
 
 **超时建议：**
 
-| 范围 | 典型场次 | 渲染耗时 | 建议 timeout |
-|------|----------|----------|-------------|
-| today | 3~10 场 | ~18s | 30s |
-| yesterday | 10~20 场 | ~27s | 45s |
-| week | 100~200 场 | **~62s** | **90s+** |
+| 范围        | 典型场次      | 渲染耗时     | 建议 timeout |
+| --------- | --------- | -------- | ---------- |
+| today     | 3~10 场    | ~18s     | 30s        |
+| yesterday | 10~20 场   | ~27s     | 45s        |
+| week      | 100~200 场 | **~62s** | **90s+**   |
 
 > ⚠️ `week` 数据量大，默认 30s 超时几乎一定失败，请调高 timeout。
 
@@ -1276,7 +1377,6 @@ Common auto-route errors:
   "dashen_max_concurrent_requests": 2
 }
 ```
-
 
 ## 英雄对比
 
