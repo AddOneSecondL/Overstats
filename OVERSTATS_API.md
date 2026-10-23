@@ -1078,7 +1078,7 @@ The `/image` endpoint returns `image/png` in the same visual family as quick str
   "carry_index": [
     { "name": "X", "team": "teammate", "score": 6503, "hero": "死神" }
   ],
-  "analysis": { "player_id": "先生#5X#12345score": "S", "…": "…" }
+  "analysis": { "player_id": "X#12345", score": "S", "…": "…" }
 }
 ```
 
