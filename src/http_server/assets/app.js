@@ -421,12 +421,15 @@
     elements.activeEndpoint.textContent = getEffectiveEndpoint(activeModule);
   }
 
-  function collectDynamicPayload() {
+  function collectDynamicPayload(includeSensitive = true) {
     const payload = {};
     const controls = elements.dynamicFields.querySelectorAll("[data-field-id]");
     controls.forEach((control) => {
       const payloadKey = control.dataset.payloadKey;
       if (!payloadKey) {
+        return;
+      }
+      if (!includeSensitive && control.type === "password") {
         return;
       }
       if (control.type === "checkbox") {
@@ -446,9 +449,9 @@
     return String(value || "").replace(/＃/g, "#").trim();
   }
 
-  function buildBasePayload() {
+  function buildBasePayload(includeSensitive = true) {
     const activeModule = getActiveModule();
-    const payload = collectDynamicPayload();
+    const payload = collectDynamicPayload(includeSensitive);
     if (activeModule && activeModule.requires_target) {
       const targetKey = elements.targetTypeSelect.value || activeModule.default_target_key || "bnet_id";
       const targetValue = normalizeTargetValue(elements.targetValueInput.value);
@@ -463,7 +466,9 @@
     if (state.rawDirty && !force) {
       return;
     }
-    elements.payloadEditor.value = formatJson(buildBasePayload());
+    // Keep credentials only in their password controls. Omit them instead of inserting
+    // a masked placeholder, which the editable JSON overlay could send as a credential.
+    elements.payloadEditor.value = formatJson(buildBasePayload(false));
     state.rawDirty = false;
   }
 

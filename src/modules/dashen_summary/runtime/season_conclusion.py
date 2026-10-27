@@ -33,6 +33,7 @@ from .dashen import (
     season,
 )
 from .match_awards import rates as _award_rates, select_awards, record_key as _award_key, grade as _award_grade, METRICS as AWARD_METRICS
+from .teammate_awards import accumulate_award_metrics, select_teammate_awards
 from .season_baseline import parse_count_info, hero_baseline, number as _baseline_number
 from .period_activity import hourly_activity, stacked_activity
 from .summary_typography import SummaryDraw
@@ -1074,6 +1075,7 @@ def _build_stats(matches, detail_pairs, resolved_target):
                 continue
             name = _player_name(player, name_map)
             contact = stats["friends" if str(player.get("bnetId")) in friends else "stranger_details"][name]
+            accumulate_award_metrics(contact, player, game_time)
             if ret not in (0, 1):
                 contact["losses"] = contact.get("losses", 0) + 1
             teammate_kda = (_int(player.get("kill")) + _int(player.get("assist"))) / max(1, _int(player.get("death")))
@@ -1081,6 +1083,10 @@ def _build_stats(matches, detail_pairs, resolved_target):
             if not teammate_hero_guid and player.get("heroList"):
                 hero_item = (player.get("heroList") or [{}])[0] or {}
                 teammate_hero_guid = hero_item.get("heroGuid") or hero_item.get("heroId")
+            hero_refs = [teammate_hero_guid]
+            hero_refs.extend(hero.get("heroGuid") or hero.get("heroId")
+                             for hero in player.get("heroList") or [] if isinstance(hero, dict))
+            contact["heroes"].update(_canonical_hero_guid(hero) for hero in hero_refs if hero)
             teammate_risk_status = None
             if "riskStatus" in player:
                 parsed_teammate_risk = parse_risk_status({"riskStatus": player.get("riskStatus")})
@@ -1121,8 +1127,6 @@ def _build_stats(matches, detail_pairs, resolved_target):
                 stats["friends"][name]["deaths"] += _int(player.get("death"))
                 stats["friends"][name]["damage_taken"] += _int(player.get("damageTaken"))
                 stats["friends"][name]["endorse_received"] += len(player.get("endorserBnetIds") or [])
-                if teammate_hero_guid:
-                    stats["friends"][name]["heroes"].add(str(teammate_hero_guid))
                 if ret == 1:
                     stats["friends"][name]["wins"] += 1
                 stats["friends"][name]["score"] += _calculate_period_carry_score(
@@ -1149,8 +1153,6 @@ def _build_stats(matches, detail_pairs, resolved_target):
                 stats["stranger_details"][name]["deaths"] += _int(player.get("death"))
                 stats["stranger_details"][name]["damage_taken"] += _int(player.get("damageTaken"))
                 stats["stranger_details"][name]["endorse_received"] += len(player.get("endorserBnetIds") or [])
-                if teammate_hero_guid:
-                    stats["stranger_details"][name]["heroes"].add(str(teammate_hero_guid))
                 if ret == 1:
                     stats["stranger_details"][name]["wins"] += 1
                 stats["stranger_details"][name]["score"] += _calculate_period_carry_score(
@@ -2061,40 +2063,7 @@ def _period_contact_rows(stats):
 
 
 def _teammate_fun_awards(stats):
-    teammate_pool = []
-    for kind, source in (("好友", stats.get("friends") or {}), ("路人", stats.get("stranger_details") or {})):
-        for name, data in source.items():
-            if not data.get("games", 0):
-                continue
-            teammate_pool.append((kind, name, data))
-
-    def _pick(title, metric_key, value_func, formatter, positive_only=True):
-        if not teammate_pool:
-            return None
-        ranked = sorted(
-            teammate_pool,
-            key=lambda item: (value_func(item[2]), item[2].get("games", 0), item[2].get("wins", 0)),
-            reverse=True,
-        )
-        winner_kind, winner_name, winner_data = ranked[0]
-        winner_value = value_func(winner_data)
-        if positive_only and winner_value <= 0:
-            return None
-        return {
-            "title": title,
-            "kind": winner_kind,
-            "name": winner_name,
-            "value": formatter(winner_value),
-        }
-
-    awards = [
-        _pick("推车金", "objective_time", lambda data: _num(data.get("objective_time")), _fmt_time),
-        _pick("返场金", "deaths", lambda data: _int(data.get("deaths")), lambda value: f"死亡 {int(value)}"),
-        _pick("挨打金", "damage_taken", lambda data: _int(data.get("damage_taken")), lambda value: f"承伤 {_fmt_int(value)}"),
-        _pick("礼貌金", "endorse_received", lambda data: _int(data.get("endorse_received")), lambda value: f"被赞 {int(value)}"),
-        _pick("花活金", "heroes", lambda data: len(data.get("heroes") or set()), lambda value: f"英雄 {int(value)}"),
-    ]
-    return [award for award in awards if award]
+    return select_teammate_awards(stats)
 
 
 def _teammate_spotlight_height(stats):
@@ -3515,10 +3484,14 @@ def _draw_teammate_fun_awards(draw, stats, x, y, w):
     if not awards:
         return
     draw.text((x, y), "一些奇怪的金牌", font=_load_font(14, bold=True), fill=(255, 218, 117))
+    selection_text = f"本次精选 {len(awards)} 项"
+    selection_font = _load_font(11)
+    selection_w = _text_size(draw, selection_text, selection_font)[0]
+    draw.text((x + w - selection_w, y + 2), selection_text, font=selection_font, fill=(170, 182, 200))
 
     cell_gap = 8
     cell_w = int((w - cell_gap) / 2)
-    cell_h = 58
+    cell_h = 64
     start_y = y + 24
     kind_fill = {"好友": (117, 223, 174, 220), "路人": (139, 216, 255, 210)}
 
@@ -3526,18 +3499,20 @@ def _draw_teammate_fun_awards(draw, stats, x, y, w):
         col = idx % 2
         row = idx // 2
         x1 = int(x + col * (cell_w + cell_gap))
-        y1 = int(start_y + row * 66)
+        y1 = int(start_y + row * 72)
         x2 = x1 + cell_w
         y2 = y1 + cell_h
         draw.rounded_rectangle((x1, y1, x2, y2), radius=8, fill=(33, 35, 46, 215), outline=(65, 70, 90), width=1)
-        draw.text((x1 + 10, y1 + 7), award["title"], font=_load_font(14, bold=True), fill=(246, 248, 255))
         kind_w = _text_size(draw, award["kind"], _load_font(10, bold=True))[0]
         badge_x2 = x2 - 10
         badge_x1 = badge_x2 - kind_w - 12
+        title = _truncate_to_width(draw, award["title"], _load_font(14, bold=True), badge_x1 - x1 - 18)
+        draw.text((x1 + 10, y1 + 7), title, font=_load_font(14, bold=True), fill=(246, 248, 255))
         draw.rounded_rectangle((badge_x1, y1 + 7, badge_x2, y1 + 23), radius=4, fill=kind_fill.get(award["kind"], (139, 216, 255, 210)))
         draw.text((badge_x1 + 6, y1 + 8), award["kind"], font=_load_font(10, bold=True), fill=(18, 24, 34))
         draw.text((x1 + 10, y1 + 28), _truncate_to_width(draw, award["name"], _load_font(13, bold=True), cell_w - 20), font=_load_font(13, bold=True), fill=(218, 228, 242))
-        draw.text((x1 + 10, y1 + 46), award["value"], font=_load_font(11), fill=(170, 182, 200))
+        value = _truncate_to_width(draw, award["value"], _load_font(11), cell_w - 20)
+        draw.text((x1 + 10, y1 + 46), value, font=_load_font(11), fill=(170, 182, 200))
 
 
 async def _render_period_image(

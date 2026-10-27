@@ -1,0 +1,3211 @@
+{
+  "version": "2026-10-27.v1",
+  "reviewed_at": "2026-10-27",
+  "basis": "当前本地英雄配置与技能说明；权重为可维护的编辑规则，不是官方分类或竞技强度评价。",
+  "weight_policy": {
+    "kind": "editorial_heuristic",
+    "scalar_anchors": "0表示缺少该类专门工具，0.25表示辅助用途，0.50表示明确可用，0.75表示核心用途，1表示英雄的标志性工具；中间值为编辑判断。",
+    "distribution_policy": "枪型和阵容权重表示工具构成假设，分别归一化到1；不表示攻击使用频次、实际对局比例或统计概率。",
+    "threshold_policy": "本标签表不判定人格称号、实力或团队行为；组合称号阈值由分析规则另行版本管理。",
+    "calibration_status": "尚未通过玩家标注或比赛样本校准；应根据产品反馈和英雄重做调整，不应把小分差解释为显著差异。"
+  },
+  "definitions": {
+    "weapon": "仅输出职责：长枪为中远程枪线/精准枪械风格，短枪为近身连续枪械风格，其他为飞行物、光束、近战等；混合武器保留软权重，不作严格弹道学分类。",
+    "tactics": "英雄工具与放狗、地推、消耗三类打法的适配权重；每位英雄之和为1，不代表实际队伍阵容。",
+    "mobility": "英雄位移、转点和立体机动工具的可用程度。",
+    "flank": "英雄工具适于在侧面创造压力或切入的程度，不代表玩家实际站位。",
+    "independence": "英雄自身恢复、脱离和独立维持交战的工具，不等同于不团队。",
+    "team_utility": "英雄向盟友提供保护、治疗、增益、位移或控制窗口的工具；与独立作战倾向不是互斥轴。"
+  },
+  "limitations": [
+    "以当前英雄工具标签解释累计时长，不还原历史版本实际打法。",
+    "官方角色按heroConfig.Class记录；source_role_type另存heroList字段，遇到历史职责差异应保留上游统计口径。",
+    "权重不表示胜率、实力排名或心理测量结果。"
+  ],
+  "heroes": {
+    "死神": {
+      "name": "死神",
+      "hero_id": "207165582859042818",
+      "config_guid": "000000000002.075",
+      "slug": "reaper",
+      "aliases": [
+        "0x02E0000000000002"
+      ],
+      "role": "输出",
+      "subrole": "奇袭",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 1.0,
+        "其他": 0.0
+      },
+      "tactics": {
+        "放狗": 0.25,
+        "地推": 0.7,
+        "消耗": 0.05
+      },
+      "mobility": 0.55,
+      "flank": 0.7,
+      "independence": 0.9,
+      "team_utility": 0.2,
+      "labels": [
+        "近身短枪",
+        "自疗续战",
+        "侧翼切入"
+      ],
+      "rationale": "地狱火霰弹枪与收割偏近身续战，暗影步和幽灵形态提供接近与脱离工具；恐怖扳机补充远距齐射。",
+      "source": "res/query_tool.json#heroConfig/000000000002.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/reaper/",
+      "evidence": [
+        {
+          "skill": "死亡绽放",
+          "description": "对附近所有敌人造成伤害"
+        },
+        {
+          "skill": "地狱火霰弹枪",
+          "description": "近距离散射武器"
+        },
+        {
+          "skill": "暗影步",
+          "description": "传送至指定位置"
+        },
+        {
+          "skill": "收割",
+          "description": "造成伤害可治疗自己"
+        },
+        {
+          "skill": "幽灵形态",
+          "description": "移动更快且变为无敌状态，但无法射击"
+        },
+        {
+          "skill": "恐怖扳机",
+          "description": "用两把地狱火霰弹枪打出具有远距离精准度的齐射"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "猎空": {
+      "name": "猎空",
+      "hero_id": "207165582859042819",
+      "config_guid": "000000000003.075",
+      "slug": "tracer",
+      "aliases": [
+        "0x02E0000000000003"
+      ],
+      "role": "输出",
+      "subrole": "奇袭",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 1.0,
+        "其他": 0.0
+      },
+      "tactics": {
+        "放狗": 0.95,
+        "地推": 0.03,
+        "消耗": 0.02
+      },
+      "mobility": 1.0,
+      "flank": 0.95,
+      "independence": 0.9,
+      "team_utility": 0.15,
+      "labels": [
+        "近身短枪",
+        "高机动",
+        "侧翼施压"
+      ],
+      "rationale": "闪现与闪回支持快速换位和自保，脉冲双枪偏近距离持续施压。",
+      "source": "res/query_tool.json#heroConfig/000000000003.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/tracer/",
+      "evidence": [
+        {
+          "skill": "闪现",
+          "description": "传送至移动方向"
+        },
+        {
+          "skill": "闪回",
+          "description": "回到传送前的位置并恢复至当时的生命值"
+        },
+        {
+          "skill": "脉冲炸弹",
+          "description": "扔出一枚威力巨大的 粘性炸弹"
+        },
+        {
+          "skill": "脉冲双枪",
+          "description": "近距离全自动武器"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "天使": {
+      "name": "天使",
+      "hero_id": "207165582859042820",
+      "config_guid": "000000000004.075",
+      "slug": "mercy",
+      "aliases": [
+        "0x02E0000000000004"
+      ],
+      "role": "支援",
+      "subrole": "医疗",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.35,
+        "地推": 0.2,
+        "消耗": 0.45
+      },
+      "mobility": 0.8,
+      "flank": 0.15,
+      "independence": 0.25,
+      "team_utility": 1.0,
+      "labels": [
+        "治疗维系",
+        "伤害增益",
+        "复活保护"
+      ],
+      "rationale": "天使之杖提供持续治疗和伤害增益，重生保护团队资源；守护天使依赖队友作为机动目标。",
+      "source": "res/query_tool.json#heroConfig/000000000004.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/mercy/",
+      "evidence": [
+        {
+          "skill": "天使之杖",
+          "description": "长按可以治疗队友"
+        },
+        {
+          "skill": "守护天使",
+          "description": "飞向一名队友。在飞行时，按跳跃可以向前飞，按下蹲可以向上飞"
+        },
+        {
+          "skill": "天使之杖",
+          "description": "长按可以增加队友造成的伤害"
+        },
+        {
+          "skill": "重生",
+          "description": "复活一名阵亡的队友"
+        },
+        {
+          "skill": "快速治疗",
+          "description": "治疗天使之杖的激活目标，对生命值低于一半盟友的治疗量翻倍"
+        },
+        {
+          "skill": "天使冲击枪",
+          "description": "自动武器"
+        },
+        {
+          "skill": "天使降临",
+          "description": "减缓下降速度"
+        },
+        {
+          "skill": "迅捷恢复",
+          "description": "快速激活生命恢复效果"
+        },
+        {
+          "skill": "女武神",
+          "description": "获得飞行能力并强化各技能"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "半藏": {
+      "name": "半藏",
+      "hero_id": "207165582859042821",
+      "config_guid": "000000000005.075",
+      "slug": "hanzo",
+      "aliases": [
+        "0x02E0000000000005"
+      ],
+      "role": "输出",
+      "subrole": "神准",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 0.0,
+        "其他": 1.0
+      },
+      "tactics": {
+        "放狗": 0.15,
+        "地推": 0.15,
+        "消耗": 0.7
+      },
+      "mobility": 0.45,
+      "flank": 0.5,
+      "independence": 0.55,
+      "team_utility": 0.35,
+      "labels": [
+        "远距飞行物",
+        "精准爆发",
+        "侦察信息"
+      ],
+      "rationale": "风与岚提供弓箭火力，音提供位置情报；攀与跃支持选择高台和侧面射线。",
+      "source": "res/query_tool.json#heroConfig/000000000005.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/hanzo/",
+      "evidence": [
+        {
+          "skill": "竜",
+          "description": "召唤致命的天竜之魂吞噬遇到的所有敌人"
+        },
+        {
+          "skill": "音",
+          "description": "击中后短时间内显示 敌人位置"
+        },
+        {
+          "skill": "岚",
+          "description": "接下来的5发箭矢可以弹射 瞬间发出但伤害降低"
+        },
+        {
+          "skill": "风",
+          "description": "长按鼠标左键然后放开可以射得更远"
+        },
+        {
+          "skill": "攀",
+          "description": "跃上并沿着墙壁攀爬"
+        },
+        {
+          "skill": "跃",
+          "description": "二段跳"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "托比昂": {
+      "name": "托比昂",
+      "hero_id": "207165582859042822",
+      "config_guid": "000000000006.075",
+      "slug": "torbjorn",
+      "aliases": [
+        "0x02E0000000000006"
+      ],
+      "role": "输出",
+      "subrole": "专业",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 0.0,
+        "其他": 1.0
+      },
+      "tactics": {
+        "放狗": 0.05,
+        "地推": 0.5,
+        "消耗": 0.45
+      },
+      "mobility": 0.25,
+      "flank": 0.2,
+      "independence": 0.7,
+      "team_utility": 0.4,
+      "labels": [
+        "部署炮台",
+        "区域封锁",
+        "双距离火力"
+      ],
+      "rationale": "铆钉枪兼顾远距弹道和近距散射，炮台与熔火核心提供阵地压力，热力过载支持自保。",
+      "source": "res/query_tool.json#heroConfig/000000000006.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/torbjorn/",
+      "evidence": [
+        {
+          "skill": "部署炮台",
+          "description": "部署一个自动建造的炮台"
+        },
+        {
+          "skill": "热力过载",
+          "description": "获得额外生命值，同时提高攻击、移动 及装弹速度"
+        },
+        {
+          "skill": "熔火核心",
+          "description": "在地上制造熔渣池，对敌人造成伤害。对护甲造成额外伤害"
+        },
+        {
+          "skill": "铆钉枪",
+          "description": "慢射速的远距离武器"
+        },
+        {
+          "skill": "辅助攻击模式",
+          "description": "火力强大但命中率不佳的近距离武器"
+        },
+        {
+          "skill": "锻造锤",
+          "description": "挥动锻造锤可以修理炮台或攻击敌人"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "莱因哈特": {
+      "name": "莱因哈特",
+      "hero_id": "207165582859042823",
+      "config_guid": "000000000007.075",
+      "slug": "reinhardt",
+      "aliases": [
+        "0x02E0000000000007"
+      ],
+      "role": "重装",
+      "subrole": "铁壁",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.05,
+        "地推": 0.9,
+        "消耗": 0.05
+      },
+      "mobility": 0.4,
+      "flank": 0.1,
+      "independence": 0.35,
+      "team_utility": 0.85,
+      "labels": [
+        "近战推进",
+        "正面屏障",
+        "控制开团"
+      ],
+      "rationale": "火箭重锤和正面屏障适合靠近推进，冲锋和裂地猛击提供接敌与控制工具。",
+      "source": "res/query_tool.json#heroConfig/000000000007.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/reinhardt/",
+      "evidence": [
+        {
+          "skill": "冲锋",
+          "description": "向前冲锋并将一名敌人重击到墙上"
+        },
+        {
+          "skill": "裂地猛击",
+          "description": "击倒前方所有敌人"
+        },
+        {
+          "skill": "烈焰打击",
+          "description": "射出一道炽热能量波"
+        },
+        {
+          "skill": "火箭重锤",
+          "description": "毁灭性的近战武器"
+        },
+        {
+          "skill": "屏障力场",
+          "description": "长按 %1$s 可以展开一道正面能量屏障"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "法老之鹰": {
+      "name": "法老之鹰",
+      "hero_id": "207165582859042824",
+      "config_guid": "000000000008.075",
+      "slug": "pharah",
+      "aliases": [
+        "0x02E0000000000008"
+      ],
+      "role": "输出",
+      "subrole": "侦察",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 0.0,
+        "其他": 1.0
+      },
+      "tactics": {
+        "放狗": 0.35,
+        "地推": 0.1,
+        "消耗": 0.55
+      },
+      "mobility": 0.9,
+      "flank": 0.65,
+      "independence": 0.55,
+      "team_utility": 0.25,
+      "labels": [
+        "空域机动",
+        "爆炸飞行物",
+        "远距压制"
+      ],
+      "rationale": "火箭发射器提供远距爆炸火力，推进背包、悬浮背包和疾冲背包支持空中角度。",
+      "source": "res/query_tool.json#heroConfig/000000000008.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/pharah/",
+      "evidence": [
+        {
+          "skill": "火箭弹幕",
+          "description": "发射一连串致命的迷你火箭"
+        },
+        {
+          "skill": "推进背包",
+          "description": "快速向上飞行 补充部分燃料"
+        },
+        {
+          "skill": "震荡冲击",
+          "description": "射出爆炸性冲击击退敌人"
+        },
+        {
+          "skill": "火箭发射器",
+          "description": "远距离爆炸式弹道武器"
+        },
+        {
+          "skill": "悬浮背包",
+          "description": "长按可以悬浮在空中 燃料消耗完后会缓慢降落 落地时才能恢复燃料"
+        },
+        {
+          "skill": "疾冲背包",
+          "description": "沿水平方向推进"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "温斯顿": {
+      "name": "温斯顿",
+      "hero_id": "207165582859042825",
+      "config_guid": "000000000009.075",
+      "slug": "winston",
+      "aliases": [
+        "0x02E0000000000009"
+      ],
+      "role": "重装",
+      "subrole": "先锋",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.95,
+        "地推": 0.04,
+        "消耗": 0.01
+      },
+      "mobility": 0.9,
+      "flank": 0.6,
+      "independence": 0.55,
+      "team_utility": 0.7,
+      "labels": [
+        "跃入开团",
+        "区域屏障",
+        "高机动"
+      ],
+      "rationale": "喷射背包支持跃入与转点，特斯拉炮偏近距离，屏障发射器提供局部保护和切割。",
+      "source": "res/query_tool.json#heroConfig/000000000009.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/winston/",
+      "evidence": [
+        {
+          "skill": "喷射背包",
+          "description": "向前跃向空中，着陆后对附近的敌人造成伤害"
+        },
+        {
+          "skill": "原始暴怒",
+          "description": "额外获得大量生命值 但只能跳跃和拳击敌人"
+        },
+        {
+          "skill": "屏障发射器",
+          "description": "部署一个保护性能量罩"
+        },
+        {
+          "skill": "特斯拉炮",
+          "description": "可攻击前方锥形范围的电能武器"
+        },
+        {
+          "skill": "辅助攻击模式",
+          "description": "长按充能，松开后射出集束电击"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "黑百合": {
+      "name": "黑百合",
+      "hero_id": "207165582859042826",
+      "config_guid": "00000000000A.075",
+      "slug": "widowmaker",
+      "aliases": [
+        "0x02E000000000000A"
+      ],
+      "role": "输出",
+      "subrole": "神准",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 1.0,
+        "短枪": 0.0,
+        "其他": 0.0
+      },
+      "tactics": {
+        "放狗": 0.05,
+        "地推": 0.05,
+        "消耗": 0.9
+      },
+      "mobility": 0.35,
+      "flank": 0.55,
+      "independence": 0.4,
+      "team_utility": 0.25,
+      "labels": [
+        "远点架枪",
+        "精准狙击",
+        "视野信息"
+      ],
+      "rationale": "瞄准射击提供远距狙击，抓钩调整射线，红外侦测向队友提供敌方位置。",
+      "source": "res/query_tool.json#heroConfig/00000000000A.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/widowmaker/",
+      "evidence": [
+        {
+          "skill": "抓钩",
+          "description": "射出抓钩并把自己拉向目标位置"
+        },
+        {
+          "skill": "红外侦测",
+          "description": "为队友提供敌方位置情报"
+        },
+        {
+          "skill": "剧毒诡雷",
+          "description": "射出一个剧毒陷阱"
+        },
+        {
+          "skill": "黑百合之吻",
+          "description": "全自动突击武器"
+        },
+        {
+          "skill": "瞄准射击",
+          "description": "长按可以进行远距离狙击"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "堡垒": {
+      "name": "堡垒",
+      "hero_id": "207165582859042837",
+      "config_guid": "000000000015.075",
+      "slug": "bastion",
+      "aliases": [
+        "0x02E0000000000015"
+      ],
+      "role": "输出",
+      "subrole": "专业",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 1.0,
+        "短枪": 0.0,
+        "其他": 0.0
+      },
+      "tactics": {
+        "放狗": 0.05,
+        "地推": 0.45,
+        "消耗": 0.5
+      },
+      "mobility": 0.15,
+      "flank": 0.15,
+      "independence": 0.35,
+      "team_utility": 0.3,
+      "labels": [
+        "持续枪线",
+        "阵地火力",
+        "压制推进"
+      ],
+      "rationale": "强攻模式提供慢速高火力，侦察模式支持较灵活射击，火炮模式牺牲机动换取区域打击。",
+      "source": "res/query_tool.json#heroConfig/000000000015.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/bastion/",
+      "evidence": [
+        {
+          "skill": "A-36战术榴弹",
+          "description": "发射一枚炸弹，能在墙壁间反弹 并在击中敌人或地面时爆炸"
+        },
+        {
+          "skill": "切换模式",
+          "description": "切换不同的作战模式"
+        },
+        {
+          "skill": "侦察模式",
+          "description": "配有轻型高精度武器的机动模式"
+        },
+        {
+          "skill": "强攻模式",
+          "description": "配有大火力轮转机枪的慢速 坦克模式"
+        },
+        {
+          "skill": "火炮模式",
+          "description": "进入固定状态，发射最多3枚火力强大的炮弹"
+        },
+        {
+          "skill": "抗击装甲",
+          "description": "降低切换模式后受到的伤害"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "秩序之光": {
+      "name": "秩序之光",
+      "hero_id": "207165582859042838",
+      "config_guid": "000000000016.075",
+      "slug": "symmetra",
+      "aliases": [
+        "0x02E0000000000016"
+      ],
+      "role": "输出",
+      "subrole": "专业",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 0.0,
+        "其他": 1.0
+      },
+      "tactics": {
+        "放狗": 0.1,
+        "地推": 0.65,
+        "消耗": 0.25
+      },
+      "mobility": 0.25,
+      "flank": 0.25,
+      "independence": 0.45,
+      "team_utility": 0.75,
+      "labels": [
+        "近距光束",
+        "传送协同",
+        "区域封锁"
+      ],
+      "rationale": "近距光束和哨戒炮适合阵地交战，传送面板支持团队转移，光子屏障提供大范围保护。",
+      "source": "res/query_tool.json#heroConfig/000000000016.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/symmetra/",
+      "evidence": [
+        {
+          "skill": "光子发射器",
+          "description": "威力逐渐增强的近距离光束武器"
+        },
+        {
+          "skill": "辅助攻击模式",
+          "description": "长按充能，松开后射出会爆炸的能量球"
+        },
+        {
+          "skill": "哨戒炮",
+          "description": "部署一个小型炮台对敌人造成伤害并使其减速"
+        },
+        {
+          "skill": "光子屏障",
+          "description": "部署一个大型能量屏障"
+        },
+        {
+          "skill": "传送面板",
+          "description": "制造两个临时传送面板，可以在它们之间进行瞬间传送"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "禅雅塔": {
+      "name": "禅雅塔",
+      "hero_id": "207165582859042848",
+      "config_guid": "000000000020.075",
+      "slug": "zenyatta",
+      "aliases": [
+        "0x02E0000000000020"
+      ],
+      "role": "支援",
+      "subrole": "战术",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.35,
+        "地推": 0.1,
+        "消耗": 0.55
+      },
+      "mobility": 0.05,
+      "flank": 0.3,
+      "independence": 0.35,
+      "team_utility": 0.9,
+      "labels": [
+        "远程飞行物",
+        "集火增益",
+        "持续支援"
+      ],
+      "rationale": "灭提供远程弹道火力，乱标记集火目标，谐和圣提供支援；缺少常规位移工具。",
+      "source": "res/query_tool.json#heroConfig/000000000020.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/zenyatta/",
+      "evidence": [
+        {
+          "skill": "灭",
+          "description": "弹道能量武器"
+        },
+        {
+          "skill": "辅助攻击模式",
+          "description": "蓄力后可以射出一连串法球"
+        },
+        {
+          "skill": "乱",
+          "description": "将纷乱法球射向一个敌人可以增加其受到的伤害"
+        },
+        {
+          "skill": "谐",
+          "description": "将和谐法球射向盟友可以为其恢复生命值"
+        },
+        {
+          "skill": "圣",
+          "description": "变为无敌状态，加速 并治疗附近的盟友"
+        },
+        {
+          "skill": "蹬",
+          "description": "快速近身攻击伤害提高50% 击退效果大幅提高"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "源氏": {
+      "name": "源氏",
+      "hero_id": "207165582859042857",
+      "config_guid": "000000000029.075",
+      "slug": "genji",
+      "aliases": [
+        "0x02E0000000000029"
+      ],
+      "role": "输出",
+      "subrole": "奇袭",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 0.0,
+        "其他": 1.0
+      },
+      "tactics": {
+        "放狗": 0.9,
+        "地推": 0.07,
+        "消耗": 0.03
+      },
+      "mobility": 0.9,
+      "flank": 0.85,
+      "independence": 0.75,
+      "team_utility": 0.25,
+      "labels": [
+        "飞行物",
+        "机动切入",
+        "终结追击"
+      ],
+      "rationale": "影可接近并在消灭后刷新，灵提供爬墙和二段跳，闪支持自保；镖与斩兼顾飞行物和近战。",
+      "source": "res/query_tool.json#heroConfig/000000000029.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/genji/",
+      "evidence": [
+        {
+          "skill": "斩",
+          "description": "致命的近战武器"
+        },
+        {
+          "skill": "闪",
+          "description": "招架向你射来的飞弹并将其向你瞄准方向反弹回去，同时还能格挡近战攻击"
+        },
+        {
+          "skill": "影",
+          "description": "快速向前冲刺，对遇到的敌人造成伤害。消灭敌人可以重置冷却时间"
+        },
+        {
+          "skill": "镖",
+          "description": "扔出3发精准的手里剑"
+        },
+        {
+          "skill": "辅助攻击模式",
+          "description": "向前方弧形范围扔出3发手里剑"
+        },
+        {
+          "skill": "灵",
+          "description": "可以爬墙和二段跳"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "路霸": {
+      "name": "路霸",
+      "hero_id": "207165582859042880",
+      "config_guid": "000000000040.075",
+      "slug": "roadhog",
+      "aliases": [
+        "0x02E0000000000040"
+      ],
+      "role": "重装",
+      "subrole": "斗士",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.1,
+        "地推": 0.7,
+        "消耗": 0.2
+      },
+      "mobility": 0.1,
+      "flank": 0.45,
+      "independence": 0.95,
+      "team_utility": 0.45,
+      "labels": [
+        "勾取控制",
+        "自疗续战",
+        "近距压迫"
+      ],
+      "rationale": "链钩创造单目标控制窗口，呼吸器提供自疗减伤，爆裂枪偏近距离；废品压缩器可吸收射弹。",
+      "source": "res/query_tool.json#heroConfig/000000000040.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/roadhog/",
+      "evidence": [
+        {
+          "skill": "鸡飞狗跳",
+          "description": "对面前的敌人造成伤害并将他们击退"
+        },
+        {
+          "skill": "爆裂枪",
+          "description": "近距离二连发霰弹枪"
+        },
+        {
+          "skill": "废品压缩器",
+          "description": "吸收敌方射弹，压缩成一发废品爆裂弹"
+        },
+        {
+          "skill": "链钩",
+          "description": "将一个目标拉向身边"
+        },
+        {
+          "skill": "呼吸器",
+          "description": "治疗自己并降低受到的伤害"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "卡西迪": {
+      "name": "卡西迪",
+      "hero_id": "207165582859042882",
+      "config_guid": "000000000042.075",
+      "slug": "cassidy",
+      "aliases": [
+        "0x02E0000000000042"
+      ],
+      "role": "输出",
+      "subrole": "神准",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 1.0,
+        "短枪": 0.0,
+        "其他": 0.0
+      },
+      "tactics": {
+        "放狗": 0.1,
+        "地推": 0.6,
+        "消耗": 0.3
+      },
+      "mobility": 0.25,
+      "flank": 0.3,
+      "independence": 0.5,
+      "team_utility": 0.4,
+      "labels": [
+        "中距精准",
+        "反突进控制",
+        "枪线支援"
+      ],
+      "rationale": "维和者偏中距离精准射击，闪光弹限制位移，战术翻滚兼顾装填和短距离自保。",
+      "source": "res/query_tool.json#heroConfig/000000000042.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/cassidy/",
+      "evidence": [
+        {
+          "skill": "神射手",
+          "description": "面对你的敌人。按下 %1$s 锁定目标 随后按下 %1$s 或 %2$s 开枪"
+        },
+        {
+          "skill": "战术翻滚",
+          "description": "向移动方向翻滚，降低所受伤害 并装填子弹"
+        },
+        {
+          "skill": "闪光弹",
+          "description": "限制前方的敌人 减速并禁用敌人的位移技能"
+        },
+        {
+          "skill": "维和者",
+          "description": "准确致命的左轮枪"
+        },
+        {
+          "skill": "连射",
+          "description": "射光剩余的所有子弹"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "狂鼠": {
+      "name": "狂鼠",
+      "hero_id": "207165582859042917",
+      "config_guid": "000000000065.075",
+      "slug": "junkrat",
+      "aliases": [
+        "0x02E0000000000065"
+      ],
+      "role": "输出",
+      "subrole": "专业",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 0.0,
+        "其他": 1.0
+      },
+      "tactics": {
+        "放狗": 0.1,
+        "地推": 0.4,
+        "消耗": 0.5
+      },
+      "mobility": 0.5,
+      "flank": 0.4,
+      "independence": 0.65,
+      "team_utility": 0.4,
+      "labels": [
+        "弹射爆炸",
+        "区域封锁",
+        "陷阱控制"
+      ],
+      "rationale": "榴弹和捕兽夹控制通路，震荡地雷支持位移与击退，弹道火力偏区域压制。",
+      "source": "res/query_tool.json#heroConfig/000000000065.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/junkrat/",
+      "evidence": [
+        {
+          "skill": "榴弹发射器",
+          "description": "弹跳爆炸式弹道武器"
+        },
+        {
+          "skill": "震荡地雷",
+          "description": "按下 %1$s 扔出一个可以击退敌人的地雷然后按下 %2$s 引爆"
+        },
+        {
+          "skill": "捕兽夹",
+          "description": "放置一个可暂时使敌人失去行动能力的陷阱"
+        },
+        {
+          "skill": "炸弹轮胎",
+          "description": "操控并引爆一个 会爆炸的轮胎"
+        },
+        {
+          "skill": "临别礼物",
+          "description": "爆炸不会对自己造成伤害 阵亡后丢下炸弹"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "查莉娅": {
+      "name": "查莉娅",
+      "hero_id": "207165582859042920",
+      "config_guid": "000000000068.075",
+      "slug": "zarya",
+      "aliases": [
+        "0x02E0000000000068"
+      ],
+      "role": "重装",
+      "subrole": "斗士",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.1,
+        "地推": 0.85,
+        "消耗": 0.05
+      },
+      "mobility": 0.1,
+      "flank": 0.15,
+      "independence": 0.55,
+      "team_utility": 0.85,
+      "labels": [
+        "近距光束",
+        "投射保护",
+        "集火控制"
+      ],
+      "rationale": "粒子炮偏近距离持续输出，投射屏障保护盟友并积累能量，重力喷涌制造集中交战窗口。",
+      "source": "res/query_tool.json#heroConfig/000000000068.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/zarya/",
+      "evidence": [
+        {
+          "skill": "重力喷涌",
+          "description": "生成重力漩涡 将敌人拉向中心"
+        },
+        {
+          "skill": "粒子屏障",
+          "description": "在你周围生成 伤害吸收屏障"
+        },
+        {
+          "skill": "投射屏障",
+          "description": "在盟友周围生成伤害 吸收屏障"
+        },
+        {
+          "skill": "粒子炮",
+          "description": "近距离线性光束武器"
+        },
+        {
+          "skill": "辅助攻击模式",
+          "description": "可以射出能量炸弹的武器"
+        },
+        {
+          "skill": "能量转换",
+          "description": "阻挡伤害可以提高粒子炮的伤害"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "士兵：76": {
+      "name": "士兵：76",
+      "hero_id": "207165582859042926",
+      "config_guid": "00000000006E.075",
+      "slug": "soldier-76",
+      "aliases": [
+        "0x02E000000000006E"
+      ],
+      "role": "输出",
+      "subrole": "专业",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 1.0,
+        "短枪": 0.0,
+        "其他": 0.0
+      },
+      "tactics": {
+        "放狗": 0.3,
+        "地推": 0.25,
+        "消耗": 0.45
+      },
+      "mobility": 0.65,
+      "flank": 0.65,
+      "independence": 0.9,
+      "team_utility": 0.35,
+      "labels": [
+        "中远程长枪",
+        "持续火力",
+        "自疗机动"
+      ],
+      "rationale": "重型脉冲步枪提供持续枪线，疾跑支持换位，生物力场可治疗自己与周围盟友。",
+      "source": "res/query_tool.json#heroConfig/00000000006E.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/soldier-76/",
+      "evidence": [
+        {
+          "skill": "疾跑",
+          "description": "快速向前移动"
+        },
+        {
+          "skill": "生物力场",
+          "description": "部署一个可以治疗自己和 盟友的力场"
+        },
+        {
+          "skill": "重型脉冲步枪",
+          "description": "全自动突击武器"
+        },
+        {
+          "skill": "螺旋飞弹",
+          "description": "射出一连串高爆飞弹"
+        },
+        {
+          "skill": "战术目镜",
+          "description": "自动瞄准视野范围内的敌人"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "卢西奥": {
+      "name": "卢西奥",
+      "hero_id": "207165582859042937",
+      "config_guid": "000000000079.075",
+      "slug": "lucio",
+      "aliases": [
+        "0x02E0000000000079"
+      ],
+      "role": "支援",
+      "subrole": "战术",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.4,
+        "地推": 0.55,
+        "消耗": 0.05
+      },
+      "mobility": 0.95,
+      "flank": 0.55,
+      "independence": 0.75,
+      "team_utility": 0.95,
+      "labels": [
+        "团队加速",
+        "范围治疗",
+        "滑墙机动"
+      ],
+      "rationale": "切歌与强音改变队伍移动和恢复节奏，音障提供保护，滑墙支持机动与侧面扰动。",
+      "source": "res/query_tool.json#heroConfig/000000000079.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/lucio/",
+      "evidence": [
+        {
+          "skill": "切歌",
+          "description": "在两种音效之间切换： 治愈音效可治疗附近盟友 加速音效可让附近盟友 更快地移动"
+        },
+        {
+          "skill": "强音",
+          "description": "强化当前歌曲的效果"
+        },
+        {
+          "skill": "音速扩音器",
+          "description": "超音速飞弹发射器"
+        },
+        {
+          "skill": "音波",
+          "description": "射出近距离冲击波 击退敌人"
+        },
+        {
+          "skill": "音障",
+          "description": "为附近盟友提供临时的额外生命值"
+        },
+        {
+          "skill": "滑墙",
+          "description": "跳向墙壁并在其表面滑行"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "D.Va": {
+      "name": "D.Va",
+      "hero_id": "207165582859042938",
+      "config_guid": "00000000007A.075",
+      "slug": "dva",
+      "aliases": [
+        "0x02E000000000007A"
+      ],
+      "role": "重装",
+      "subrole": "先锋",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.8,
+        "地推": 0.15,
+        "消耗": 0.05
+      },
+      "mobility": 0.9,
+      "flank": 0.55,
+      "independence": 0.6,
+      "team_utility": 0.85,
+      "labels": [
+        "机动切入",
+        "射弹保护",
+        "近距火力"
+      ],
+      "rationale": "推进器支持追击和回防，防御矩阵保护射线，聚变机炮与微型飞弹偏接近交战。",
+      "source": "res/query_tool.json#heroConfig/00000000007A.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/dva/",
+      "evidence": [
+        {
+          "skill": "推进器",
+          "description": "向你的正前方突进"
+        },
+        {
+          "skill": "防御矩阵",
+          "description": "挡住前方射来的飞射物"
+        },
+        {
+          "skill": "自毁",
+          "description": "使机甲过载并将自己弹射出去，机甲会在短时间后爆炸"
+        },
+        {
+          "skill": "聚变机炮",
+          "description": "全自动近距离散射 武器"
+        },
+        {
+          "skill": "微型飞弹",
+          "description": "射出一连串高爆飞弹"
+        },
+        {
+          "skill": "弹射！",
+          "description": "当机甲被摧毁时 D.Va从中弹出"
+        },
+        {
+          "skill": "呼叫机甲",
+          "description": "呼叫一台全新的机甲"
+        },
+        {
+          "skill": "光枪",
+          "description": "自动武器"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "美": {
+      "name": "美",
+      "hero_id": "207165582859043037",
+      "config_guid": "0000000000DD.075",
+      "slug": "mei",
+      "aliases": [
+        "0x02E00000000000DD"
+      ],
+      "role": "输出",
+      "subrole": "专业",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 0.0,
+        "其他": 1.0
+      },
+      "tactics": {
+        "放狗": 0.05,
+        "地推": 0.85,
+        "消耗": 0.1
+      },
+      "mobility": 0.1,
+      "flank": 0.15,
+      "independence": 0.7,
+      "team_utility": 0.8,
+      "labels": [
+        "冰墙分割",
+        "近距控制",
+        "自保恢复"
+      ],
+      "rationale": "冰霜冲击枪和冰墙适合近距分割战场，急冻支持自保，冰锥补充远程飞行物。",
+      "source": "res/query_tool.json#heroConfig/0000000000DD.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/mei/",
+      "evidence": [
+        {
+          "skill": "暴雪",
+          "description": "发射一台气候控制无人机，可以冰冻大范围内的敌人"
+        },
+        {
+          "skill": "急冻",
+          "description": "变为无敌并恢复生命值"
+        },
+        {
+          "skill": "冰墙",
+          "description": "在前方生成一堵冰墙"
+        },
+        {
+          "skill": "冰霜冲击枪",
+          "description": "可以减速敌人的近距离 范围喷射武器"
+        },
+        {
+          "skill": "冰锥",
+          "description": "射出远距离冰锥"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "黑影": {
+      "name": "黑影",
+      "hero_id": "207165582859043118",
+      "config_guid": "00000000012E.075",
+      "slug": "sombra",
+      "aliases": [
+        "0x02E000000000012E"
+      ],
+      "role": "支援",
+      "subrole": "战术",
+      "source_role_type": "dps",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.6,
+        "地推": 0.2,
+        "消耗": 0.2
+      },
+      "mobility": 0.85,
+      "flank": 0.7,
+      "independence": 0.65,
+      "team_utility": 0.85,
+      "labels": [
+        "机动支援",
+        "干扰削弱",
+        "情报控制"
+      ],
+      "rationale": "当前配置的在线修复与赛博空间可以治疗盟友，位移传动提供机动，电磁脉冲与运筹帷幄提供干扰和情报。",
+      "source": "res/query_tool.json#heroConfig/00000000012E.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/sombra/",
+      "evidence": [
+        {
+          "skill": "自动手枪",
+          "description": "近距离自动武器"
+        },
+        {
+          "skill": "在线修复",
+          "description": "为一名盟友持续治疗定量生命值。还可随意侵入急救包和大部分敌方可部署物"
+        },
+        {
+          "skill": "赛博空间",
+          "description": "扔出一枚智能体，击中时爆炸并生成一片赛博空间，削弱其中的敌人，治疗其中的盟友"
+        },
+        {
+          "skill": "位移传动",
+          "description": "扔出一个信标并传送至信标位置 传送完成后隐身，隐身状态持续片刻"
+        },
+        {
+          "skill": "电磁脉冲",
+          "description": "对周围所有敌人造成相当于其当前 生命值一定比例的伤害，侵入敌人 并摧毁附近的敌方屏障"
+        },
+        {
+          "skill": "运筹帷幄",
+          "description": "敌方充能完毕的终极技能会显示给你"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "末日铁拳": {
+      "name": "末日铁拳",
+      "hero_id": "207165582859043119",
+      "config_guid": "00000000012F.075",
+      "slug": "doomfist",
+      "aliases": [
+        "0x02E000000000012F"
+      ],
+      "role": "重装",
+      "subrole": "先锋",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.9,
+        "地推": 0.08,
+        "消耗": 0.02
+      },
+      "mobility": 0.95,
+      "flank": 0.75,
+      "independence": 0.8,
+      "team_utility": 0.45,
+      "labels": [
+        "技能切入",
+        "位移控制",
+        "临时生命"
+      ],
+      "rationale": "裂地重拳与火箭重拳支持机动切入，悍猛格挡和技能生成的临时生命提供续战手段。",
+      "source": "res/query_tool.json#heroConfig/00000000012F.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/doomfist/",
+      "evidence": [
+        {
+          "skill": "裂地重拳",
+          "description": "跃起并重击地面"
+        },
+        {
+          "skill": "悍猛格挡",
+          "description": "格挡前方的攻击 格挡大量伤害后，强化火箭重拳"
+        },
+        {
+          "skill": "火箭重拳",
+          "description": "长按可蓄力向前冲锋并将一名敌人击退。将敌人拳击至墙面可造成更大伤害"
+        },
+        {
+          "skill": "毁天灭地",
+          "description": "按下 %1$s 跃向空中。移动瞄准圈随后按下 %2$s 发动攻击"
+        },
+        {
+          "skill": "手炮",
+          "description": "可自动装弹的近距离散射武器"
+        },
+        {
+          "skill": "最佳防守……",
+          "description": "技能造成伤害后，自身可生成临时生命值"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "安娜": {
+      "name": "安娜",
+      "hero_id": "207165582859043131",
+      "config_guid": "00000000013B.075",
+      "slug": "ana",
+      "aliases": [
+        "0x02E000000000013B"
+      ],
+      "role": "支援",
+      "subrole": "战术",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.5,
+        "地推": 0.1,
+        "消耗": 0.4
+      },
+      "mobility": 0.1,
+      "flank": 0.1,
+      "independence": 0.35,
+      "team_utility": 1.0,
+      "labels": [
+        "远程支援",
+        "治疗限制",
+        "单体增益"
+      ],
+      "rationale": "生物步枪提供远程治疗和伤害，生物手雷、麻醉镖与纳米激素提供控制和队友增益。",
+      "source": "res/query_tool.json#heroConfig/00000000013B.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/ana/",
+      "evidence": [
+        {
+          "skill": "麻醉镖",
+          "description": "射出飞镖让敌人入眠"
+        },
+        {
+          "skill": "生物步枪",
+          "description": "可以治疗盟友并对敌人造成伤害的远距离步枪"
+        },
+        {
+          "skill": "生物手雷",
+          "description": "扔出一枚手雷，治疗盟友并提高其受到的治疗量，同时还可以对敌人造成伤害并使其无法受到治疗"
+        },
+        {
+          "skill": "纳米激素",
+          "description": "提高一名队友造成的伤害，同时降低其受到的伤害"
+        },
+        {
+          "skill": "瞄准射击",
+          "description": "长按可以开镜瞄准"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "奥丽莎": {
+      "name": "奥丽莎",
+      "hero_id": "207165582859043134",
+      "config_guid": "00000000013E.075",
+      "slug": "orisa",
+      "aliases": [
+        "0x02E000000000013E"
+      ],
+      "role": "重装",
+      "subrole": "斗士",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.05,
+        "地推": 0.75,
+        "消耗": 0.2
+      },
+      "mobility": 0.25,
+      "flank": 0.1,
+      "independence": 0.8,
+      "team_utility": 0.55,
+      "labels": [
+        "正面推进",
+        "减伤续战",
+        "标枪控制"
+      ],
+      "rationale": "强固防御与标枪旋击支持正面承压，能量标枪控制目标，强化聚变驱动器提供持续火力。",
+      "source": "res/query_tool.json#heroConfig/00000000013E.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/orisa/",
+      "evidence": [
+        {
+          "skill": "能量标枪",
+          "description": "投出标枪，击晕并击退敌人 敌人撞墙时效果提升"
+        },
+        {
+          "skill": "强固防御",
+          "description": "获得临时生命值，降低受到的伤害 并且不可阻挡"
+        },
+        {
+          "skill": "标枪旋击",
+          "description": "旋转标枪，可摧毁飞射物 招架近身攻击，击退敌人 并提高前进速度"
+        },
+        {
+          "skill": "撼地猛刺",
+          "description": "困住并横扫敌人 获得强固防御效果 猛刺伤害随蓄力提升 按下 %1$s 可提前施放猛刺"
+        },
+        {
+          "skill": "强化聚变驱动器",
+          "description": "全自动热量式武器"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "布丽吉塔": {
+      "name": "布丽吉塔",
+      "hero_id": "207165582859043221",
+      "config_guid": "000000000195.075",
+      "slug": "brigitte",
+      "aliases": [
+        "0x02E0000000000195"
+      ],
+      "role": "支援",
+      "subrole": "生存",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.3,
+        "地推": 0.6,
+        "消耗": 0.1
+      },
+      "mobility": 0.3,
+      "flank": 0.1,
+      "independence": 0.65,
+      "team_utility": 0.9,
+      "labels": [
+        "近身保护",
+        "击退反突进",
+        "持续支援"
+      ],
+      "rationale": "恢复包和鼓舞士气支援队友，流星飞锤与能量盾击干扰接近，屏障护盾提供局部防护。",
+      "source": "res/query_tool.json#heroConfig/000000000195.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/brigitte/",
+      "evidence": [
+        {
+          "skill": "集结号令",
+          "description": "获得护甲，强化屏障护盾，并为周围的盟友提供额外生命值"
+        },
+        {
+          "skill": "鼓舞士气",
+          "description": "对敌人造成伤害会为周围的盟友恢复生命"
+        },
+        {
+          "skill": "恢复包",
+          "description": "较短的时间内持续治疗一名盟友。"
+        },
+        {
+          "skill": "流星飞锤",
+          "description": "向前方甩出连枷，将一名敌人击退"
+        },
+        {
+          "skill": "火箭连枷",
+          "description": "较大范围的近战攻击"
+        },
+        {
+          "skill": "屏障护盾",
+          "description": "按住 %1$s 可以在前方展开一道能量屏障"
+        },
+        {
+          "skill": "能量盾击",
+          "description": "展开屏障护盾后可以向前疾冲 击退一名敌人"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "莫伊拉": {
+      "name": "莫伊拉",
+      "hero_id": "207165582859043234",
+      "config_guid": "0000000001A2.075",
+      "slug": "moira",
+      "aliases": [
+        "0x02E00000000001A2"
+      ],
+      "role": "支援",
+      "subrole": "医疗",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.2,
+        "地推": 0.75,
+        "消耗": 0.05
+      },
+      "mobility": 0.7,
+      "flank": 0.4,
+      "independence": 0.9,
+      "team_utility": 0.7,
+      "labels": [
+        "范围治疗",
+        "自保续战",
+        "双向光束"
+      ],
+      "rationale": "生化之触和生化之球提供区域治疗或伤害，消散支持脱离，吸取生命的攻击降低自身恢复依赖。",
+      "source": "res/query_tool.json#heroConfig/0000000001A2.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/moira/",
+      "evidence": [
+        {
+          "skill": "生化之触",
+          "description": "长按治疗前方所有队友。会消耗生化能量"
+        },
+        {
+          "skill": "辅助攻击模式",
+          "description": "远程光束武器。造成伤害时为你恢复生命并加速恢复生化能量"
+        },
+        {
+          "skill": "生化之球",
+          "description": "发射来回弹射的能量球，为附近的盟友恢复生命，或对附近的敌人造成伤害"
+        },
+        {
+          "skill": "消散",
+          "description": "消失，移动速度加快并变为无敌状态，但无法射击"
+        },
+        {
+          "skill": "聚合射线",
+          "description": "发射一道光束，为盟友恢复生命并对敌人造成伤害"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "破坏球": {
+      "name": "破坏球",
+      "hero_id": "207165582859043274",
+      "config_guid": "0000000001CA.075",
+      "slug": "wrecking-ball",
+      "aliases": [
+        "0x02E00000000001CA"
+      ],
+      "role": "重装",
+      "subrole": "先锋",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.95,
+        "地推": 0.03,
+        "消耗": 0.02
+      },
+      "mobility": 1.0,
+      "flank": 0.9,
+      "independence": 0.95,
+      "team_utility": 0.55,
+      "labels": [
+        "高速扰动",
+        "绕侧开团",
+        "临时生命"
+      ],
+      "rationale": "工程抓钩、动力铁球和重力坠击支持高速切入扰动；感应护盾可自保并把部分额外生命转移给盟友。",
+      "source": "res/query_tool.json#heroConfig/0000000001CA.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/wrecking-ball/",
+      "evidence": [
+        {
+          "skill": "四联火炮",
+          "description": "全自动冲锋武器"
+        },
+        {
+          "skill": "地雷禁区",
+          "description": "部署一大片感应地雷"
+        },
+        {
+          "skill": "工程抓钩",
+          "description": "发射抓钩令铁球在所处区域内高速摆动。可高速撞击敌人造成伤害和击退效果"
+        },
+        {
+          "skill": "动力铁球",
+          "description": "变成球形，提高最大移动速度"
+        },
+        {
+          "skill": "重力坠击",
+          "description": "从空中向下发动猛击，将敌人击飞"
+        },
+        {
+          "skill": "感应护盾",
+          "description": "产生临时的额外生命值，附近敌人越多增加的生命值越多。可将部分额外生命值转移给盟友"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "索杰恩": {
+      "name": "索杰恩",
+      "hero_id": "207165582859043308",
+      "config_guid": "0000000001EC.075",
+      "slug": "sojourn",
+      "aliases": [
+        "0x02E00000000001EC"
+      ],
+      "role": "输出",
+      "subrole": "神准",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.7,
+        "短枪": 0.0,
+        "其他": 0.3
+      },
+      "tactics": {
+        "放狗": 0.35,
+        "地推": 0.3,
+        "消耗": 0.35
+      },
+      "mobility": 0.75,
+      "flank": 0.5,
+      "independence": 0.6,
+      "team_utility": 0.25,
+      "labels": [
+        "机动枪线",
+        "精准终结",
+        "混合射击"
+      ],
+      "rationale": "电磁炮积累能量后提供强力充能射击，机动滑铲可转点；枪线风格与常规弹道主射击分别保留权重。",
+      "source": "res/query_tool.json#heroConfig/0000000001EC.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/sojourn/",
+      "evidence": [
+        {
+          "skill": "机动滑铲",
+          "description": "贴地滑铲猛冲 可提前高高跳起结束滑铲"
+        },
+        {
+          "skill": "干扰弹",
+          "description": "发射一道能量冲击波 对其中的敌人造成伤害"
+        },
+        {
+          "skill": "电磁炮",
+          "description": "快速射击子弹 命中后产生能量"
+        },
+        {
+          "skill": "充能射击",
+          "description": "消耗存储的能量 射出可以穿透敌人的强力一击"
+        },
+        {
+          "skill": "机体超频",
+          "description": "电磁炮在短时间内自动充能"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "艾什": {
+      "name": "艾什",
+      "hero_id": "207165582859043328",
+      "config_guid": "000000000200.075",
+      "slug": "ashe",
+      "aliases": [
+        "0x02E0000000000200"
+      ],
+      "role": "输出",
+      "subrole": "神准",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 1.0,
+        "短枪": 0.0,
+        "其他": 0.0
+      },
+      "tactics": {
+        "放狗": 0.1,
+        "地推": 0.2,
+        "消耗": 0.7
+      },
+      "mobility": 0.4,
+      "flank": 0.4,
+      "independence": 0.45,
+      "team_utility": 0.3,
+      "labels": [
+        "中远程长枪",
+        "范围火力",
+        "高台调整"
+      ],
+      "rationale": "毒蛇瞄准射击提供远距枪线，延时雷管施加范围压力，短筒猎枪提供短位移和击退。",
+      "source": "res/query_tool.json#heroConfig/000000000200.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/ashe/",
+      "evidence": [
+        {
+          "skill": "短筒猎枪",
+          "description": "轰击你前方的敌人，同时使你自己后退"
+        },
+        {
+          "skill": "召唤鲍勃",
+          "description": "派出鲍勃向前冲锋，将敌人击飞到空中，然后用手臂上的火炮攻击他们"
+        },
+        {
+          "skill": "延时雷管",
+          "description": "投出一捆炸药，在短暂的延迟后爆炸，或者射击炸药立即将其引爆"
+        },
+        {
+          "skill": "毒蛇",
+          "description": "半自动步枪"
+        },
+        {
+          "skill": "瞄准射击",
+          "description": "长按可以开镜瞄准，提高射击的伤害与精度，但射速会变慢"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "回声": {
+      "name": "回声",
+      "hero_id": "207165582859043334",
+      "config_guid": "000000000206.075",
+      "slug": "echo",
+      "aliases": [
+        "0x02E0000000000206"
+      ],
+      "role": "输出",
+      "subrole": "侦察",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 0.0,
+        "其他": 1.0
+      },
+      "tactics": {
+        "放狗": 0.65,
+        "地推": 0.05,
+        "消耗": 0.3
+      },
+      "mobility": 0.95,
+      "flank": 0.75,
+      "independence": 0.65,
+      "team_utility": 0.25,
+      "labels": [
+        "空域机动",
+        "爆发飞行物",
+        "低血量追击"
+      ],
+      "rationale": "飞行和滑翔支持立体角度，黏性炸弹配合聚焦光线威胁低生命目标，三角射击属于飞行物风格。",
+      "source": "res/query_tool.json#heroConfig/000000000206.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/echo/",
+      "evidence": [
+        {
+          "skill": "黏性炸弹",
+          "description": "发射出一连串黏性炸弹，一段时间之后爆炸"
+        },
+        {
+          "skill": "人格复制",
+          "description": "选择一个英雄，成为其复制。技能持续期间该目标无法更换英雄"
+        },
+        {
+          "skill": "三角射击",
+          "description": "同时发射三发子弹，以三角形分布"
+        },
+        {
+          "skill": "飞行",
+          "description": "迅速向前飞行，然后可以在一小段时间内自由飞行"
+        },
+        {
+          "skill": "聚焦光线",
+          "description": "引导一道光束，持续数秒时间，对生命值低于一半的敌人造成大量伤害"
+        },
+        {
+          "skill": "滑翔",
+          "description": "下落时按下跳跃键可以滑翔"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "巴蒂斯特": {
+      "name": "巴蒂斯特",
+      "hero_id": "207165582859043361",
+      "config_guid": "000000000221.075",
+      "slug": "baptiste",
+      "aliases": [
+        "0x02E0000000000221"
+      ],
+      "role": "支援",
+      "subrole": "战术",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.1,
+        "地推": 0.5,
+        "消耗": 0.4
+      },
+      "mobility": 0.45,
+      "flank": 0.25,
+      "independence": 0.7,
+      "team_utility": 0.95,
+      "labels": [
+        "群体治疗",
+        "保命装置",
+        "枪线增幅"
+      ],
+      "rationale": "维生力场保护队友，生化榴弹枪和增幅矩阵兼顾火力与治疗，动力战靴调整高低位置。",
+      "source": "res/query_tool.json#heroConfig/000000000221.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/baptiste/",
+      "evidence": [
+        {
+          "skill": "愈合冲击",
+          "description": "激活后立即治疗自己和周围盟友，并额外提供持续治疗效果 对生命值低于一半的目标，瞬间治疗量翻倍"
+        },
+        {
+          "skill": "维生力场",
+          "description": "投出力场装置，使周围盟友不会死亡。此装置可被摧毁"
+        },
+        {
+          "skill": "增幅矩阵",
+          "description": "投出一面矩阵，友方弹药穿过矩阵后伤害和治疗翻倍"
+        },
+        {
+          "skill": "生化榴弹枪",
+          "description": "三连发冲锋枪"
+        },
+        {
+          "skill": "辅助攻击模式",
+          "description": "发射医疗飞弹，治疗落点周围的盟友"
+        },
+        {
+          "skill": "动力战靴",
+          "description": "按住下蹲键可以跳得更高"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "雾子": {
+      "name": "雾子",
+      "hero_id": "207165582859043377",
+      "config_guid": "000000000231.075",
+      "slug": "kiriko",
+      "aliases": [
+        "0x02E0000000000231"
+      ],
+      "role": "支援",
+      "subrole": "医疗",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.65,
+        "地推": 0.25,
+        "消耗": 0.1
+      },
+      "mobility": 0.85,
+      "flank": 0.45,
+      "independence": 0.75,
+      "team_utility": 0.95,
+      "labels": [
+        "机动支援",
+        "净化保护",
+        "节奏增益"
+      ],
+      "rationale": "瞬和攀支持跟进与转移，铃提供净化和短暂无敌，狐强化队友节奏，苦无补充远距火力。",
+      "source": "res/query_tool.json#heroConfig/000000000231.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/kiriko/",
+      "evidence": [
+        {
+          "skill": "狐",
+          "description": "召唤一只灵狐冲向前方，为置身路径中的盟友提高移动速度、攻击速度和技能冷却速度"
+        },
+        {
+          "skill": "符",
+          "description": "引导一串能自动飞向目标 盟友的治疗护身符"
+        },
+        {
+          "skill": "锥",
+          "description": "投出能远距离攻击的苦无"
+        },
+        {
+          "skill": "瞬",
+          "description": "瞬移至一名盟友身旁"
+        },
+        {
+          "skill": "铃",
+          "description": "投出一枚护身铃铛，使盟友在短时间内 变为无敌状态，并净化大部分负面效果"
+        },
+        {
+          "skill": "攀",
+          "description": "跃上并沿着墙壁攀爬"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "渣客女王": {
+      "name": "渣客女王",
+      "hero_id": "207165582859043382",
+      "config_guid": "000000000236.075",
+      "slug": "junker-queen",
+      "aliases": [
+        "0x02E0000000000236"
+      ],
+      "role": "重装",
+      "subrole": "铁壁",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.15,
+        "地推": 0.8,
+        "消耗": 0.05
+      },
+      "mobility": 0.45,
+      "flank": 0.2,
+      "independence": 0.8,
+      "team_utility": 0.65,
+      "labels": [
+        "近身推进",
+        "团队加速",
+        "创伤续战"
+      ],
+      "rationale": "散弹枪和血斩偏近距离，命令怒吼为盟友提供生命与加速，创伤治疗自身支持续战。",
+      "source": "res/query_tool.json#heroConfig/000000000236.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/junker-queen/",
+      "evidence": [
+        {
+          "skill": "锯齿利刃（格雷西）",
+          "description": "主动：投掷飞刀。再次使用可将其召回， 并拉回被穿刺的敌人 被动：快速近身攻击或投掷会创伤 敌人，造成持续伤害"
+        },
+        {
+          "skill": "命令怒吼",
+          "description": "为你和盟友提供临时生命值 并提高移动速度"
+        },
+        {
+          "skill": "散弹枪",
+          "description": "泵动式霰弹枪"
+        },
+        {
+          "skill": "血斩",
+          "description": "创伤前方的所有敌人，造成持续伤害 每命中一名敌人都会缩短冷却时间"
+        },
+        {
+          "skill": "轰翻天",
+          "description": "向前冲锋。创伤敌人，造成持续伤害 并使其无法受到治疗"
+        },
+        {
+          "skill": "狂血奔涌",
+          "description": "创伤效果的持续伤害会治疗你"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "西格玛": {
+      "name": "西格玛",
+      "hero_id": "207165582859043387",
+      "config_guid": "00000000023B.075",
+      "slug": "sigma",
+      "aliases": [
+        "0x02E000000000023B"
+      ],
+      "role": "重装",
+      "subrole": "铁壁",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.05,
+        "地推": 0.15,
+        "消耗": 0.8
+      },
+      "mobility": 0.05,
+      "flank": 0.15,
+      "independence": 0.75,
+      "team_utility": 0.8,
+      "labels": [
+        "中距消耗",
+        "灵活屏障",
+        "射弹吸收"
+      ],
+      "rationale": "超能之球提供中距离区域火力，实验屏障与动能俘获支持阵地交换，质量吸附控制接近目标。",
+      "source": "res/query_tool.json#heroConfig/00000000023B.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/sigma/",
+      "evidence": [
+        {
+          "skill": "动能俘获",
+          "description": "阻挡从前方飞向你的子弹，并将它们转化成额外生命值"
+        },
+        {
+          "skill": "质量吸附",
+          "description": "汇聚一团物质投向敌人，将对方击倒"
+        },
+        {
+          "skill": "引力乱流",
+          "description": "操控引力，将敌人先举到空中然后砸向地面"
+        },
+        {
+          "skill": "超能之球",
+          "description": "发射两团引力电荷，在一小段时间后爆炸，造成范围伤害"
+        },
+        {
+          "skill": "实验屏障",
+          "description": "按下按键可以制造出悬浮的屏障向外飞出，松开按键使其停止。再次按下会将屏障召回到你身边"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "拉玛刹": {
+      "name": "拉玛刹",
+      "hero_id": "207165582859043469",
+      "config_guid": "00000000028D.075",
+      "slug": "ramattra",
+      "aliases": [
+        "0x02E000000000028D"
+      ],
+      "role": "重装",
+      "subrole": "铁壁",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.05,
+        "地推": 0.65,
+        "消耗": 0.3
+      },
+      "mobility": 0.2,
+      "flank": 0.1,
+      "independence": 0.7,
+      "team_utility": 0.7,
+      "labels": [
+        "双形态推进",
+        "近战压迫",
+        "屏障控制"
+      ],
+      "rationale": "虚空加速器与屏障支持远端交换，天罚形态切换为近战推进，吞噬漩涡限制敌人移动。",
+      "source": "res/query_tool.json#heroConfig/00000000028D.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/ramattra/",
+      "evidence": [
+        {
+          "skill": "虚空加速器（智械形态）",
+          "description": "发射一串粒子"
+        },
+        {
+          "skill": "猛拳（天罚形态）",
+          "description": "出拳捶击，每次挥拳都会产生一道贯穿能量波"
+        },
+        {
+          "skill": "虚空屏障（智械形态）",
+          "description": "在目标位置制造一面屏障"
+        },
+        {
+          "skill": "天罚形态",
+          "description": "变为天罚形态，改变攻击方式并获得额外护甲"
+        },
+        {
+          "skill": "铁臂（天罚形态）",
+          "description": "大幅降低来自前方的伤害并降低自身移动速度"
+        },
+        {
+          "skill": "吞噬漩涡",
+          "description": "发射一枚能量球，在地面上爆炸，减速敌人并将其拽向地面。再次激活可提前引爆"
+        },
+        {
+          "skill": "诛",
+          "description": "进入天罚形态并生成致命的粒子簇，痛击周围的敌人，只要敌人受到此效果伤害，效果持续时间就会延长"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "生命之梭": {
+      "name": "生命之梭",
+      "hero_id": "207165582859043473",
+      "config_guid": "000000000291.075",
+      "slug": "lifeweaver",
+      "aliases": [
+        "0x02E0000000000291"
+      ],
+      "role": "支援",
+      "subrole": "医疗",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.25,
+        "地推": 0.25,
+        "消耗": 0.5
+      },
+      "mobility": 0.4,
+      "flank": 0.1,
+      "independence": 0.6,
+      "team_utility": 1.0,
+      "labels": [
+        "拉人救援",
+        "地形支援",
+        "持续治疗"
+      ],
+      "rationale": "生命之握直接救援盟友，花瓣平台改变站位，愈疗灵花与生命之树提供治疗，回春疾行自保。",
+      "source": "res/query_tool.json#heroConfig/000000000291.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/lifeweaver/",
+      "evidence": [
+        {
+          "skill": "愈疗灵花",
+          "description": "长按充能治疗冲击， 松开后治疗目标盟友 不使用时会缓慢被动充能"
+        },
+        {
+          "skill": "棘刺箭雨",
+          "description": "快速发射成对棘刺"
+        },
+        {
+          "skill": "花瓣平台",
+          "description": "扔出一个平台，踩上后会向上升起 未使用时会归于原位"
+        },
+        {
+          "skill": "回春疾行",
+          "description": "向行进方向疾冲，并轻微治疗自己"
+        },
+        {
+          "skill": "生命之握",
+          "description": "把一名盟友拉到你的位置， 在飞行过程中提供保护"
+        },
+        {
+          "skill": "生命之树",
+          "description": "种植一棵树，发芽时立即治疗盟友， 树木存活时会持续产生周期性治疗"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "毛加": {
+      "name": "毛加",
+      "hero_id": "207165582859043594",
+      "config_guid": "00000000030A.075",
+      "slug": "mauga",
+      "aliases": [
+        "0x02E000000000030A"
+      ],
+      "role": "重装",
+      "subrole": "斗士",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.05,
+        "地推": 0.85,
+        "消耗": 0.1
+      },
+      "mobility": 0.4,
+      "flank": 0.1,
+      "independence": 0.85,
+      "team_utility": 0.65,
+      "labels": [
+        "近距压制",
+        "冲撞推进",
+        "群体续战"
+      ],
+      "rationale": "双链式机枪与点燃暴击支持正面火力，心脏过载支援周围盟友续战，蛮力冲撞用来接敌。",
+      "source": "res/query_tool.json#heroConfig/00000000030A.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/mauga/",
+      "evidence": [
+        {
+          "skill": "蛮力冲撞",
+          "description": "向前冲锋，重踏击飞敌人 冲锋时不可阻挡"
+        },
+        {
+          "skill": "心脏过载",
+          "description": "获得受伤减免，周围盟友造成伤害会为其恢复生命值"
+        },
+        {
+          "skill": "笼中斗",
+          "description": "部署一面屏障将自己和敌人困在其中"
+        },
+        {
+          "skill": "燃火链式机枪（老枪）",
+          "description": "自动武器，多次命中可点燃敌人"
+        },
+        {
+          "skill": "爆烈链式机枪（恰恰）",
+          "description": "自动武器，可对被点燃的敌人造成暴击伤害"
+        },
+        {
+          "skill": "狂战士",
+          "description": "造成暴击伤害会获得临时生命值"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "伊拉锐": {
+      "name": "伊拉锐",
+      "hero_id": "207165582859043612",
+      "config_guid": "00000000031C.075",
+      "slug": "illari",
+      "aliases": [
+        "0x02E000000000031C"
+      ],
+      "role": "支援",
+      "subrole": "生存",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.1,
+        "地推": 0.2,
+        "消耗": 0.7
+      },
+      "mobility": 0.35,
+      "flank": 0.45,
+      "independence": 0.75,
+      "team_utility": 0.65,
+      "labels": [
+        "远程精准",
+        "部署治疗",
+        "角度火力"
+      ],
+      "rationale": "阳焰步枪提供远程精准火力，治疗光塔维持区域恢复，烈日冲击支持换位与自保。",
+      "source": "res/query_tool.json#heroConfig/00000000031C.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/illari/",
+      "evidence": [
+        {
+          "skill": "烈日冲击",
+          "description": "向移动方向弹射而出，同时击退敌人。按住跳跃键弹射高度更高"
+        },
+        {
+          "skill": "治疗光塔",
+          "description": "部署一个可以治疗盟友的光塔"
+        },
+        {
+          "skill": "桎梏灼日",
+          "description": "发射一颗会爆炸的太阳能量球 被击中的敌人会减速，并在受到大量伤害后爆炸"
+        },
+        {
+          "skill": "阳焰步枪",
+          "description": "远距离自动充能步枪"
+        },
+        {
+          "skill": "辅助攻击模式",
+          "description": "消耗太阳能的中距离治疗光束"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "弗蕾娅": {
+      "name": "弗蕾娅",
+      "hero_id": "207165582859043626",
+      "config_guid": "00000000032A.075",
+      "slug": "freja",
+      "aliases": [
+        "0x02E000000000032A"
+      ],
+      "role": "输出",
+      "subrole": "侦察",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 0.0,
+        "其他": 1.0
+      },
+      "tactics": {
+        "放狗": 0.4,
+        "地推": 0.1,
+        "消耗": 0.5
+      },
+      "mobility": 0.85,
+      "flank": 0.7,
+      "independence": 0.65,
+      "team_utility": 0.3,
+      "labels": [
+        "高机动",
+        "爆炸弩箭",
+        "空中角度"
+      ],
+      "rationale": "疾冲刷新瞄准射击，上升气流支持高空角度，速射弩与爆炸弩箭偏飞行物火力。",
+      "source": "res/query_tool.json#heroConfig/00000000032A.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/freja/",
+      "evidence": [
+        {
+          "skill": "速射弩",
+          "description": "快速发射自动弩箭"
+        },
+        {
+          "skill": "瞄准射击",
+          "description": "减缓动势仔细瞄准，射出一支高速爆炸弩箭 使用疾冲可刷新瞄准射击"
+        },
+        {
+          "skill": "疾冲",
+          "description": "向移动方向疾冲并刷新瞄准射击"
+        },
+        {
+          "skill": "上升气流",
+          "description": "乘风向上飞起"
+        },
+        {
+          "skill": "流星索",
+          "description": "发射一枚爆炸流星索，击中敌人后将其束缚并拖拽周围的其他敌人"
+        },
+        {
+          "skill": "赏金狩猎",
+          "description": "每造成3次最后一击会额外获得终极技能充能"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "探奇": {
+      "name": "探奇",
+      "hero_id": "207165582859043627",
+      "config_guid": "00000000032B.075",
+      "slug": "venture",
+      "aliases": [
+        "0x02E000000000032B"
+      ],
+      "role": "输出",
+      "subrole": "奇袭",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 0.0,
+        "其他": 1.0
+      },
+      "tactics": {
+        "放狗": 0.7,
+        "地推": 0.28,
+        "消耗": 0.02
+      },
+      "mobility": 0.85,
+      "flank": 0.75,
+      "independence": 0.85,
+      "team_utility": 0.3,
+      "labels": [
+        "钻地切入",
+        "近距爆发",
+        "护盾自保"
+      ],
+      "rationale": "钻地提供无敌接近，钻头突刺用于位移和击退，智能挖掘钻偏短距离爆炸，技能产生临时护盾。",
+      "source": "res/query_tool.json#heroConfig/00000000032B.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/venture/",
+      "evidence": [
+        {
+          "skill": "智能挖掘钻",
+          "description": "发射一枚震波弹，前进一小段距离后爆炸"
+        },
+        {
+          "skill": "钻地",
+          "description": "钻入地下，变为无敌状态 按下或长按 %1$s 钻出并伤害敌人"
+        },
+        {
+          "skill": "钻头突刺",
+          "description": "在地上或地下向前突刺击退敌人 钻地激活时加快冷却速度"
+        },
+        {
+          "skill": "地壳震击",
+          "description": "发射能造成伤害的冲击波"
+        },
+        {
+          "skill": "猛钻",
+          "description": "快速近身攻击造成更高伤害"
+        },
+        {
+          "skill": "探险家的决心",
+          "description": "使用技能会提供临时护盾"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "骇灾": {
+      "name": "骇灾",
+      "hero_id": "207165582859043682",
+      "config_guid": "000000000362.075",
+      "slug": "hazard",
+      "aliases": [
+        "0x02E0000000000362"
+      ],
+      "role": "重装",
+      "subrole": "先锋",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.75,
+        "地推": 0.23,
+        "消耗": 0.02
+      },
+      "mobility": 0.85,
+      "flank": 0.6,
+      "independence": 0.75,
+      "team_utility": 0.65,
+      "labels": [
+        "跃入切割",
+        "地形封锁",
+        "前向格挡"
+      ],
+      "rationale": "狂跃与翻越支持接近，尖刺墙分割战场，尖刺护体减伤并反击，千针雨提供定身。",
+      "source": "res/query_tool.json#heroConfig/000000000362.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/hazard/",
+      "evidence": [
+        {
+          "skill": "千针雨",
+          "description": "降下一片尖刺雨，定身敌人"
+        },
+        {
+          "skill": "骨刺",
+          "description": "发射一簇尖刺"
+        },
+        {
+          "skill": "尖刺护体",
+          "description": "格挡前方的攻击，向附近敌人发射追踪尖刺 激活时降低受到的伤害并恢复弹药"
+        },
+        {
+          "skill": "狂跃",
+          "description": "跃向前方。再次激活可劈砍敌人并将其击退"
+        },
+        {
+          "skill": "尖刺墙",
+          "description": "发射一堵尖刺墙，对附近的敌人造成伤害并将其击退"
+        },
+        {
+          "skill": "翻越",
+          "description": "攀爬矮墙并扒住边缘登上"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "朱诺": {
+      "name": "朱诺",
+      "hero_id": "207165582859043685",
+      "config_guid": "000000000365.075",
+      "slug": "juno",
+      "aliases": [
+        "0x02E0000000000365"
+      ],
+      "role": "支援",
+      "subrole": "生存",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.4,
+        "地推": 0.5,
+        "消耗": 0.1
+      },
+      "mobility": 0.85,
+      "flank": 0.2,
+      "independence": 0.6,
+      "team_utility": 0.95,
+      "labels": [
+        "团队加速",
+        "机动治疗",
+        "群体增益"
+      ],
+      "rationale": "滑翔推进和火星套靴支持机动，超能环域帮助队友转移，轨道射线同时治疗和增伤。",
+      "source": "res/query_tool.json#heroConfig/000000000365.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/juno/",
+      "evidence": [
+        {
+          "skill": "医疗冲击枪",
+          "description": "可以治疗盟友并对敌人造成伤害的连发武器"
+        },
+        {
+          "skill": "脉冲星飞雷",
+          "description": "按下 %1$s 锁定目标，随后按下 %2$s 发射追踪飞雷 持续治疗盟友并对敌人造成伤害"
+        },
+        {
+          "skill": "滑翔推进",
+          "description": "提高移动速度并沿水平方向滑翔"
+        },
+        {
+          "skill": "超能环域",
+          "description": "部署一道环域 盟友穿过环域后，移动速度提升"
+        },
+        {
+          "skill": "轨道射线",
+          "description": "召唤一道射线向前移动 治疗盟友并提高其造成的伤害"
+        },
+        {
+          "skill": "火星套靴",
+          "description": "在空中时，按下 %1$s 可以二段跳 按住 %1$s 可以悬浮在空中"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "无漾": {
+      "name": "无漾",
+      "hero_id": "207165582859043779",
+      "config_guid": "0000000003C3.075",
+      "slug": "wuyang",
+      "aliases": [
+        "0x02E00000000003C3"
+      ],
+      "role": "支援",
+      "subrole": "生存",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.25,
+        "地推": 0.45,
+        "消耗": 0.3
+      },
+      "mobility": 0.65,
+      "flank": 0.25,
+      "independence": 0.65,
+      "team_utility": 0.95,
+      "labels": [
+        "持续治疗",
+        "波浪保护",
+        "机动支援"
+      ],
+      "rationale": "养神泉维持单体恢复，翻江浪增疗并击退，飞流步提升机动，惊涛破保护盟友或自身。",
+      "source": "res/query_tool.json#heroConfig/0000000003C3.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/wuyang/",
+      "evidence": [
+        {
+          "skill": "玄武杖",
+          "description": "发射一颗伤害性水珠 按住可控制水珠轨迹并强化其爆炸"
+        },
+        {
+          "skill": "翻江浪",
+          "description": "劈出一道向前的波浪，提高盟友 受到的治疗量并击退敌人"
+        },
+        {
+          "skill": "飞流步",
+          "description": "乘波而行，提高移动速度和跳跃高度"
+        },
+        {
+          "skill": "养神泉",
+          "description": "用一股可以被动治疗的泉水环绕一名盟友。对目标按住会消耗资源并手动快速治疗"
+        },
+        {
+          "skill": "惊涛破",
+          "description": "水流聚合成球，保护一名盟友或自身，一小段时间后水球爆炸，击倒敌人并为受保护的目标提供大量治疗"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "安燃": {
+      "name": "安燃",
+      "hero_id": "207165582859044061",
+      "config_guid": "0000000004DD.075",
+      "slug": "anran",
+      "aliases": [
+        "0x02E00000000004DD"
+      ],
+      "role": "输出",
+      "subrole": "奇袭",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 0.0,
+        "其他": 1.0
+      },
+      "tactics": {
+        "放狗": 0.65,
+        "地推": 0.33,
+        "消耗": 0.02
+      },
+      "mobility": 0.85,
+      "flank": 0.75,
+      "independence": 0.9,
+      "team_utility": 0.25,
+      "labels": [
+        "近身燃烧",
+        "突进切入",
+        "自保恢复"
+      ],
+      "rationale": "怒炎冲和朱羽焚支持突进，熠闪舞闪避伤害并按命中自疗，朱雀扇与煽火风构成近身燃烧连招。",
+      "source": "res/query_tool.json#heroConfig/0000000004DD.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/anran/",
+      "evidence": [
+        {
+          "skill": "朱雀扇",
+          "description": "能扇出炽烈火焰的折扇"
+        },
+        {
+          "skill": "煽火风",
+          "description": "能强化燃烧伤害的灼热狂风"
+        },
+        {
+          "skill": "怒炎冲",
+          "description": "向前疾行，对击中的敌人造成伤害"
+        },
+        {
+          "skill": "熠闪舞",
+          "description": "闪避所有伤害并打击周围敌人，每击中一名敌人都会治疗自身"
+        },
+        {
+          "skill": "朱羽焚",
+          "description": "向前猛冲，击中时爆炸并立即点燃敌人"
+        },
+        {
+          "skill": "朱魂返",
+          "description": "阵亡时，在炽烈的爆炸中复生"
+        },
+        {
+          "skill": "焚身焰",
+          "description": "用火焰攻击命中敌人可将其点燃"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "埃姆雷": {
+      "name": "埃姆雷",
+      "hero_id": "207165582859044056",
+      "config_guid": "0000000004D8.075",
+      "slug": "emre",
+      "aliases": [
+        "0x02E00000000004D8"
+      ],
+      "role": "输出",
+      "subrole": "专业",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.85,
+        "短枪": 0.0,
+        "其他": 0.15
+      },
+      "tactics": {
+        "放狗": 0.15,
+        "地推": 0.3,
+        "消耗": 0.55
+      },
+      "mobility": 0.45,
+      "flank": 0.45,
+      "independence": 0.85,
+      "team_utility": 0.2,
+      "labels": [
+        "精准长枪",
+        "自疗续战",
+        "双武器风格"
+      ],
+      "rationale": "连发步枪可开镜扩大衰减射程，虹吸冲击枪提供吸血与机动，机变体征强化自身恢复。",
+      "source": "res/query_tool.json#heroConfig/0000000004D8.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/emre/",
+      "evidence": [
+        {
+          "skill": "合成连发步枪",
+          "description": "三连发武器"
+        },
+        {
+          "skill": "瞄准射击",
+          "description": "长按可以开镜瞄准，提高射击精度，扩大衰减射程"
+        },
+        {
+          "skill": "虹吸冲击枪",
+          "description": "临时使用装配生命汲取爆炸子弹的半自动手枪 使用时提高移动速度和跳跃高度"
+        },
+        {
+          "skill": "赛博手雷",
+          "description": "扔出一枚手雷，弹跳后会在短时间内引爆"
+        },
+        {
+          "skill": "覆盖协议",
+          "description": "启动覆盖程序，将你变为人形兵器"
+        },
+        {
+          "skill": "机变体征",
+          "description": "被动生命值恢复激活速度加快，并在激活时立即恢复30点生命值"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "金驭": {
+      "name": "金驭",
+      "hero_id": "207165582859044036",
+      "config_guid": "0000000004C4.075",
+      "slug": "domina",
+      "aliases": [
+        "0x02E00000000004C4"
+      ],
+      "role": "重装",
+      "subrole": "铁壁",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.05,
+        "地推": 0.35,
+        "消耗": 0.6
+      },
+      "mobility": 0.1,
+      "flank": 0.15,
+      "independence": 0.75,
+      "team_utility": 0.85,
+      "labels": [
+        "中距光束",
+        "分段屏障",
+        "区域控制"
+      ],
+      "rationale": "光子马格南提供中距离光束，屏障阵列支援阵地，音速斥力场与全景牢笼控制空间，伤害可恢复护盾。",
+      "source": "res/query_tool.json#heroConfig/0000000004C4.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/domina/",
+      "evidence": [
+        {
+          "skill": "光子马格南",
+          "description": "能汇聚为强力一击的中距离光束"
+        },
+        {
+          "skill": "屏障阵列",
+          "description": "构造一道分段式屏障"
+        },
+        {
+          "skill": "音速斥力场",
+          "description": "击退敌人，若击退至墙面还可将其击晕"
+        },
+        {
+          "skill": "爆能水晶",
+          "description": "投出一枚爆能水晶，再次激活即可引爆"
+        },
+        {
+          "skill": "全景牢笼",
+          "description": "发射一道高强度光束屏障囚禁敌人，消失时会引爆"
+        },
+        {
+          "skill": "护盾重构",
+          "description": "技能造成伤害会恢复护盾"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "瑞稀": {
+      "name": "瑞稀",
+      "hero_id": "207165582859044067",
+      "config_guid": "0000000004E3.075",
+      "slug": "mizuki",
+      "aliases": [
+        "0x02E00000000004E3"
+      ],
+      "role": "支援",
+      "subrole": "生存",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.25,
+        "地推": 0.6,
+        "消耗": 0.15
+      },
+      "mobility": 0.65,
+      "flank": 0.3,
+      "independence": 0.7,
+      "team_utility": 0.95,
+      "labels": [
+        "范围治疗",
+        "锁链控制",
+        "返回机动"
+      ],
+      "rationale": "疗魂斗笠与安魂灵气支援周围队友，缚魂锁链限制敌人，替魂纸人支持进入后返回，护魂结界吸收射弹。",
+      "source": "res/query_tool.json#heroConfig/0000000004E3.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/mizuki/",
+      "evidence": [
+        {
+          "skill": "御魂镰刃",
+          "description": "扔出能对敌人造成伤害的弹跳镰刃"
+        },
+        {
+          "skill": "疗魂斗笠",
+          "description": "扔出能在盟友间弹跳的斗笠并为其治疗"
+        },
+        {
+          "skill": "缚魂锁链",
+          "description": "扔出锁链，限制一名敌人的移动"
+        },
+        {
+          "skill": "替魂纸人",
+          "description": "向前一跃，加快移动速度。再次激活会瞬移回原地"
+        },
+        {
+          "skill": "护魂结界",
+          "description": "生成一道结界，能治疗位于其中的盟友并吸收穿过结界的敌方射弹"
+        },
+        {
+          "skill": "安魂灵气",
+          "description": "治疗周围盟友。对他人造成伤害或治疗时效果会变得越来越强"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "飞天猫": {
+      "name": "飞天猫",
+      "hero_id": "207165582859044118",
+      "config_guid": "000000000516.075",
+      "slug": "jetpackcat",
+      "aliases": [
+        "0x02E0000000000516"
+      ],
+      "role": "支援",
+      "subrole": "战术",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.65,
+        "地推": 0.1,
+        "消耗": 0.25
+      },
+      "mobility": 1.0,
+      "flank": 0.4,
+      "independence": 0.65,
+      "team_utility": 1.0,
+      "labels": [
+        "永久飞行",
+        "运输救援",
+        "空域支援"
+      ],
+      "rationale": "喷气背包提供永久飞行，救生索运输并治疗盟友，呼噜噜范围治疗与击退，猫猫劫提供抓取控制。",
+      "source": "res/query_tool.json#heroConfig/000000000516.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/jetpackcat/",
+      "evidence": [
+        {
+          "skill": "生物猫爪弹",
+          "description": "可治疗盟友并对敌人造成伤害的中距离扩散子弹"
+        },
+        {
+          "skill": "咻咻飞",
+          "description": "沿移动方向加速。运输其他玩家时减缓燃料恢复速度"
+        },
+        {
+          "skill": "救生索",
+          "description": "切换为运输模式，盟友可抓住救生索任你拖拽。加快移动速度并治疗被拖拽的盟友"
+        },
+        {
+          "skill": "呼噜噜",
+          "description": "脉冲式范围治疗，频率随时间提高。激活时击退周围敌人"
+        },
+        {
+          "skill": "猫猫劫",
+          "description": "冲向地面位置，击倒敌人并拴锁离你最近的敌人"
+        },
+        {
+          "skill": "喷气背包",
+          "description": "永久飞行"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "斩仇": {
+      "name": "斩仇",
+      "hero_id": "207165582859043954",
+      "config_guid": "000000000472.075",
+      "slug": "vendetta",
+      "aliases": [
+        "0x02E0000000000472"
+      ],
+      "role": "输出",
+      "subrole": "奇袭",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 0.0,
+        "其他": 1.0
+      },
+      "tactics": {
+        "放狗": 0.6,
+        "地推": 0.38,
+        "消耗": 0.02
+      },
+      "mobility": 0.8,
+      "flank": 0.65,
+      "independence": 0.7,
+      "team_utility": 0.3,
+      "labels": [
+        "近战连击",
+        "机动切入",
+        "招架自保"
+      ],
+      "rationale": "帕拉蒂尼之牙提供近战连击，旋风疾步与飞空斩击接近目标，招架姿态减伤并格挡近身攻击。",
+      "source": "res/query_tool.json#heroConfig/000000000472.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/vendetta/",
+      "evidence": [
+        {
+          "skill": "旋风疾步",
+          "description": "向前猛冲并回旋劈斩"
+        },
+        {
+          "skill": "飞空斩击",
+          "description": "向面朝方向扔出大剑，接着飞到剑旁"
+        },
+        {
+          "skill": "帕拉蒂尼之牙",
+          "description": "高强度光束巨剑 连击会以一记势大力沉的竖直劈斩收尾"
+        },
+        {
+          "skill": "招架姿态",
+          "description": "举剑格挡，降低前方受到的伤害并招架近身攻击。格挡伤害会消耗能量"
+        },
+        {
+          "skill": "锋锐剑气",
+          "description": "可在招架姿态激活时使用 消耗能量，发射一道宽幅能量波"
+        },
+        {
+          "skill": "斩地巨剑",
+          "description": "蓄势猛劈，击破大部分防御，对前方的敌人造成巨量伤害"
+        },
+        {
+          "skill": "越战越勇",
+          "description": "斩击敌人会加快移动速度和攻击速度"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "西拉": {
+      "name": "西拉",
+      "hero_id": "207165582859044050",
+      "config_guid": "0000000004D2.075",
+      "slug": "sierra",
+      "aliases": [
+        "0x02E00000000004D2"
+      ],
+      "role": "输出",
+      "subrole": "侦察",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 1.0,
+        "短枪": 0.0,
+        "其他": 0.0
+      },
+      "tactics": {
+        "放狗": 0.3,
+        "地推": 0.25,
+        "消耗": 0.45
+      },
+      "mobility": 0.65,
+      "flank": 0.55,
+      "independence": 0.55,
+      "team_utility": 0.3,
+      "labels": [
+        "持续枪线",
+        "追踪标记",
+        "高台机动"
+      ],
+      "rationale": "螺旋步枪持续开火提高精度，追踪弹锁定目标，锚点无人机支持抓钩换位，震地手雷施加区域压力。",
+      "source": "res/query_tool.json#heroConfig/0000000004D2.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/sierra/",
+      "evidence": [
+        {
+          "skill": "螺旋步枪",
+          "description": "自动突击武器。螺旋射击弹道，持续开火时射击精度逐渐提高"
+        },
+        {
+          "skill": "追踪弹",
+          "description": "标记一名敌人。螺旋步枪的子弹会自动追踪被标记敌人"
+        },
+        {
+          "skill": "锚点无人机",
+          "description": "发射一架锚点无人机。再次激活可向其发射抓钩"
+        },
+        {
+          "skill": "震地手雷",
+          "description": "投出一枚炸弹，击中地形时生成一道冲击波"
+        },
+        {
+          "skill": "开路先锋",
+          "description": "部署一架无人机，向前飞行并空投炸弹"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "死怨": {
+      "name": "死怨",
+      "hero_id": "207165582859044140",
+      "config_guid": "00000000052C.075",
+      "slug": "shion",
+      "aliases": [
+        "0x02E000000000052C"
+      ],
+      "role": "输出",
+      "subrole": "奇袭",
+      "source_role_type": "dps",
+      "source_class": "Damage",
+      "weapon": {
+        "长枪": 0.0,
+        "短枪": 1.0,
+        "其他": 0.0
+      },
+      "tactics": {
+        "放狗": 0.75,
+        "地推": 0.22,
+        "消耗": 0.03
+      },
+      "mobility": 0.95,
+      "flank": 0.8,
+      "independence": 0.75,
+      "team_utility": 0.2,
+      "labels": [
+        "双枪突击",
+        "高速切入",
+        "临时生命"
+      ],
+      "rationale": "牙罗双枪提供速射火力，机动闪避给予位移与过量生命，纵情狂飙和杀戮狂宴强化连续突进。",
+      "source": "res/query_tool.json#heroConfig/00000000052C.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/shion/",
+      "evidence": [
+        {
+          "skill": "牙罗双枪",
+          "description": "速射幻灵手枪"
+        },
+        {
+          "skill": "交叉枪决",
+          "description": "发射X形的齐射，长按可收紧散布"
+        },
+        {
+          "skill": "机动闪避",
+          "description": "疾冲并在短时间内获得过量生命值"
+        },
+        {
+          "skill": "纵情狂飙",
+          "description": "让摩托引擎狂飙。再次激活可跳车并向前发射摩托"
+        },
+        {
+          "skill": "杀戮狂宴",
+          "description": "尽情倾泻火力并向前冲刺3次"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "D.Mon": {
+      "name": "D.Mon",
+      "hero_id": "207165582859044162",
+      "config_guid": "000000000542.075",
+      "slug": "dmon",
+      "aliases": [
+        "0x02E0000000000542"
+      ],
+      "role": "重装",
+      "subrole": "铁壁",
+      "source_role_type": "tank",
+      "source_class": "Tank",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.25,
+        "地推": 0.7,
+        "消耗": 0.05
+      },
+      "mobility": 0.7,
+      "flank": 0.2,
+      "independence": 0.6,
+      "team_utility": 0.9,
+      "labels": [
+        "近战推进",
+        "屏障保护",
+        "机动前线"
+      ],
+      "rationale": "等离子剑偏近战，强力屏障保护正面，助推器和突进刺击推动接敌，无极斩可放大敌人所受伤害。",
+      "source": "res/query_tool.json#heroConfig/000000000542.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/dmon/",
+      "evidence": [
+        {
+          "skill": "等离子剑",
+          "description": "高速能量近战武器"
+        },
+        {
+          "skill": "强力屏障",
+          "description": "按住 %1$s 可以在前方展开一道能量屏障"
+        },
+        {
+          "skill": "助推器",
+          "description": "消耗燃料，向任意水平方向突进"
+        },
+        {
+          "skill": "聚变连发枪",
+          "description": "激活速射机枪"
+        },
+        {
+          "skill": "突进刺击",
+          "description": "展开强力屏障后可以向前疾冲，对敌人造成伤害并将其击退"
+        },
+        {
+          "skill": "弹射！",
+          "description": "当机甲被摧毁时 D.Mon从中弹出"
+        },
+        {
+          "skill": "无极斩",
+          "description": "施放横扫斩击，使自身获得过量生命值，并提高敌人受到的伤害"
+        },
+        {
+          "skill": "呼叫机甲",
+          "description": "重组机甲"
+        },
+        {
+          "skill": "手提聚变连发枪",
+          "description": "重机枪"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    },
+    "血律": {
+      "name": "血律",
+      "hero_id": "207165582859044208",
+      "config_guid": "000000000570.075",
+      "slug": "doctrine",
+      "aliases": [
+        "0x02E0000000000570"
+      ],
+      "role": "支援",
+      "subrole": "生存",
+      "source_role_type": "healer",
+      "source_class": "Support",
+      "weapon": null,
+      "tactics": {
+        "放狗": 0.4,
+        "地推": 0.4,
+        "消耗": 0.2
+      },
+      "mobility": 0.8,
+      "flank": 0.35,
+      "independence": 0.8,
+      "team_utility": 0.95,
+      "labels": [
+        "机动支援",
+        "攻速增益",
+        "无人机保护"
+      ],
+      "rationale": "迅影疾行提供位移减伤且可强化飞行，焕生无人机治疗并加快盟友攻击，救赎恩典削弱敌人并提供过量生命。",
+      "source": "res/query_tool.json#heroConfig/000000000570.075/Loadouts",
+      "source_url": "https://ow.blizzard.cn/heroes/doctrine/",
+      "evidence": [
+        {
+          "skill": "永生权杖",
+          "description": "可以治疗盟友并对敌人造成伤害的中距离武器  灌注：发射一道大范围的贯穿冲击"
+        },
+        {
+          "skill": "灌注",
+          "description": "为你的下个技能增加强大的效果"
+        },
+        {
+          "skill": "迅影疾行",
+          "description": "沿水平方向疾行，获得受伤减免  灌注：获得自由飞行"
+        },
+        {
+          "skill": "焕生无人机",
+          "description": "对一名盟友部署无人机群，加快其攻击速度并提供治疗  灌注：同时对自身部署无人机群"
+        },
+        {
+          "skill": "救赎恩典",
+          "description": "发射无人机群，降低敌人的最大生命值，并为盟友提供过量生命值"
+        }
+      ],
+      "review_status": "editorial_from_local_skill_descriptions"
+    }
+  }
+}

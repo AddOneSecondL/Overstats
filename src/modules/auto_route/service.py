@@ -616,6 +616,18 @@ class AutoRouteModule:
             payload=payload,
         )
 
+    def _build_career_personality_selection(self, arguments):
+        from ..dashen_hero_treemap.requests import normalize_treemap_mode
+        player = str(arguments.get("player") or "").strip()
+        if not player:
+            raise ValueError("生涯人格测试需要一名玩家")
+        mode = normalize_treemap_mode(arguments.get("mode"), allow_stadium=True)
+        if mode not in {"quick", "competitive", "stadium_quick", "stadium_competitive"}:
+            raise ValueError("小程序不支持此模式")
+        return AutoRouteSelection(tool_name="career_personality", module_name="career_personality",
+                                  endpoint="/api/v2/career-personality/image", endpoint_mode="image",
+                                  payload={"player": player, "mode": mode})
+
     def _build_career_compare_selection(self, arguments):
         from ..dashen_hero_treemap.requests import normalize_treemap_mode
         for key in ("player1",):

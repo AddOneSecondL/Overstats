@@ -419,6 +419,25 @@ class OverstatsCoreService:
             lambda: self._handle_blizzard_profile_image(payload),
         )
 
+    async def handle_career_personality(self, payload, *, render=False):
+        from .modules.career_personality import CareerPersonalityQuery, career_personality_module
+
+        if payload.get("season") not in (None, "", "total"):
+            raise ModuleError(error="unsupported_career_season", message="生涯人格仅支持累计数据，请省略 season。", status_code=400)
+        query = CareerPersonalityQuery(
+            player=str(payload.get("player") or payload.get("player1") or payload.get("bnetID")
+                       or payload.get("bnet_id") or payload.get("bnetId") or payload.get("battle_tag")
+                       or payload.get("bnet_name") or payload.get("target") or ""),
+            mode=str(payload.get("mode") or "quick"),
+            xcxtoken=str(payload.get("xcxtoken") or payload.get("xcxToken") or ""),
+        )
+
+        async def run():
+            result = await career_personality_module.query_personality(query, render=render)
+            return result.image.content if render else result.to_dict()
+
+        return await self.dashen_request_queue.run("career_personality", run)
+
     async def handle_career_compare(self, payload, *, render=False):
         from .modules.career_compare import CareerCompareQuery, career_compare_module
 
@@ -2129,6 +2148,9 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
                 self._handle_dashen_profile_post()
                 return
 
+            if path in {"/api/v2/career-personality", "/api/v2/career-personality/image"}:
+                self._handle_career_personality_post(render=path.endswith("/image"))
+                return
             if path in {"/api/v2/career-compare", "/api/v2/career-compare/image"}:
                 self._handle_career_compare_post(render=path.endswith("/image"))
                 return
@@ -3640,6 +3662,25 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
                 return
 
             self._send_binary(HTTPStatus.OK, image_body, "image/png")
+
+        def _handle_career_personality_post(self, *, render=False) -> None:
+            try:
+                payload = self._read_json_body()
+            except ValueError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid_json", "message": "请求体必须是 JSON 对象。"})
+                return
+            try:
+                result = async_runner.run(service.handle_career_personality(payload, render=render))
+            except ModuleError as exc:
+                self._send_json(HTTPStatus(exc.status_code), {"ok": False, "error": exc.error, "message": exc.message})
+                return
+            except Exception:
+                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "career_personality_failed", "message": "生涯人格暂不可用，请稍后重试。"})
+                return
+            if render:
+                self._send_binary(HTTPStatus.OK, result, "image/png")
+            else:
+                self._send_json(HTTPStatus.OK, result)
 
         def _handle_career_compare_post(self, *, render=False) -> None:
             try:
