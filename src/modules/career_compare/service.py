@@ -13,7 +13,7 @@ from ..dashen_hero_treemap.mini_program import (
 )
 from ..dashen_hero_treemap.requests import normalize_treemap_mode
 from ..errors import ModuleError
-from .metrics import collect_metrics, compare_radar, hero_hours, radar_dimensions, rows
+from .metrics import collect_metrics, compare_radar, hero_hours, number, radar_dimensions, rows
 
 
 @dataclass(frozen=True)
@@ -50,10 +50,26 @@ def _top_hero(hero):
     # Only use the upstream population benchmark; never substitute player values or maxima.
     chart = hero.get("hexagon_chart") or {}
     dimensions = [{**d, "value": d.get("top20")} for d in rows(chart.get("dimensions"))]
+    radar_top20 = {d.get("title"): number(d.get("top20")) for d in dimensions}
+    per_ten_axes = {"消灭": "消灭", "助攻": "助攻", "对英雄伤害量": "伤害", "治疗量": "治疗"}
+
+    def benchmark_item(item, field):
+        value = item.get("top20")
+        # These four radar axes match the hero's per-ten-minute summary rows.
+        # Do not apply them to lifetime totals, maxima or hero-specific statistics.
+        if value is None and field == "summary" and str(item.get("item_type")) == "3":
+            label = str(item.get("item_name") or "").strip()
+            label = label.removeprefix("每10分钟").removeprefix("每十分钟")
+            fallback = radar_top20.get(per_ten_axes.get(label))
+            if fallback is not None and fallback >= 0:
+                value = f"{fallback:.2f}"
+        # Player-only comments (e.g. wins/played) do not describe the benchmark.
+        return {**item, "item_value": value, "item_comment": ""}
+
     return {"hero_id": hero.get("hero_id"), "hero_name": hero.get("hero_name"),
             "hero_role_type": hero.get("hero_role_type"),
             "hexagon_chart": {"dimensions": dimensions},
-            **{field: [{**item, "item_value": item.get("top20")} for item in rows(hero.get(field))]
+            **{field: [benchmark_item(item, field) for item in rows(hero.get(field))]
                for field in ("simple_summary", "summary", "hero_specific_summary")}}
 
 

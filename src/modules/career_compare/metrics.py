@@ -120,13 +120,21 @@ def compare_radar(left, right):
     for label in AXES:
         pair = [source.get(label, {}) for source in sources]
         valid = [d for d in pair if d.get("min") is not None and d.get("max") is not None
-                 and d["max"] > d["min"]]
+                 and (d["max"] > d["min"] or d["min"] == d["max"] == 0)]
         # Both players use the same per-axis domain; never normalize them independently.
         low = min((d["min"] for d in valid), default=None)
         high = max((d["max"] for d in valid), default=None)
         values = [d.get("value") for d in pair]
-        normalized = [None if v is None or low is None else max(0., min(1., (v-low)/(high-low)))
-                      for v in values]
+        normalized = []
+        for value in values:
+            if value is None or low is None:
+                normalized.append(None)
+            elif high > low:
+                normalized.append(max(0., min(1., (value-low)/(high-low))))
+            else:
+                # Some heroes have an all-zero axis (e.g. no healing). Its zero
+                # belongs at the center; missing or inconsistent values do not.
+                normalized.append(0. if value == 0 else None)
         result.append({"label": label, "values": values, "min": low, "max": high,
                        "normalized": normalized})
     return result
