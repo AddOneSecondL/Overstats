@@ -25,11 +25,11 @@ RANK_COLORS: dict[str, tuple[int, int, int]] = {
     "Silver": (196, 201, 200),
     "Gold": (217, 164, 59),
     "Platinum": (149, 213, 179),
-    "Emerald": (92, 211, 156),
+    "Emerald": (95, 227, 157),
     "Diamond": (93, 163, 241),
     "Master": (140, 230, 94),
     "Grandmaster": (135, 115, 249),
-    "Champion": (108, 92, 199),
+    "Champion": (190, 123, 224),
     "Unranked": (116, 132, 154),
 }
 TOP_TIER_ICON_LEVELS = frozenset({6, 7, 8})
