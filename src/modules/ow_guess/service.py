@@ -67,6 +67,13 @@ class OWGuessModule:
                 prompt = "对话猜接话英雄：播放的是前一句，请回答下一句由哪位英雄接话，限时45秒。"
             replies = [{"type": "text", "data": prompt}, {"type": "audio", "media_type": "audio/mpeg",
                        "filename": "question.mp3", "base64": base64.b64encode(data).decode("ascii")}]
+            reveal_replies = [{"type": "text", "data": answer_text}]
+            if mode == "hero_conversation" and entry.get("reply_media_path"):
+                reply_audio = await asyncio.to_thread(entry["reply_media_path"].read_bytes)
+                reveal_replies.append({
+                    "type": "audio", "media_type": "audio/mpeg", "filename": "answer.mp3",
+                    "base64": base64.b64encode(reply_audio).decode("ascii"),
+                })
             return OWGuessOutput({
                 "ok": True, "generated_at": datetime.now().isoformat(timespec="seconds"),
                 "question_type": mode, "question_type_label": label, "question_id": entry["id"],
@@ -74,7 +81,7 @@ class OWGuessModule:
                 "question": {"prompt_text": prompt, "media_kind": "audio"},
                 "answer": {"canonical": answer_name, "aliases": entry["answers"]},
                 "replies": replies, "stages": [{"stage": 1, "at_seconds": 0, "replies": replies}],
-                "reveal_replies": [{"type": "text", "data": answer_text}],
+                "reveal_replies": reveal_replies,
             })
         if not mode:
             raise ModuleError(error="ow_guess_invalid_type", message="猜一猜支持地图局部、地图模糊、威能、头像、英雄描述、技能猜英雄、技能名、代表色、地图音乐和对话。", status_code=400)

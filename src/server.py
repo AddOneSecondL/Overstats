@@ -505,16 +505,29 @@ class OverstatsCoreService:
 
         include_previous_season = _coerce_bool(payload.get("include_previous_season"), True)
 
+        render = _coerce_bool(payload.get("render"), False)
         result = await dashen_profile_module.query_profile(
             DashenProfileQuery(
                 customer_token=customer_token,
                 bnet_id=bnet_id,
                 season=season,
                 include_previous_season=include_previous_season,
-            )
+            ),
+            render=render,
+            render_mode=_coerce_profile_render_mode(payload) if render else "quick",
         )
         resolved = result.resolved_bnet
         bundle = result.bundle
+        if render:
+            if not result.image:
+                raise ModuleError(error="render_failed", message="Dashen profile image was not generated.", status_code=500)
+            card = bundle.profile_card.get("data") or {}
+            identity = str(card.get("bnetId") or (resolved.bnet_id if resolved else "") or "").strip()
+            name = str(card.get("name") or (resolved.full_id if resolved else "") or identity)
+            return {"ok": True, "replies": [
+                {"type": "meta", "meta_type": "ds_profile_player", "data": {"bnet_id": identity, "name": name}},
+                {"type": "image", "base64": base64.b64encode(result.image.content).decode("ascii")},
+            ]}
         return {
             "ok": True,
             "customer_token": result.customer_token,
@@ -1063,7 +1076,7 @@ class OverstatsCoreService:
 
         result = await dashen_match_module.query_match_list(
             DashenMatchQuery(
-                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search") if str(payload.get(key) or "").strip()},
+                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search", "mode") if str(payload.get(key) or "").strip()},
                 customer_token=customer_token,
                 bnet_id=bnet_id,
                 target_count=target_count,
@@ -1099,7 +1112,7 @@ class OverstatsCoreService:
 
         result = await dashen_match_module.query_match_list_replies(
             DashenMatchQuery(
-                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search") if str(payload.get(key) or "").strip()},
+                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search", "mode") if str(payload.get(key) or "").strip()},
                 customer_token=customer_token,
                 bnet_id=bnet_id,
                 target_count=int(payload.get("target_count") or payload.get("limit") or 20),
@@ -1142,7 +1155,7 @@ class OverstatsCoreService:
 
         result = await dashen_match_module.query_match_list(
             DashenMatchQuery(
-                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search") if str(payload.get(key) or "").strip()},
+                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search", "mode") if str(payload.get(key) or "").strip()},
                 customer_token=customer_token,
                 bnet_id=bnet_id,
                 target_count=target_count,
@@ -1421,7 +1434,7 @@ class OverstatsCoreService:
             include_previous_season = _coerce_bool(payload.get("include_previous_season"), True)
             result = await dashen_match_module.query_match_detail_by_index(
                 DashenMatchQuery(
-                    filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search") if str(payload.get(key) or "").strip()},
+                    filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search", "mode") if str(payload.get(key) or "").strip()},
                     customer_token=customer_token,
                     bnet_id=bnet_id,
                     target_count=target_count,
@@ -1488,7 +1501,7 @@ class OverstatsCoreService:
                     hint='Example: {"bnet_id":"Player#12345","index":0}',
                 )
             query = DashenMatchQuery(
-                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search") if str(payload.get(key) or "").strip()},
+                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search", "mode") if str(payload.get(key) or "").strip()},
                 customer_token=customer_token,
                 bnet_id=bnet_id,
                 target_count=int(payload.get("target_count") or payload.get("limit") or 20),
@@ -1552,7 +1565,7 @@ class OverstatsCoreService:
         include_previous_season = _coerce_bool(payload.get("include_previous_season"), True)
         result = await dashen_match_module.query_match_detail_by_index(
             DashenMatchQuery(
-                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search") if str(payload.get(key) or "").strip()},
+                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search", "mode") if str(payload.get(key) or "").strip()},
                 customer_token=customer_token,
                 bnet_id=bnet_id,
                 target_count=target_count,

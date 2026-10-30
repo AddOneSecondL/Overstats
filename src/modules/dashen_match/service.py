@@ -234,7 +234,7 @@ class DashenMatchModule:
             risk_status = await self._fetch_player_risk_status(query.customer_token)
             render_kwargs: Dict[str, Any] = {"full_id": full_id}
             if query.filters:
-                labels = [f"{label}：{query.filters[key]}" for key, label in (("map", "地图"), ("hero", "英雄"), ("search", "筛选")) if query.filters.get(key)]
+                labels = [f"{label}：{query.filters[key]}" for key, label in (("map", "地图"), ("hero", "英雄"), ("search", "筛选"), ("mode", "模式")) if query.filters.get(key)]
                 render_kwargs["footer_lines"] = [" / ".join(labels), "检索最近两个赛季，最多显示 20 场"]
             if risk_status is not None:
                 render_kwargs["risk_status"] = risk_status
@@ -420,6 +420,7 @@ class DashenMatchModule:
                 {
                     "context_type": "ds_match_detail_players",
                     "player_ids": ordered_player_ids if detail.match_kind != "fight" else [],
+                    "players": self._ordered_players(detail_root) if detail.match_kind != "fight" else [],
                     "competitive": bool(is_competitive_match),
                 },
             ),
@@ -690,7 +691,21 @@ class DashenMatchModule:
                     ordered.append(name)
         return ordered
 
+    def _ordered_players(self, detail_root: Dict[str, Any]) -> List[Dict[str, str]]:
+        config = _load_ow_config()
+        return [{"name": str(player.get("name") or "").strip(),
+                 "bnet_id": str(player.get("bnetId") or "").strip()}
+                for team_key in ("teammateList", "enemyList")
+                for player in _sort_players(detail_root.get(team_key, []), config)]
+
     def _is_competitive_match(self, detail_root: Dict[str, Any], match_kind: str, source_match: Optional[Dict[str, Any]]) -> bool:
+        # Match mode is authoritative: a player can have a rank in a quick match.
+        for value in ((source_match or {}).get("gameMode"), detail_root.get("gameMode")):
+            mode = str(value or "").lower()
+            if any(flag in mode for flag in ("sport", "competitive", "rank")):
+                return True
+            if any(flag in mode for flag in ("quick", "leisure")):
+                return False
         if match_kind == "fight":
             return "sportfight" in str((source_match or {}).get("gameMode") or "").lower()
         for player in list(detail_root.get("teammateList") or []) + list(detail_root.get("enemyList") or []):

@@ -57,6 +57,18 @@ class OWGuessCatalog:
     def pick_question(self):
         payload = read_query_tool(default={})
         entries = {}
+        names_by_icon = {}
+        # Remote configuration can assign one picture to different map names.
+        # Neither answer can be trusted in that case; exclude the entire image
+        # rather than guessing which record is correct. Recompute on each load
+        # so runtime refreshes cannot reintroduce ambiguous questions.
+        for item in payload.get("mapList", []):
+            if not isinstance(item, dict) or is_excluded_map(item):
+                continue
+            name = simplify_map_name(item.get("name"))
+            url = str(item.get("icon") or "").strip()
+            if name and url.startswith("https://"):
+                names_by_icon.setdefault(url, set()).add(name)
         control_names = {
             simplify_map_name(item.get("name"))
             for item in payload.get("mapList", [])
@@ -69,7 +81,7 @@ class OWGuessCatalog:
             original_name = str(item.get("name") or "").strip()
             name = simplify_map_name(original_name)
             url = str(item.get("icon") or "").strip()
-            if name and url.startswith("https://"):
+            if name and url.startswith("https://") and len(names_by_icon[url]) == 1:
                 entries[(name, url)] = {**item, "name": name, "answer_aliases": list(dict.fromkeys((name, original_name))),
                     "requires_submap": item.get("mode") == "占领要点" and any(
                         parent != name and parent in name for parent in control_names

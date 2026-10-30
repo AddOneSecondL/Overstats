@@ -144,6 +144,13 @@ def _resource_id(value):
 
 def resolve_match_filters(filters):
     result = {key: value for key, value in (filters or {}).items() if key not in {"map", "hero", "search"} or str(value or "").strip()}
+    mode = str(result.pop("mode", "") or "").strip().lower()
+    if mode:
+        modes = {"快速": "leisure", "quick": "leisure", "leisure": "leisure",
+                 "竞技": "sport", "competitive": "sport", "sport": "sport"}
+        if mode not in modes:
+            raise ModuleError(error="invalid_match_filter", message="对局模式仅支持快速或竞技。", status_code=400)
+        result["gameMode"] = modes[mode]
     if not any(result.get(key) for key in ("hero", "map", "search")):
         return result
     config = read_query_tool(default={})
@@ -221,7 +228,7 @@ class DashenMatchRequests:
 
     async def list_recent_matches(self, query: DashenMatchQuery) -> List[Dict[str, Any]]:
         filters = resolve_match_filters(query.filters)
-        if any(key in filters for key in ("_map_ids", "_hero_ids")):
+        if any(key in filters for key in ("_map_ids", "_hero_ids", "gameMode")):
             allowed = get_recent_dashen_seasons(include_previous=query.include_previous_season)
             seasons = [season for season in allowed if not query.seasons or season in query.seasons]
             return await self._search_matches(query, seasons, max(1, min(20, int(query.target_count))), filters)
@@ -283,7 +290,9 @@ class DashenMatchRequests:
 
         matches = []
         modes = [("leisure", False), ("sport", False)]
-        if query.include_fight:
+        if filters.get("gameMode"):
+            modes = [(filters["gameMode"], False)]
+        elif query.include_fight:
             modes += [(mode, True) for mode in DEFAULT_FIGHT_MODES]
         for season in seasons:
             batches = await asyncio.gather(*(scan_mode(mode, fight, season) for mode, fight in modes))

@@ -94,7 +94,12 @@ def questions(mode='map_music'):
                     continue
                 path = media_path(folder, question['media'])
                 if path.is_file() and 0 < path.stat().st_size <= MAX_AUDIO:
-                    entries.append({**question, 'media_path': path, 'pack_id': root.name})
+                    entry = {**question, 'media_path': path, 'pack_id': root.name}
+                    if mode == 'hero_conversation' and question.get('reply_media'):
+                        reply_path = media_path(folder, question['reply_media'])
+                        if reply_path.is_file() and 0 < reply_path.stat().st_size <= MAX_AUDIO:
+                            entry['reply_media_path'] = reply_path
+                    entries.append(entry)
             _QUESTION_CACHE[cache_key] = (stamp, entries)
             result.extend(dict(question) for question in entries)
         except (OSError, ValueError, KeyError, TypeError):
@@ -132,6 +137,12 @@ def _validate(folder, pack_id):
             raise ValueError('音频需为不超过 2 MiB 的 MP3')
         if hashlib.sha256(path.read_bytes()).hexdigest() != entry.get('sha256'):
             raise ValueError(f"音频校验失败：{entry['id']}")
+        if entry.get('reply_media'):
+            reply_path = media_path(folder, entry['reply_media'])
+            if reply_path.suffix != '.mp3' or not 0 < reply_path.stat().st_size <= MAX_AUDIO:
+                raise ValueError('接话音频需为不超过 2 MiB 的 MP3')
+            if hashlib.sha256(reply_path.read_bytes()).hexdigest() != entry.get('reply_sha256'):
+                raise ValueError(f"接话音频校验失败：{entry['id']}")
     return manifest
 
 
