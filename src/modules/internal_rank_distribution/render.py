@@ -25,7 +25,7 @@ RANK_COLORS: dict[str, tuple[int, int, int]] = {
     "Silver": (196, 201, 200),
     "Gold": (217, 164, 59),
     "Platinum": (149, 213, 179),
-    "Emerald": (92, 211, 156),
+    "Emerald": (95, 227, 157),
     "Diamond": (93, 163, 241),
     "Master": (140, 230, 94),
     "Grandmaster": (135, 115, 249),
