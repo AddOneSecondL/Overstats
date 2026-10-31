@@ -1533,6 +1533,85 @@ class OverstatsCoreService:
             "replies": result.replies,
         }
 
+    async def handle_dashen_match_detail_llm(self, payload: Dict[str, object]) -> Dict[str, object]:
+        return await self.dashen_request_queue.run(
+            "match_detail_llm",
+            lambda: self._handle_dashen_match_detail_llm(payload),
+        )
+
+    async def _handle_dashen_match_detail_llm(self, payload: Dict[str, object]) -> Dict[str, object]:
+        bnet_id = str(payload.get("bnet_id") or payload.get("bnetId") or "").strip()
+        customer_token = str(payload.get("customer_token") or payload.get("customerToken") or "").strip()
+        match_id = str(payload.get("match_id") or payload.get("matchId") or "").strip()
+        index_value = payload.get("index")
+        if index_value is None:
+            index_value = payload.get("idx")
+
+        show_all_heroes = _coerce_bool(
+            payload.get("show_all_heroes", payload.get("show_all", payload.get("all_heroes"))),
+            False,
+        )
+        analyze = _coerce_bool(payload.get("analyze"), False)
+        if analyze:
+            show_all_heroes = True
+
+        if match_id and not customer_token:
+            raise ModuleError(
+                error="missing_customer_token",
+                message="customer_token is required when querying detail by match_id directly.",
+                status_code=400,
+                hint='Use {"bnet_id":"Player#12345","index":0} or provide customer_token with match_id.',
+            )
+        if not match_id and index_value is None:
+            raise ModuleError(
+                error="missing_match_selector",
+                message="index or match_id is required for match detail.",
+                status_code=400,
+                hint='Example: {"bnet_id":"Player#12345","index":0}',
+            )
+
+        query = None
+        if not match_id:
+            if not bnet_id and not customer_token:
+                raise ModuleError(
+                    error="missing_target",
+                    message="Missing query target: bnet_id or customer_token is required.",
+                    status_code=400,
+                    hint='Example: {"bnet_id":"Player#12345","index":0}',
+                )
+            query = DashenMatchQuery(
+                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search") if str(payload.get(key) or "").strip()},
+                customer_token=customer_token,
+                bnet_id=bnet_id,
+                target_count=int(payload.get("target_count") or payload.get("limit") or 20),
+                include_fight=_coerce_bool(payload.get("include_fight"), True),
+                include_previous_season=_coerce_bool(payload.get("include_previous_season"), True),
+            )
+        elif bnet_id:
+            query = DashenMatchQuery(customer_token=customer_token, bnet_id=bnet_id)
+
+        result = await dashen_match_module.query_match_detail_llm(
+            query=query,
+            customer_token=customer_token,
+            match_id=match_id,
+            index=int(index_value) if index_value is not None else None,
+            show_all_heroes=show_all_heroes,
+            analyze=analyze,
+        )
+        return {
+            "ok": True,
+            "customer_token": result.customer_token,
+            "resolved": {
+                "query": result.resolved_bnet.query,
+                "full_id": result.resolved_bnet.full_id,
+                "bnet_id": result.resolved_bnet.bnet_id,
+                "has_customer_token": bool(result.resolved_bnet.customer_token),
+            } if result.resolved_bnet else None,
+            "match_id": result.match_id,
+            "match_kind": result.match_kind,
+            **result.data,
+        }
+
     async def handle_dashen_match_detail_image(self, payload: Dict[str, object]) -> bytes:
         return await self.dashen_request_queue.run(
             "match_detail_image",
@@ -2214,6 +2293,10 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
 
             if path == "/api/v2/dashen-match/detail/replies":
                 self._handle_dashen_match_detail_replies_post()
+                return
+
+            if path == "/api/v2/dashen-match/detail/llm":
+                self._handle_dashen_match_detail_llm_post()
                 return
 
             if path == "/api/v2/dashen-match/detail/image":
@@ -4450,6 +4533,51 @@ def create_server(config: APIConfig) -> ThreadingHTTPServer:
 
             try:
                 result = async_runner.run(service.handle_dashen_match_detail_replies(payload))
+            except ModuleError as exc:
+                self._send_json(
+                    HTTPStatus(exc.status_code),
+                    {
+                        "ok": False,
+                        "error": exc.error,
+                        "message": exc.message,
+                        "hint": exc.hint,
+                        "details": exc.details,
+                    },
+                )
+                return
+            except Exception as exc:
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {
+                        "ok": False,
+                        "error": "internal_error",
+                        "message": "Internal server error. See details.",
+                        "details": {
+                            "exception": type(exc).__name__,
+                            "message": str(exc),
+                        },
+                    },
+                )
+                return
+
+            self._send_json(HTTPStatus.OK, result)
+
+        def _handle_dashen_match_detail_llm_post(self) -> None:
+            try:
+                payload = self._read_json_body()
+            except ValueError as exc:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "ok": False,
+                        "error": "invalid_json",
+                        "message": str(exc),
+                    },
+                )
+                return
+
+            try:
+                result = async_runner.run(service.handle_dashen_match_detail_llm(payload))
             except ModuleError as exc:
                 self._send_json(
                     HTTPStatus(exc.status_code),

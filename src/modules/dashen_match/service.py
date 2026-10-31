@@ -51,6 +51,11 @@ from .render import (
     render_match_detail,
     render_match_list,
 )
+from .llm import (
+    build_llm_match_detail,
+    identify_focus_player,
+    sanitize_analysis_json,
+)
 from .requests import DashenMatchDetail, DashenMatchQuery, DashenMatchRequests
 
 
@@ -214,6 +219,15 @@ class DashenMatchRepliesOutput:
     replies: List[Dict[str, Any]] = field(default_factory=list)
     match_id: str = ""
     match_kind: str = ""
+
+
+@dataclass(frozen=True)
+class DashenMatchDetailLlmOutput:
+    customer_token: str
+    resolved_bnet: Optional[BnetSearchResult] = None
+    match_id: str = ""
+    match_kind: str = ""
+    data: Dict[str, Any] = field(default_factory=dict)
 
 
 class DashenMatchModule:
@@ -502,6 +516,164 @@ class DashenMatchModule:
             replies=replies,
             match_id=detail.match_id,
             match_kind=detail.match_kind,
+        )
+
+    async def query_match_detail_llm(
+        self,
+        *,
+        query: Optional[DashenMatchQuery] = None,
+        customer_token: str = "",
+        match_id: str = "",
+        index: Optional[int] = None,
+        show_all_heroes: bool = False,
+        analyze: bool = False,
+    ) -> DashenMatchDetailLlmOutput:
+        """Return a normalized, LLM-friendly JSON structure for one match.
+
+        Accepts the same selectors as :meth:`query_match_detail_replies`
+        (``match_id`` + ``customer_token``, or ``bnet_id``/``customer_token`` +
+        ``index``), but produces machine-readable data instead of rendered
+        images.  ``analyze=True`` implies ``show_all_heroes=True`` and attaches
+        the AI analysis payload.
+        """
+        resolved_query: Optional[DashenMatchQuery] = None
+        resolved_bnet: Optional[BnetSearchResult] = None
+        source_match: Dict[str, Any] = {}
+
+        if analyze:
+            show_all_heroes = True
+
+        if match_id:
+            direct_customer_token = str(
+                customer_token or (query.customer_token if query else "")
+            ).strip()
+            if not direct_customer_token:
+                raise ModuleError(
+                    error="missing_customer_token",
+                    message="customer_token is required when querying detail by match_id directly.",
+                    status_code=400,
+                    hint='Use {"bnet_id":"Player#12345","index":0} or provide customer_token with match_id.',
+                )
+            customer_token = direct_customer_token
+            identity_query = query or DashenMatchQuery(customer_token=customer_token)
+            try:
+                resolved_query, resolved_bnet = await self._resolve_query(identity_query)
+            except Exception:
+                resolved_query = identity_query
+                resolved_bnet = None
+            detail = await self._get_match_detail_direct(customer_token, match_id)
+        else:
+            if query is None or index is None:
+                raise ModuleError(
+                    error="missing_match_selector",
+                    message="index or match_id is required for match detail.",
+                    status_code=400,
+                    hint='Example: {"bnet_id":"Player#12345","index":0}',
+                )
+            resolved_query, resolved_bnet = await self._resolve_query(query)
+            customer_token = resolved_query.customer_token
+            matches = await self._list_matches_for_query(resolved_query, resolved_bnet)
+            if index < 0 or index >= len(matches):
+                raise ModuleError(
+                    error="match_index_out_of_range",
+                    message=f"Match index out of range: {index}",
+                    status_code=400,
+                    hint=f"Use an index from 0 to {max(len(matches) - 1, 0)}.",
+                    details={"index": index, "match_count": len(matches)},
+                )
+            source_match = dict(matches[index])
+            detail = await self.requests.get_match_detail(customer_token, source_match)
+
+        query_full_id = (
+            (resolved_bnet.full_id if resolved_bnet else "")
+            or (resolved_query.bnet_id if resolved_query else "")
+            or (query.bnet_id if query else "")
+            or UNKNOWN_PLAYER_LABEL
+        )
+        query_full_id = _safe_display_identity(query_full_id) or UNKNOWN_PLAYER_LABEL
+        query_bnet_id = _safe_display_identity(
+            (resolved_bnet.bnet_id if resolved_bnet else "") or (str(query.bnet_id or "") if query else "")
+        )
+
+        detail_root = _extract_match_detail_data(detail.payload)
+
+        has_detail_data = bool(
+            detail_root.get("teammateList")
+            or detail_root.get("enemyList")
+            or detail_root.get("heroList")
+            or detail_root.get("roundCountList")
+            or detail_root.get("totalCount")
+            or detail_root.get("mapGuid") is not None
+        )
+        if not has_detail_data:
+            raise ModuleError(
+                error="match_detail_empty",
+                message="上游未返回该场对局的详细数据。",
+                status_code=404,
+                hint=(
+                    "customer_token 可能已过期，或该 match_id 当前不可访问。"
+                    "请刷新 customer_token，或改用 bnet_id + index 方式查询。"
+                ),
+                details={
+                    "match_id": detail.match_id,
+                    "match_kind": detail.match_kind,
+                },
+            )
+
+        all_player_details: List[Dict[str, Any]] = []
+        if show_all_heroes and detail.match_kind != "fight":
+            all_player_details, _ = await self._build_all_player_details(
+                detail_root,
+                detail.match_id,
+                query_full_id=query_full_id,
+                query_bnet_id=query_bnet_id,
+                query_customer_token=customer_token,
+            )
+
+        focus_player, _ = identify_focus_player(
+            detail_root,
+            query_full_id=query_full_id,
+            query_bnet_id=query_bnet_id,
+            query_customer_token=customer_token,
+        )
+
+        analysis: Optional[Dict[str, Any]] = None
+        if analyze:
+            target_id = str((focus_player or {}).get("name") or query_full_id or "").strip() or query_full_id
+            if detail.match_kind == "fight":
+                analysis = {"fallback_text": "角斗对局暂不支持 AI 锐评。"}
+            else:
+                analysis_result = await self._build_ai_analysis(
+                    match_data=detail_root,
+                    all_player_details=all_player_details,
+                    target_id=target_id,
+                )
+                if analysis_result.get("json") is not None:
+                    analysis = sanitize_analysis_json(analysis_result["json"])
+                    analysis["generated_at"] = time.strftime("%Y-%m-%d %H:%M", time.localtime())
+                else:
+                    analysis = {
+                        "fallback_text": analysis_result.get("fallback_text") or "AI锐评暂不可用。"
+                    }
+
+        data = build_llm_match_detail(
+            detail.payload,
+            source_match=detail.source_match or source_match,
+            match_id=detail.match_id,
+            match_kind=detail.match_kind,
+            query_full_id=query_full_id,
+            query_bnet_id=query_bnet_id,
+            query_customer_token=customer_token,
+            all_player_details=all_player_details,
+            analysis=analysis,
+        )
+
+        return DashenMatchDetailLlmOutput(
+            customer_token=customer_token,
+            resolved_bnet=resolved_bnet,
+            match_id=detail.match_id,
+            match_kind=detail.match_kind,
+            data=data,
         )
 
     async def query_match_list_by_bnet_id(
