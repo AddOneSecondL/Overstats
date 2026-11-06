@@ -86,9 +86,13 @@ def _rounded_outline_mask(width, height, radius, stroke):
     pen = ImageDraw.Draw(big)
     scaled = radius * _SUPERSAMPLE
     pen.rounded_rectangle((0, 0, big.width - 1, big.height - 1), radius=scaled, fill=255)
-    if stroke:
-        inset = stroke * _SUPERSAMPLE
-        pen.rounded_rectangle((inset, inset, big.width - 1 - inset, big.height - 1 - inset),
+    inset = stroke * _SUPERSAMPLE
+    inner_right = big.width - 1 - inset
+    inner_bottom = big.height - 1 - inset
+    # Narrow strength ranges can be shorter than twice the outline width.
+    # Keep those shapes solid: Pillow rejects an inverted inner rectangle.
+    if stroke and inner_right >= inset and inner_bottom >= inset:
+        pen.rounded_rectangle((inset, inset, inner_right, inner_bottom),
                               radius=max(0, scaled - inset), fill=0)
     return big.reduce(_SUPERSAMPLE)
 
