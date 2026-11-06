@@ -12,13 +12,24 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+from .runtime.summary_style import (
+    ACCENT,
+    DRAW as GOLD,
+    FAINT,
+    HAIRLINE,
+    INFO as BLUE,
+    INK as WHITE,
+    MUTED,
+    RADIUS_CARD,
+    RADIUS_TILE,
+    STROKE,
+    SURFACE,
+    SURFACE_RAISED,
+)
+
 RESOURCE_DIR = Path(__file__).resolve().parents[3] / "res"
 BASELINES = {"epic_cnt": 0.2193, "legendary_cnt": 0.051}
-WHITE = (239, 245, 255)
-MUTED = (155, 173, 195)
-PURPLE = (196, 157, 255)
-GOLD = (255, 207, 116)
-BLUE = (131, 213, 255)
+PURPLE = (197, 156, 255)
 # Each illustration is a tier, not one sprite per opened box.
 PILE_TIERS = ((1, 1, "1–9 箱"), (10, 2, "10–49 箱"),
               (50, 3, "50–99 箱"), (100, 4, "100–199 箱"),
@@ -70,11 +81,11 @@ def _crate():
         return None
 
 
-def render_loot_panel(canvas, x, y, width, loot, font_loader=None):
+def render_loot_panel(canvas, x, y, width, loot, font_loader=None, draw_factory=None):
     """Draw a self-sized panel; tall friend lists must not stretch this card."""
     height = loot_panel_height(width)
     card = Image.new("RGBA", (width, height))
-    draw = ImageDraw.Draw(card)
+    draw = draw_factory(card) if draw_factory else ImageDraw.Draw(card)
 
     def font(size):
         return font_loader(size) if font_loader else ImageFont.truetype(str(RESOURCE_DIR / "simhei.ttf"), size)
@@ -97,17 +108,17 @@ def render_loot_panel(canvas, x, y, width, loot, font_loader=None):
             draw.rounded_rectangle((px + 4, py + 8, px + size - 4, py + size - 6), radius=5, fill=(107, 129, 151), outline=BLUE)
             draw.line((px + 5, py + size / 2, px + size - 5, py + size / 2), fill=WHITE, width=2)
 
-    draw.rounded_rectangle((0, 0, width - 1, height - 1), radius=12, fill=(15, 23, 35, 245), outline=(57, 77, 101))
-    draw.rounded_rectangle((20, 19, 24, 39), radius=2, fill=GOLD)
-    text(38, 13, "赛季收获", 25, WHITE)
-    text(width - 166, 22, "开箱手气档案", 16, GOLD)
-    draw.line((20, 54, width - 20, 54), fill=(58, 76, 100))
+    draw.rounded_rectangle((0, 0, width - 1, height - 1), radius=RADIUS_CARD, fill=SURFACE, outline=STROKE, width=1)
+    draw.polygon([(25, 19), (31, 19), (27, 39), (21, 39)], fill=ACCENT)
+    text(40, 15, "赛季收获", 24, WHITE)
+    text(width - 150, 22, "开箱手气档案", 16, GOLD)
+    draw.line((20, 54, width - 20, 54), fill=HAIRLINE, width=1)
 
     wide = width >= 900
     opened = count_value(loot.get("open_lootbox_cnt"))
     depth, tier = pile_tier(opened)
     hero_width = 390 if wide else width - 40
-    draw.rounded_rectangle((20, 70, hero_width + 20, 302 if wide else 226), radius=10, fill=(23, 35, 50))
+    draw.rounded_rectangle((20, 70, hero_width + 20, 302 if wide else 226), radius=RADIUS_TILE, fill=SURFACE_RAISED)
     text(38, 86, "本赛季累计开启", 17)
     number = f"{opened:,}" if opened is not None else "—"
     text(36, 113, number, 51, BLUE, 205 if not wide else 350)
@@ -164,7 +175,7 @@ def render_loot_panel(canvas, x, y, width, loot, font_loader=None):
         text(bar_x + bar_w - 65, bar_y + 22, "欧 · ≥3×", 14, GOLD)
 
     footer_y = height - 52
-    draw.line((24, footer_y - 9, width - 24, footer_y - 9), fill=(45, 61, 80))
+    draw.line((24, footer_y - 9, width - 24, footer_y - 9), fill=HAIRLINE, width=1)
     text(24, footer_y, "收获比 = 品质数量 ÷ 开箱数；箱种未拆分，欧非仅作趣味参考。", 14, MUTED, width - 48)
-    text(24, footer_y + 22, "箱堆按数量分档示意  ·  普通箱概率：国服官方公示", 13, (115, 137, 160), width - 48)
+    text(24, footer_y + 22, "箱堆按数量分档示意  ·  普通箱概率：国服官方公示", 13, FAINT, width - 48)
     canvas.alpha_composite(card, (x, y)) if canvas.mode == "RGBA" else canvas.paste(card, (x, y), card)

@@ -12,7 +12,7 @@ import math
 import re
 from io import BytesIO
 
-from PIL import Image, ImageChops, ImageDraw, ImageOps
+from PIL import Image, ImageChops, ImageOps
 
 from .engine import _load_runtime
 from .season_report import RESOURCE_DIR, fmt, mapping, mode_name, number, rows
@@ -20,18 +20,23 @@ from ...constants.ranks import get_rank_name, get_rank_sub_tier, rank_name_cn, r
 from ..dashen_match.render import _perk_guid_candidates, _perk_lookup
 from .season_report_ranks import QUEUE_LABELS, ROLE_LABELS
 from .season_loot import loot_panel_height, render_loot_panel
+from .runtime.summary_style import (
+    DRAW as GOLD,
+    HAIRLINE,
+    INFO as BLUE,
+    INK as WHITE,
+    LOSS as RED,
+    MUTED,
+    RADIUS_CARD,
+    RADIUS_TILE,
+    STROKE,
+    SURFACE,
+    SURFACE_RAISED,
+    WIN as GREEN,
+    tinted as tint,
+)
 
-WHITE = (240, 246, 254)
-MUTED = (158, 175, 197)
-BLUE = (131, 213, 255)
-GREEN = (139, 228, 181)
-GOLD = (255, 207, 116)
 PURPLE = (197, 156, 255)
-RED = (219, 145, 149)
-
-
-def tint(color, amount=0.16):
-    return tuple(round(base + (channel - base) * amount) for base, channel in zip((20, 30, 45), color))
 
 
 def plain_text(value):
@@ -155,7 +160,7 @@ async def render_report(report, role_id):
     canvas = await s._make_period_background((1400, cursor + 24), [])
     # Additional dark tint keeps the extended page and smaller labels legible.
     canvas = Image.alpha_composite(canvas.convert("RGBA"), Image.new("RGBA", canvas.size, (5, 10, 18, 55)))
-    draw = ImageDraw.Draw(canvas, "RGBA")
+    draw = s._summary_draw(canvas)
 
     def text(x, y, value, size=20, color=WHITE, width=570, bold=False):
         font = s._load_font(size, bold=bold or size >= 26)
@@ -163,12 +168,11 @@ async def render_report(report, role_id):
         draw.text((x, y), value, font=font, fill=color)
 
     def panel(x, y, w, h, title, color=BLUE, quiet=False):
-        draw.rounded_rectangle((x, y, x + w, y + h), radius=12,
-                               fill=(15, 23, 35, 230), outline=(57, 77, 101, 185), width=1)
-        draw.rounded_rectangle((x + 20, y + 19, x + 24, y + 39), radius=2, fill=color)
-        text(x + 38, y + 13, title, 21 if quiet else 25, MUTED if quiet else WHITE, w - 64, bold=True)
+        draw.rounded_rectangle((x, y, x + w, y + h), radius=RADIUS_CARD, fill=SURFACE, outline=STROKE, width=1)
+        draw.polygon([(x + 25, y + 19), (x + 31, y + 19), (x + 27, y + 39), (x + 21, y + 39)], fill=color)
+        text(x + 40, y + 15, title, 21 if quiet else 24, MUTED if quiet else WHITE, w - 64, bold=True)
         if not quiet:
-            draw.line((x + 20, y + 54, x + w - 20, y + 54), fill=(58, 76, 100, 140))
+            draw.line((x + 20, y + 54, x + w - 20, y + 54), fill=HAIRLINE, width=1)
 
     def paste(asset, x, y, w, h, radius=10, contain=False):
         asset = asset.convert("RGBA")
@@ -185,8 +189,7 @@ async def render_report(report, role_id):
         if asset is not None:
             paste(asset, x, y, w, h, radius, contain)
         else:
-            draw.rounded_rectangle((x, y, x + w, y + h), radius=radius,
-                                   fill=(28, 40, 55), outline=(57, 77, 101))
+            draw.rounded_rectangle((x, y, x + w, y + h), radius=radius, fill=SURFACE_RAISED, outline=STROKE)
 
     def local_icon(path, x, y, w, h, gray=False):
         try:
@@ -322,7 +325,7 @@ async def render_report(report, role_id):
             if overview.get(rate_key) is not None:
                 text(x, ty + 72, f"排名比例 {fmt(overview[rate_key], 2, '%')}", 15, MUTED, 280)
             if i % 4 != 3:
-                draw.line((x + 292, ty + 4, x + 292, ty + 85), fill=(57, 77, 101, 110))
+                draw.line((x + 292, ty + 4, x + 292, ty + 85), fill=HAIRLINE, width=1)
 
     if "heroes" in sections:
         y, h = sections["heroes"]
@@ -349,7 +352,7 @@ async def render_report(report, role_id):
             text(x, ty + 39, label, 17, MUTED, 285)
 
     async def match_tile(row, x, y, w, title, count=None):
-        draw.rounded_rectangle((x, y, x + w, y + 332), radius=10, fill=(25, 35, 50, 215))
+        draw.rounded_rectangle((x, y, x + w, y + 332), radius=RADIUS_TILE, fill=SURFACE_RAISED)
         await picture(s._map_icon_url(row.get("map")), x, y, w, 116, 10)
         # Backplates keep metadata readable over any map thumbnail.
         match_rank = rank_label(mapping(row.get("rank")))
@@ -422,7 +425,7 @@ async def render_report(report, role_id):
                 text(413, ty + 7, f"{fmt(row.get('with_friend_match_cnt'))} 场 · {fmt(row.get('with_friend_win_rate'), 1, '%')}", 17, GREEN, 226)
         if have_loot:
             lx, lw = (705, 645) if have_friends else (50, 1300)
-            render_loot_panel(canvas, lx, y, lw, report["lootbox"], s._load_font)
+            render_loot_panel(canvas, lx, y, lw, report["lootbox"], s._load_font, s._summary_draw)
     out = BytesIO()
     canvas = append_dashen_promo(canvas, compact=False)
     canvas.convert("RGB").save(out, "PNG")
