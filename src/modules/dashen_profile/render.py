@@ -95,6 +95,7 @@ STATS_CARD_H = 496
 TOP_HEROES_CARD_H = 330
 ROLE_HEAD = 66
 ROLE_ROW_PITCH = 72
+ROLE_ROW_PITCH_MAX = 84
 USAGE_ROW_PITCH = 50
 RECENT_ROW_PITCH = 40
 BILLBOARD_LABEL_H = 36
@@ -245,7 +246,10 @@ def render_profile_summary(context: ProfileRenderContext) -> RenderedImage:
     columns_h = max(left_natural, middle_natural, right_natural)
     usage_pitch = min(72, USAGE_ROW_PITCH + (columns_h - left_natural) // usage_lines)
     recent_pitch = min(58, RECENT_ROW_PITCH + (columns_h - right_natural) // recent_lines)
-    role_pitch = min(104, ROLE_ROW_PITCH + (columns_h - middle_natural) // 4)
+    # Middle cards keep their own height; without leaderboards they sit centred.
+    middle_spare = columns_h - middle_natural
+    role_pitch = min(ROLE_ROW_PITCH_MAX, ROLE_ROW_PITCH + middle_spare // 4)
+    role_h = ROLE_HEAD + 4 * ROLE_ROW_PITCH + 14 + min(4 * (ROLE_ROW_PITCH_MAX - ROLE_ROW_PITCH), middle_spare)
 
     header_top = 28
     body_top = header_top + HEADER_H + SECTION_GAP
@@ -276,9 +280,12 @@ def render_profile_summary(context: ProfileRenderContext) -> RenderedImage:
     )
 
     middle_x = COL_B[0]
-    _draw_top_heroes_card(canvas, draw, config, context.top_heroes, middle_x, body_top, middle_w)
-    role_top = body_top + TOP_HEROES_CARD_H + SECTION_GAP
-    role_bottom = body_top + columns_h - (SECTION_GAP + billboard_h if billboard_h else 0)
+    middle_top = body_top
+    if not billboard_h:
+        middle_top += (columns_h - TOP_HEROES_CARD_H - SECTION_GAP - role_h) // 2
+    _draw_top_heroes_card(canvas, draw, config, context.top_heroes, middle_x, middle_top, middle_w)
+    role_top = middle_top + TOP_HEROES_CARD_H + SECTION_GAP
+    role_bottom = role_top + role_h
     _draw_role_card(canvas, draw, context.role_entries, (middle_x, role_top, middle_x + middle_w - 1, role_bottom - 1), pitch=role_pitch)
     if billboard_h:
         _draw_billboard_card(
