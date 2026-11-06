@@ -6,10 +6,12 @@ a render that crosses the day/night boundary keeps one theme from start to finis
 from contextvars import ContextVar
 import datetime
 from functools import wraps
+import inspect
+from math import ceil
 import os
 from types import SimpleNamespace
 
-from PIL import Image
+from PIL import Image, ImageFilter
 
 RADIUS_CARD = 14
 RADIUS_TILE = 10
@@ -96,6 +98,28 @@ NIGHT = SimpleNamespace(
     LOOT_EMPTY=(48, 61, 78),
     LOOT_MID=(219, 225, 236),
     LOOT_MARKER=(20, 29, 43),
+    USAGE_FILL_ALPHA=72,
+    PROFILE_BANNER_SCRIM=(242, 232, 206, 216, 240),
+    RECENT_ROW_SCRIM=(150, 226, 244, 248),
+    STRENGTH_TONES={
+        "quick": {"range": (132, 208, 255), "line": (92, 164, 255), "on_line": (9, 14, 22)},
+        "competitive": {"range": (255, 136, 128), "line": (255, 86, 86), "on_line": (9, 14, 22)},
+    },
+    STRENGTH_MAP_SCRIM=176,
+    STRENGTH_RESULT_TINT=.34,
+    RANK_COLORS=(
+        (207, 120, 86), (196, 201, 200), (217, 164, 59),
+        (149, 213, 179), (95, 227, 157), (93, 163, 241),
+        (140, 230, 94), (135, 115, 249), (190, 123, 224),
+    ),
+    MATCH_MODES={
+        "unranked": (120, 170, 255),
+        "stadium_qp": (92, 214, 136),
+        "stadium_comp": (236, 176, 76),
+        "competitive": (242, 124, 156),
+        "competitive_6v6": (196, 156, 255),
+        "unranked_6v6": (86, 214, 214),
+    },
     # Pale artwork needs help on paper; on the dark theme these stay unset.
     ROLE_ICON=None,
     MAP_ICON=None,
@@ -186,6 +210,28 @@ DAY = SimpleNamespace(
         "LOOT_EMPTY": (216, 205, 182),
         "LOOT_MID": _DAY_INK,
         "LOOT_MARKER": (243, 234, 214),
+        "USAGE_FILL_ALPHA": 52,
+        "PROFILE_BANNER_SCRIM": (246, 236, 200, 216, 242),
+        "RECENT_ROW_SCRIM": (214, 240, 250, 252),
+        "STRENGTH_TONES": {
+            "quick": {"range": (26, 92, 156), "line": (22, 66, 156), "on_line": (255, 255, 255)},
+            "competitive": {"range": (176, 44, 58), "line": (150, 24, 40), "on_line": (255, 255, 255)},
+        },
+        "STRENGTH_MAP_SCRIM": 214,
+        "STRENGTH_RESULT_TINT": .26,
+        "RANK_COLORS": (
+            (146, 74, 36), (96, 106, 112), (150, 104, 0),
+            (46, 120, 96), (20, 128, 76), (26, 96, 176),
+            (66, 128, 20), (82, 62, 196), (136, 58, 168),
+        ),
+        "MATCH_MODES": {
+            "unranked": (36, 84, 190),
+            "stadium_qp": (30, 118, 70),
+            "stadium_comp": (150, 94, 0),
+            "competitive": (172, 50, 84),
+            "competitive_6v6": (98, 62, 170),
+            "unranked_6v6": (8, 112, 112),
+        },
         "ROLE_ICON": _DAY_INK,
         "MAP_ICON": (78, 66, 54),
         "STICKER": _DAY_INK,
@@ -240,7 +286,18 @@ def theme_for_time(now=None):
 
 
 def themed(render):
-    """Hold one theme for a whole async render, whatever else runs meanwhile."""
+    """Hold one theme for a whole render, whatever else runs meanwhile."""
+
+    if not inspect.iscoroutinefunction(render):
+        @wraps(render)
+        def sync_wrapper(*args, **kwargs):
+            token = _ACTIVE_THEME.set(theme_for_time())
+            try:
+                return render(*args, **kwargs)
+            finally:
+                _ACTIVE_THEME.reset(token)
+
+        return sync_wrapper
 
     @wraps(render)
     async def wrapper(*args, **kwargs):
@@ -256,6 +313,21 @@ def themed(render):
 def activate_theme(theme):
     """Set the theme for the current context, for fixtures built outside a render."""
     return _ACTIVE_THEME.set(theme)
+
+
+def sticker_outline(image, color, width=1.5):
+    """Dark die-cut edge so pale emblems keep their colour yet separate from paper."""
+    scale = 4
+    pad = ceil(width) + 1
+    big = image.resize((image.width * scale, image.height * scale), Image.Resampling.LANCZOS)
+    frame = Image.new("RGBA", (big.width + pad * scale * 2, big.height + pad * scale * 2), (0, 0, 0, 0))
+    frame.paste(big, (pad * scale, pad * scale))
+    alpha = frame.getchannel("A").point(lambda value: 255 if value > 60 else 0)
+    alpha = alpha.filter(ImageFilter.MaxFilter(int(width * scale) * 2 + 1))
+    edge = Image.new("RGBA", frame.size, (*color, 255))
+    edge.putalpha(alpha)
+    merged = Image.alpha_composite(edge, frame)
+    return merged.resize((image.width + pad * 2, image.height + pad * 2), Image.Resampling.LANCZOS)
 
 
 def with_alpha(color, alpha):

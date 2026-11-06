@@ -13,6 +13,19 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from ...constants.backgrounds import build_random_map_background
 from ...constants.ranks import RANK_LABELS_CN, RANK_ORDER, strength_score_to_icon_level
 
+from ..dashen_summary.runtime.summary_style import (
+    C,
+    RADIUS_CARD,
+    RADIUS_CHIP,
+    horizontal_scrim,
+    mix,
+    sticker_outline,
+    themed,
+    tinted,
+    vertical_scrim,
+    with_alpha,
+)
+from ..dashen_summary.runtime.summary_typography import SmoothDraw, smooth_mask
 from .engine import score_to_rank
 
 try:
@@ -24,13 +37,11 @@ try:
     from overstats.src.modules.font_resolver import load_font
     from overstats.src.modules.risk_status import (
         draw_risk_status_badge,
-        measure_risk_status_badge,
     )
 except ModuleNotFoundError:
     from src.modules.font_resolver import load_font
     from src.modules.risk_status import (
         draw_risk_status_badge,
-        measure_risk_status_badge,
     )
 
 
@@ -50,6 +61,7 @@ RESOURCE_DIR = _resolve_resource_dir()
 RANK_BREAKPOINTS = [500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500]
 RESULT_LABELS = {1: "胜", -1: "负", 0: "平"}
 DEFAULT_STRENGTH_THEME = {
+    "tone": "quick",
     "range_color": (140, 214, 255, 188),
     "line_color": (86, 154, 255, 255),
     "avatar_ring_color": (92, 151, 245, 255),
@@ -57,17 +69,33 @@ DEFAULT_STRENGTH_THEME = {
 }
 QUICK_STRENGTH_THEME = dict(DEFAULT_STRENGTH_THEME)
 COMPETITIVE_STRENGTH_THEME = {
+    "tone": "competitive",
     "range_color": (255, 104, 104, 204),
     "line_color": (255, 72, 72, 255),
     "avatar_ring_color": (255, 84, 84, 255),
     "avatar_badge_text": "CS",
 }
 TOP_TIER_ICON_LEVELS = {6, 7, 8}
-RANK_DISTRIBUTION_COLORS = (
-    (207, 120, 86), (196, 201, 200), (217, 164, 59),
-    (149, 213, 179), (95, 227, 157), (93, 163, 241),
-    (140, 230, 94), (135, 115, 249), (190, 123, 224),
-)
+PAGE_W = 2000
+PAGE_MARGIN = 32
+SECTION_GAP = 18
+HEADER_H = 190
+CHART_HEAD = 70
+CHART_PAD = 26
+AXIS_W = 96
+PLOT_H = 620
+MATCH_LABEL_H = 112
+CHART_CARD_H = CHART_HEAD + PLOT_H + MATCH_LABEL_H + CHART_PAD + 10
+HISTOGRAM_H = 190
+LEGEND_H = 66
+TILE_INSET = 4
+ROLE_TRACK_W = 56
+ROLE_TRACK_OUTLINE = 5
+ALL_ROLE_TRACK_W = 14
+RESULT_STRIP_H = 12
+SUMMARY_ICON_H = 76
+_FONT_CACHE: Dict[Any, Any] = {}
+_MAP_CACHE: Dict[Any, Any] = {}
 
 
 @dataclass(frozen=True)
@@ -76,6 +104,7 @@ class RenderedImage:
     media_type: str = "image/png"
 
 
+@themed
 def render_quick_strength(
     *,
     player_name: str,
@@ -91,83 +120,62 @@ def render_quick_strength(
     match_scope_text: str = "快速",
 ) -> RenderedImage:
     try:
-        from PIL import Image
+        from PIL import Image  # noqa: F401
     except ModuleNotFoundError as exc:
         raise RuntimeError("render.py requires Pillow to output images") from exc
 
-    scale = 2
-    base_width = 1500
-    base_height = 1076
-    width = base_width * scale
-    height = base_height * scale
-    canvas = Image.new("RGBA", (width, height), (11, 17, 28, 255))
+    height = PAGE_MARGIN * 2 + SECTION_GAP * 3 + HEADER_H + CHART_CARD_H + HISTOGRAM_H + LEGEND_H
+    canvas = _page_background((PAGE_W, height))
     draw = _new_draw(canvas)
-    fonts = _load_fonts(scale)
     render_config = config if isinstance(config, dict) else {}
     active_theme = _resolve_theme(theme)
+    tone = C.STRENGTH_TONES[active_theme["tone"]]
 
-    _draw_background(canvas, scale=scale)
-    _draw_panel(
-        draw,
-        (36 * scale, 24 * scale, width - 36 * scale, 142 * scale),
-        fill=(14, 22, 36, 215),
-        outline=(47, 62, 88, 255),
-        radius=14 * scale,
-    )
-    _draw_panel(
-        draw,
-        (36 * scale, 154 * scale, width - 36 * scale, 860 * scale),
-        fill=(12, 19, 31, 225),
-        outline=(47, 62, 88, 255),
-        radius=14 * scale,
-    )
-    _draw_panel(
-        draw,
-        (36 * scale, 968 * scale, width - 36 * scale, height - 24 * scale),
-        fill=(13, 20, 33, 225),
-        outline=(47, 62, 88, 255),
-        radius=14 * scale,
-    )
-
+    top = PAGE_MARGIN
     _draw_header(
         canvas,
         draw,
+        top=top,
         player_name=player_name,
         bnet_id=bnet_id,
         summary=summary,
+        matches=matches,
         avatar_bytes=avatar_bytes,
         risk_status=risk_status,
-        fonts=fonts,
-        scale=scale,
-        theme=active_theme,
+        config=render_config,
+        tone=tone,
+        badge_text=str(active_theme.get("avatar_badge_text") or "QS"),
         title_text=title_text,
         match_scope_text=match_scope_text,
     )
+    top += HEADER_H + SECTION_GAP
     _draw_chart(
         canvas,
         draw,
-        summary=summary,
+        top=top,
         matches=matches,
         config=render_config,
-        fonts=fonts,
-        scale=scale,
-        theme=active_theme,
+        tone=tone,
         chart_title_text=chart_title_text,
     )
-    _draw_rank_distribution(draw, matches=matches, fonts=fonts, scale=scale)
-    _draw_footer(draw, fonts=fonts, scale=scale, theme=active_theme)
+    top += CHART_CARD_H + SECTION_GAP
+    _draw_rank_distribution(draw, top=top, matches=matches, tone=tone)
+    top += HISTOGRAM_H + SECTION_GAP
+    _draw_legend(draw, top=top, tone=tone)
 
     output = BytesIO()
-    canvas = canvas.resize((base_width, base_height), Image.LANCZOS)
     canvas = append_dashen_promo(canvas, compact=True)
     canvas.save(output, format="PNG")
     return RenderedImage(content=output.getvalue())
 
 
 def _new_draw(image: Any) -> Any:
-    from PIL import ImageDraw
-
-    return ImageDraw.Draw(image, "RGBA")
+    return SmoothDraw(
+        image,
+        "RGBA",
+        numeric_font_path=RESOURCE_DIR / "GrotaRoundedExtraBold.otf",
+        latin_font_path=RESOURCE_DIR / "en2.ttf",
+    )
 
 
 def _resolve_theme(theme: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -177,97 +185,62 @@ def _resolve_theme(theme: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     return resolved
 
 
-def _draw_background(canvas: Any, *, scale: int) -> None:
-    from PIL import Image, ImageFilter
+def _page_background(size: Tuple[int, int]) -> Any:
+    from PIL import Image
 
-    map_background = build_random_map_background(
-        canvas.size,
-        blur_radius=18 * scale,
-        overlay=(9, 14, 23, 92),
-        brightness=0.76,
-        color=0.86,
+    background = build_random_map_background(
+        size,
+        blur_radius=50,
+        overlay=C.PAGE_OVERLAY,
+        brightness=C.PAGE_BRIGHTNESS,
+        color=C.PAGE_COLOR,
     )
-    if map_background is not None:
-        canvas.alpha_composite(map_background)
-
-    overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-    draw = _new_draw(overlay)
-    gradient_alpha = 112 if map_background is not None else 255
-    for idx in range(canvas.height):
-        ratio = idx / max(canvas.height - 1, 1)
-        red = int(8 + (22 - 8) * ratio)
-        green = int(14 + (24 - 14) * ratio)
-        blue = int(25 + (40 - 25) * ratio)
-        draw.line((0, idx, canvas.width, idx), fill=(red, green, blue, gradient_alpha))
-
-    glow = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-    glow_draw = _new_draw(glow)
-    glow_draw.ellipse(
-        (-120 * scale, -80 * scale, 680 * scale, 520 * scale),
-        fill=(34, 95, 179, 125),
-    )
-    glow_draw.ellipse(
-        (canvas.width - 720 * scale, 30 * scale, canvas.width + 80 * scale, 600 * scale),
-        fill=(29, 160, 187, 70),
-    )
-    glow = glow.filter(ImageFilter.GaussianBlur(radius=48 * scale))
-    overlay.alpha_composite(glow)
-    canvas.alpha_composite(overlay)
+    if background is None:
+        return Image.new("RGBA", size, (*C.SCRIM, 255))
+    return Image.alpha_composite(background, vertical_scrim(size, 0, C.PAGE_FADE))
 
 
-def _draw_panel(
-    draw: Any,
-    box: Tuple[int, int, int, int],
-    *,
-    fill: Tuple[int, int, int, int],
-    outline: Tuple[int, int, int, int],
-    radius: int,
-) -> None:
-    draw.rounded_rectangle(
-        box,
-        radius=radius,
-        fill=fill,
-        outline=outline,
-        width=max(2, radius // 10),
-    )
+def _card(draw: Any, box: Tuple[int, int, int, int], tone: Dict[str, Any], title: str, *, size: int = 32) -> int:
+    x1, y1 = box[:2]
+    draw.rounded_rectangle(box, radius=RADIUS_CARD + 4, fill=C.SURFACE, outline=C.STROKE, width=1)
+    draw.polygon([(x1 + 26, y1 + 20), (x1 + 34, y1 + 20), (x1 + 29, y1 + 46), (x1 + 21, y1 + 46)], fill=tone["line"])
+    font = _ui_font(size, bold=True)
+    draw.text((x1 + 46, y1 + 33), title, font=font, fill=C.INK, anchor="lm")
+    return x1 + 46 + _measure_text(draw, title, font)
 
 
 def _draw_header(
     canvas: Any,
     draw: Any,
     *,
+    top: int,
     player_name: str,
     bnet_id: str,
     summary: Dict[str, Any],
+    matches: Sequence[Dict[str, Any]],
     avatar_bytes: Optional[bytes],
     risk_status: Any,
-    fonts: Dict[str, Any],
-    scale: int,
-    theme: Dict[str, Any],
+    config: Dict[str, Any],
+    tone: Dict[str, Any],
+    badge_text: str,
     title_text: str,
     match_scope_text: str,
 ) -> None:
-    avatar_x = 70 * scale
-    avatar_y = 32 * scale
-    avatar_size = 78 * scale
-    avatar = _open_avatar(
-        avatar_bytes,
-        size=avatar_size,
-        ring_color=tuple(theme.get("avatar_ring_color") or DEFAULT_STRENGTH_THEME["avatar_ring_color"]),
-    )
-    if avatar is not None:
-        canvas.paste(avatar, (avatar_x, avatar_y), avatar)
+    from PIL import Image
+
+    left, right = PAGE_MARGIN, PAGE_W - PAGE_MARGIN
+    bottom = top + HEADER_H
+    box = (left, top, right - 1, bottom - 1)
+    size = (right - left, HEADER_H)
+    cover = _map_cover(config, matches[-1].get("map_guid"), size) if matches else None
+    if cover is not None:
+        cover = Image.alpha_composite(cover, horizontal_scrim(size, C.PROFILE_BANNER_SCRIM))
+        canvas.paste(cover, (left, top), smooth_mask(size[0], size[1], RADIUS_CARD + 4))
     else:
-        draw.ellipse(
-            (avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size),
-            fill=(31, 52, 83, 255),
-        )
-        draw.text(
-            (avatar_x + 26 * scale, avatar_y + 20 * scale),
-            str(theme.get("avatar_badge_text") or "QS"),
-            font=fonts["font_mono"],
-            fill=(211, 230, 255, 255),
-        )
+        draw.rounded_rectangle(box, radius=RADIUS_CARD + 4, fill=C.SURFACE)
+    draw.rounded_rectangle(box, radius=RADIUS_CARD + 4, outline=C.STROKE, width=1)
+
+    _draw_avatar(canvas, draw, avatar_bytes, (left + 30, top + 30), 130, tone, badge_text)
 
     display_name = str(player_name or bnet_id or "Unknown").strip()
     raw_bnet_id = str(bnet_id or "").strip()
@@ -281,127 +254,78 @@ def _draw_header(
         name_text = display_name
         suffix_text = raw_bnet_id if raw_bnet_id and raw_bnet_id != display_name else ""
 
-    title_x = 188 * scale
-    name_font = fonts[_player_name_font_key(name_text)]
-    badge_max_width = 240 * scale
-    badge_width, _, _ = measure_risk_status_badge(
-        draw,
-        risk_status,
-        font=fonts["font_meta"],
-        padding_x=8 * scale,
-        padding_y=3 * scale,
-        max_width=badge_max_width,
-    )
-    if badge_width:
-        player_region_right = 760 * scale
-        max_name_width = max(
-            80 * scale,
-            player_region_right - title_x - badge_width - 36 * scale,
-        )
-        rendered_name = _fit_text(draw, name_text, name_font, max_name_width)
-    else:
-        rendered_name = name_text
-    draw.text(
-        (title_x, 42 * scale),
-        rendered_name,
-        font=name_font,
-        fill=(242, 247, 255, 255),
-    )
-    if suffix_text:
-        draw.text(
-            (title_x + 2 * scale, 74 * scale),
-            suffix_text,
-            font=fonts["font_id_suffix"],
-            fill=(186, 201, 224, 255),
-        )
-    draw.text(
-        (190 * scale, 100 * scale),
-        title_text,
-        font=fonts["font_sub"],
-        fill=(158, 178, 205, 255),
-    )
-
+    title_x = left + 190
+    region_right = left + 730
+    name_font = _ui_font(46, bold=True) if _contains_cjk(name_text) else _display_font(60)
+    rendered_name = _fit_text(draw, name_text, name_font, region_right - title_x)
+    draw.text((title_x, top + 56), rendered_name, font=name_font, fill=C.INK, anchor="lm")
     name_width = _measure_text(draw, rendered_name, name_font)
-    summary_x = max(500 * scale, title_x + name_width + 4 * scale)
-    if badge_width:
-        badge_x = title_x + name_width + 12 * scale
-        badge_width, _ = draw_risk_status_badge(
-            draw,
-            badge_x,
-            47 * scale,
-            risk_status,
-            font=fonts["font_meta"],
-            padding_x=8 * scale,
-            padding_y=3 * scale,
-            max_width=badge_max_width,
-        )
-        summary_x = max(summary_x, badge_x + badge_width + 18 * scale)
-        summary_x = min(summary_x, 760 * scale)
-    else:
-        summary_x = min(summary_x, 660 * scale)
-    _draw_summary_block(
-        canvas,
+
+    title_font = _ui_font(22, bold=True)
+    title_width = _measure_text(draw, title_text, title_font) + 28
+    chip_y = top + 92
+    badge_x = title_x + title_width + 16
+    if suffix_text:
+        suffix_font = _display_font(30, oblique=False)
+        draw.text((title_x, top + 106), suffix_text, font=suffix_font, fill=C.MUTED, anchor="lm")
+        badge_x = title_x + _measure_text(draw, suffix_text, suffix_font) + 16
+        chip_y = top + 124
+    draw.rounded_rectangle((title_x, chip_y, title_x + title_width, chip_y + 36), radius=RADIUS_CHIP, fill=tone["line"])
+    draw.text((title_x + 14, chip_y + 18), title_text, font=title_font, fill=tone["on_line"], anchor="lm")
+    badge_width, _ = draw_risk_status_badge(
         draw,
-        x=summary_x,
-        y=34 * scale,
-        summary=summary,
-        fonts=fonts,
-        scale=scale,
-        match_scope_text=match_scope_text,
-    )
-    _draw_personal_data_ranking(
-        draw,
-        summary=summary,
-        fonts=fonts,
-        scale=scale,
-        theme=theme,
+        badge_x,
+        top + 91,
+        risk_status,
+        font=_ui_font(20),
+        padding_x=10,
+        padding_y=4,
+        max_width=max(100, region_right - badge_x),
     )
 
+    content_right = max(title_x + name_width, badge_x + badge_width if badge_width else 0)
+    summary_x = min(max(left + 610, content_right + 40), left + 760)
+    _draw_summary_block(canvas, draw, x=summary_x, top=top, summary=summary)
 
-def _draw_personal_data_ranking(
-    draw: Any,
-    *,
-    summary: Dict[str, Any],
-    fonts: Dict[str, Any],
-    scale: int,
-    theme: Dict[str, Any],
-) -> None:
-    raw_top_percent = summary.get("personal_data_top_percent")
-    if raw_top_percent is None:
-        return
-    try:
-        top_percent = max(0.0, min(100.0, float(raw_top_percent)))
-    except (TypeError, ValueError):
-        return
-
-    percent_text = f"{top_percent:.1f}".rstrip("0").rstrip(".")
-    text = f"个人数据位于数据库前{percent_text}%"
-    font = fonts["font_sub"]
-    text_width = _measure_text(draw, text, font)
-    padding_x = 14 * scale
-    padding_y = 8 * scale
-    right = 1428 * scale
-    top = 52 * scale
-    box = (
-        right - text_width - padding_x * 2,
-        top - padding_y,
-        right,
-        top + 18 * scale + padding_y,
-    )
-    accent = tuple(theme.get("line_color") or DEFAULT_STRENGTH_THEME["line_color"])
-    draw.rounded_rectangle(
-        box,
-        radius=10 * scale,
-        fill=(24, 34, 51, 218),
-        outline=(accent[0], accent[1], accent[2], 170),
-        width=max(2, scale),
+    match_count = int(summary.get("match_count") or 0)
+    fallback_text = (
+        "已启用上赛季回退"
+        if bool(summary.get("used_previous_season_fallback"))
+        else "优先使用当前赛季"
     )
     draw.text(
-        (right - text_width - padding_x, top),
-        text,
-        font=font,
-        fill=(226, 237, 252, 255),
+        (right - 30, top + HEADER_H // 2),
+        f"最近 {match_count} 场{match_scope_text}  ·  {fallback_text}",
+        font=_ui_font(21),
+        fill=C.TEXT,
+        anchor="rm",
     )
+
+
+def _draw_avatar(
+    canvas: Any,
+    draw: Any,
+    avatar_bytes: Optional[bytes],
+    position: Tuple[int, int],
+    size: int,
+    tone: Dict[str, Any],
+    badge_text: str,
+) -> None:
+    from PIL import Image, ImageOps
+
+    x, y = position
+    avatar = None
+    if avatar_bytes:
+        try:
+            avatar = ImageOps.fit(Image.open(BytesIO(avatar_bytes)).convert("RGBA"), (size, size), method=Image.LANCZOS)
+        except Exception:
+            avatar = None
+    if avatar is not None:
+        canvas.paste(avatar, position, smooth_mask(size, size, 18))
+    else:
+        draw.rounded_rectangle((x, y, x + size - 1, y + size - 1), radius=18, fill=C.SURFACE_RAISED)
+        draw.text((x + size / 2, y + size / 2), badge_text, font=_display_font(52, oblique=False), fill=C.INK, anchor="mm")
+    draw.rounded_rectangle((x - 4, y - 4, x + size + 3, y + size + 3), radius=21, outline=tone["line"], width=3)
 
 
 def _draw_summary_block(
@@ -409,117 +333,73 @@ def _draw_summary_block(
     draw: Any,
     *,
     x: int,
-    y: int,
+    top: int,
     summary: Dict[str, Any],
-    fonts: Dict[str, Any],
-    scale: int,
-    match_scope_text: str,
 ) -> None:
     avg_score = float(summary.get("overall_avg_score") or 0)
     avg_rank = _rank_text_cn(summary.get("overall_avg_rank") or "Unranked")
     score_range = summary.get("score_range") if isinstance(summary.get("score_range"), dict) else {}
     range_min = int(score_range.get("min") or 0)
     range_max = int(score_range.get("max") or 0)
-    match_count = int(summary.get("match_count") or 0)
-    fallback_text = (
-        "已启用上赛季回退"
-        if bool(summary.get("used_previous_season_fallback"))
-        else "优先使用当前赛季"
-    )
 
     rank_level = _rank_icon_level_from_score(avg_score)
-    icon_size = _summary_rank_icon_size(rank_level, scale=scale)
+    icon_size = _summary_rank_icon_size(rank_level)
     icon = _load_rank_flat_icon(avg_score, size=icon_size)
     text_x = x
     if icon is not None:
-        canvas.paste(icon, (x, y + 4 * scale), icon)
-        text_x += icon_size[0] + 14 * scale
+        if C.STICKER:
+            icon = sticker_outline(icon, C.STICKER)
+        canvas.paste(icon, (x, top + (HEADER_H - icon.height) // 2), icon)
+        text_x += icon.width + 18
 
-    draw.text(
-        (text_x, y),
-        "平均段位估计",
-        font=fonts["font_summary_label"],
-        fill=(155, 174, 198, 255),
-    )
-    draw.text(
-        (text_x, y + 18 * scale),
-        avg_rank,
-        font=fonts["font_summary_rank"],
-        fill=(238, 244, 252, 255),
-    )
+    label_font, value_font = _ui_font(20), _ui_font(32, bold=True)
+    draw.text((text_x, top + 56), "平均段位估计", font=label_font, fill=C.MUTED, anchor="lm")
+    rank_font = _ui_font(44, bold=True)
+    draw.text((text_x, top + 108), avg_rank, font=rank_font, fill=C.INK, anchor="lm")
 
-    score_text = (
-        f"平均强度 {avg_score:.1f}"
-        if avg_score > 0
-        else "平均强度 --"
-    )
-    range_text = (
-        f"强度范围 {range_min} - {range_max}"
-        if range_min > 0 and range_max > 0
-        else "强度范围 --"
-    )
-    draw.text(
-        (text_x, y + 50 * scale),
-        score_text,
-        font=fonts["font_sub"],
-        fill=(180, 198, 220, 255),
-    )
-    score_text_width = _measure_text(draw, score_text, fonts["font_sub"])
-    draw.text(
-        (text_x + score_text_width + 24 * scale, y + 50 * scale),
-        range_text,
-        font=fonts["font_sub"],
-        fill=(180, 198, 220, 255),
-    )
-    draw.text(
-        (text_x, y + 68 * scale),
-        f"最近 {match_count} 场{match_scope_text}  ·  {fallback_text}",
-        font=fonts["font_meta"],
-        fill=(132, 151, 176, 255),
-    )
+    stats_x = text_x + max(_measure_text(draw, "平均段位估计", label_font), _measure_text(draw, avg_rank, rank_font)) + 40
+    score_text = f"{avg_score:.1f}" if avg_score > 0 else "--"
+    range_text = f"{range_min} - {range_max}" if range_min > 0 and range_max > 0 else "--"
+    for label, value in (("平均强度", score_text), ("强度范围", range_text)):
+        draw.text((stats_x, top + 56), label, font=label_font, fill=C.MUTED, anchor="lm")
+        draw.text((stats_x, top + 108), value, font=value_font, fill=C.INK, anchor="lm")
+        stats_x += max(_measure_text(draw, label, label_font), _measure_text(draw, value, value_font)) + 40
 
 
 def _draw_chart(
     canvas: Any,
     draw: Any,
     *,
-    summary: Dict[str, Any],
+    top: int,
     matches: Sequence[Dict[str, Any]],
     config: Dict[str, Any],
-    fonts: Dict[str, Any],
-    scale: int,
-    theme: Dict[str, Any],
+    tone: Dict[str, Any],
     chart_title_text: str,
 ) -> None:
-    x1 = 72 * scale
-    y1 = 186 * scale
-    x2 = 1428 * scale
-    y2 = 828 * scale
-    inner_left = x1 + 80 * scale
-    inner_right = x2 - 42 * scale
-    inner_top = y1 + 28 * scale
-    inner_bottom = y2 - 74 * scale
-
+    box = (PAGE_MARGIN, top, PAGE_W - PAGE_MARGIN - 1, top + CHART_CARD_H - 1)
+    title_right = _card(draw, box, tone, chart_title_text)
     draw.text(
-        (x1, y1 - 28 * scale),
-        chart_title_text,
-        font=fonts["font_panel_title"],
-        fill=(235, 242, 252, 255),
-    )
-    draw.text(
-        (x1 + 170 * scale, y1 - 24 * scale),
+        (title_right + 28, top + 33),
         "粗条=职责区间  细条=全职责区间  "
         "条内横条=玩家段位分布  厚度=同段位人数",
-        font=fonts["font_meta"],
-        fill=(132, 151, 176, 255),
+        font=_ui_font(20),
+        fill=C.MUTED,
+        anchor="lm",
     )
+
+    axis_left = box[0] + CHART_PAD
+    inner_left = axis_left + AXIS_W
+    inner_right = box[2] - CHART_PAD
+    inner_top = top + CHART_HEAD
+    inner_bottom = inner_top + PLOT_H
 
     if not matches:
         draw.text(
-            (inner_left, inner_top + 80 * scale),
+            ((inner_left + inner_right) // 2, inner_top + PLOT_H // 2),
             "暂无快速比赛数据",
-            font=fonts["font_panel_title"],
-            fill=(180, 190, 205, 255),
+            font=_ui_font(30, bold=True),
+            fill=C.MUTED,
+            anchor="mm",
         )
         return
 
@@ -544,139 +424,91 @@ def _draw_chart(
         ratio = max(0.0, min(1.0, ratio))
         return int(inner_bottom - ratio * (inner_bottom - inner_top))
 
-    column_count = len(matches)
-    if column_count <= 1:
-        x_positions = [int((inner_left + inner_right) / 2)]
-        label_width_limit = 180 * scale
-    else:
-        step_x = (inner_right - inner_left) / max(column_count - 1, 1)
-        x_positions = [int(inner_left + idx * step_x) for idx in range(column_count)]
-        label_width_limit = max(int(step_x - 14 * scale), 84 * scale)
+    column_width = (inner_right - inner_left) / len(matches)
+    columns = [
+        (int(inner_left + idx * column_width) + TILE_INSET, int(inner_left + (idx + 1) * column_width) - TILE_INSET)
+        for idx in range(len(matches))
+    ]
+    x_positions = [(left + right) // 2 for left, right in columns]
 
-    _draw_match_backdrops(
-        canvas,
-        draw=draw,
-        matches=matches,
-        config=config,
-        x_positions=x_positions,
-        inner_left=inner_left,
-        inner_right=inner_right,
-        inner_top=inner_top,
-        inner_bottom=inner_bottom,
-        scale=scale,
-    )
+    for (left, right), match in zip(columns, matches):
+        _draw_match_tile(canvas, draw, match, config, (left, inner_top, right, inner_bottom))
 
-    for breakpoint in RANK_BREAKPOINTS:
-        if breakpoint < score_min or breakpoint > score_max:
-            continue
-        y = y_for(breakpoint)
-        _draw_contrast_text(
-            draw,
-            (x1 + 2 * scale, y - 10 * scale),
-            _score_to_rank_cn(breakpoint),
-            font=fonts["font_axis"],
-            fill=(234, 241, 251, 255),
-            shadow_fill=(8, 13, 21, 228),
-            shadow_offset=(0, scale),
-            stroke_width=max(scale // 2, 1),
-            stroke_fill=(10, 16, 28, 240),
-        )
+    _draw_rank_axis(draw, inner_left, columns, y_for, score_min, score_max)
 
-    all_role_width = max(10 * scale, 14)
-    role_width = max(42 * scale, 48)
-    range_color = tuple(theme.get("range_color") or DEFAULT_STRENGTH_THEME["range_color"])
-    solid_range_fill = _enhance_rgba(range_color, brightness=1.18, contrast=1.14, alpha=232)
-    solid_range_outline = _enhance_rgba(range_color, brightness=1.34, contrast=1.22, alpha=252)
-    hollow_range_outline = _enhance_rgba(range_color, brightness=1.46, contrast=1.28, alpha=255)
-    distribution_bar_color = _enhance_rgba(range_color, brightness=1.36, contrast=1.2, alpha=234)
-    hidden_overlay = (0, 0, 0, 0)
     line_points: List[Tuple[int, int]] = []
-
     for x, match in zip(x_positions, matches):
         _draw_range_track(
             draw,
             x=x,
             full_range=match.get("all_role_range") or {},
-            current_range=match.get("current_all_role_range") or {},
             cutout_range=match.get("role_range") or {},
             y_for=y_for,
-            width=all_role_width,
-            base_color=solid_range_fill,
-            active_color=hidden_overlay,
-            outline_color=solid_range_outline,
-            outline_width=max(2 * scale, 3),
-            scale=scale,
+            width=ALL_ROLE_TRACK_W,
+            fill=tone["range"],
         )
         _draw_range_track(
             draw,
             x=x,
             full_range=match.get("role_range") or {},
-            current_range=match.get("current_role_range") or {},
             y_for=y_for,
-            width=role_width,
-            base_color=range_color,
-            active_color=hidden_overlay,
-            outline_color=hollow_range_outline,
-            outline_width=max(4 * scale, 6),
-            hollow=True,
-            scale=scale,
+            width=ROLE_TRACK_W,
+            outline=tone["range"],
         )
-
         _draw_score_distribution_bars(
             draw,
             x=x,
             scores=list(match.get("team_scores") or []) + list(match.get("enemy_scores") or []),
             y_for=y_for,
-            track_width=role_width,
-            fill=distribution_bar_color,
+            track_width=ROLE_TRACK_W,
+            fill=tone["range"],
             inner_top=inner_top,
             inner_bottom=inner_bottom,
-            scale=scale,
         )
 
         avg_score = float(match.get("avg_score") or 0)
         if avg_score > 0:
-            point = (x, y_for(avg_score))
-            line_points.append(point)
+            line_points.append((x, y_for(avg_score)))
 
     if len(line_points) >= 2:
-        draw.line(
-            line_points,
-            fill=tuple(theme.get("line_color") or DEFAULT_STRENGTH_THEME["line_color"]),
-            width=max(3 * scale, 4),
-        )
+        draw.line(line_points, fill=with_alpha(C.SCRIM, 215), width=10, joint="curve")
+        draw.line(line_points, fill=tone["line"], width=5, joint="curve")
+    for x, y in line_points:
+        draw.ellipse((x - 9, y - 9, x + 9, y + 9), fill=C.SCRIM)
+        draw.ellipse((x - 6, y - 6, x + 6, y + 6), fill=tone["line"])
 
-    bottom_line_y = inner_bottom + 24 * scale
-    for idx, (x, match) in enumerate(zip(x_positions, matches), start=1):
-        label_text = f"{idx}. {_format_match_label(match, config)}"
-        icon_size = 18 * scale
-        label_text = _fit_text(draw, label_text, fonts["font_meta"], max(1, label_width_limit - icon_size - 4 * scale))
-        label_width = _measure_text(draw, label_text, fonts["font_meta"])
-        draw_map_mode_icon(canvas, match.get("map_guid"), x - (label_width + icon_size) / 2 - 4 * scale, bottom_line_y, icon_size)
-        _draw_contrast_text(
-            draw,
-            (int(x - (label_width - icon_size) / 2), bottom_line_y),
-            label_text,
-            font=fonts["font_meta"],
-            fill=(236, 242, 251, 255),
-            shadow_fill=(8, 13, 21, 220),
-            shadow_offset=(0, scale),
-            stroke_width=max(scale // 2, 1),
-            stroke_fill=(10, 16, 28, 240),
+    label_top = inner_bottom + 10
+    for idx, ((left, right), match) in enumerate(zip(columns, matches), start=1):
+        _draw_match_label(canvas, draw, match, config, idx, (left, label_top, right, label_top + MATCH_LABEL_H - 1))
+
+
+def _draw_rank_axis(
+    draw: Any,
+    inner_left: int,
+    columns: Sequence[Tuple[int, int]],
+    y_for: Any,
+    score_min: int,
+    score_max: int,
+) -> None:
+    rail_left = inner_left - 14
+    for rank_index, lower in enumerate(RANK_BREAKPOINTS):
+        upper = lower + 500
+        if upper <= score_min or lower >= score_max:
+            continue
+        draw.rounded_rectangle(
+            (rail_left, y_for(min(upper, score_max)) + 1, rail_left + 5, y_for(max(lower, score_min)) - 1),
+            radius=2,
+            fill=C.RANK_COLORS[rank_index],
         )
-        date_text = _format_match_date(int(match.get("begin_ts") or 0))
-        date_width = _measure_text(draw, date_text, fonts["font_meta"])
-        _draw_contrast_text(
-            draw,
-            (int(x - date_width / 2), bottom_line_y + 22 * scale),
-            date_text,
-            font=fonts["font_meta"],
-            fill=(206, 221, 242, 255),
-            shadow_fill=(8, 13, 21, 220),
-            shadow_offset=(0, scale),
-            stroke_width=max(scale // 2, 1),
-            stroke_fill=(10, 16, 28, 240),
-        )
+    font = _ui_font(21, bold=True)
+    for rank_index, breakpoint in enumerate(RANK_BREAKPOINTS):
+        if breakpoint < score_min or breakpoint > score_max:
+            continue
+        y = y_for(breakpoint)
+        color = C.RANK_COLORS[rank_index]
+        for left, right in columns:
+            draw.line((left, y, right - 1, y), fill=with_alpha(color, 120), width=2)
+        draw.text((rail_left - 10, y), _score_to_rank_cn(breakpoint), font=font, fill=color, anchor="rm")
 
 
 def _rank_distribution_counts(matches: Sequence[Dict[str, Any]]) -> List[int]:
@@ -694,75 +526,73 @@ def _rank_distribution_counts(matches: Sequence[Dict[str, Any]]) -> List[int]:
     return counts
 
 
-def _draw_rank_distribution(
-    draw: Any, *, matches: Sequence[Dict[str, Any]], fonts: Dict[str, Any], scale: int,
-) -> None:
-    _draw_panel(
-        draw, (36 * scale, 872 * scale, 1464 * scale, 956 * scale),
-        fill=(13, 20, 33, 225), outline=(47, 62, 88, 255), radius=14 * scale,
-    )
+def _draw_rank_distribution(draw: Any, *, top: int, matches: Sequence[Dict[str, Any]], tone: Dict[str, Any]) -> None:
+    box = (PAGE_MARGIN, top, PAGE_W - PAGE_MARGIN - 1, top + HISTOGRAM_H - 1)
+    _card(draw, box, tone, "玩家段位分布", size=26)
     counts = _rank_distribution_counts(matches)
     peak = max(max(counts), 1)
-    group_width = (1428 - 72) / len(RANK_ORDER)
-    bar_step = group_width / 5
-    bar_half_width = (bar_step - 6) / 2
-    baseline = 932 * scale
+    left = box[0] + CHART_PAD
+    group_width = (box[2] - CHART_PAD - left) / len(RANK_ORDER)
+    bar_step = (group_width - 14) / 5
+    baseline = box[3] - 46
+    max_height = baseline - top - 56
+    font = _ui_font(22, bold=True)
     for rank_index, rank in enumerate(RANK_ORDER):
-        color = (*RANK_DISTRIBUTION_COLORS[rank_index], 255)
-        center = (72 + (rank_index + 0.5) * group_width) * scale
+        color = C.RANK_COLORS[rank_index]
+        group_left = left + rank_index * group_width + 7
         for division_index in range(5):
-            index = rank_index * 5 + division_index
-            x = center + (division_index - 2) * bar_step * scale
-            left, right = round(x - bar_half_width * scale), round(x + bar_half_width * scale)
-            if counts[index]:
-                bar_height = max(1, round(48 * scale * counts[index] / peak))
-                draw.rectangle((left, baseline - bar_height, right, baseline), fill=color)
+            count = counts[rank_index * 5 + division_index]
+            bar_left = round(group_left + division_index * bar_step)
+            bar_right = round(group_left + (division_index + 1) * bar_step) - 5
+            if count:
+                bar_height = max(4, round(max_height * count / peak))
+                draw.rounded_rectangle((bar_left, baseline - bar_height, bar_right, baseline), radius=3, fill=color)
             else:
-                draw.line((left, baseline, right, baseline), fill=color, width=2 * scale)
+                draw.line((bar_left, baseline, bar_right, baseline), fill=with_alpha(color, 110), width=2)
         draw.text(
-            (round(center), 936 * scale), RANK_LABELS_CN[rank],
-            font=fonts["font_axis"], fill=color, anchor="mt",
+            (round(left + (rank_index + 0.5) * group_width), baseline + 22),
+            RANK_LABELS_CN[rank],
+            font=font,
+            fill=color,
+            anchor="mm",
         )
 
 
-def _draw_footer(draw: Any, *, fonts: Dict[str, Any], scale: int, theme: Dict[str, Any]) -> None:
-    x1 = 72 * scale
-    y1 = 994 * scale
-    range_legend_color = tuple(theme.get("range_color") or DEFAULT_STRENGTH_THEME["range_color"])
-    legend_items = [
-        (
-            "职责区间",
-            _enhance_rgba(range_legend_color, brightness=1.46, contrast=1.28, alpha=255),
-            True,
-        ),
-        (
-            "全职责区间",
-            _enhance_rgba(range_legend_color, brightness=1.18, contrast=1.14, alpha=232),
-            False,
-        ),
-        (
-            "玩家段位分布",
-            _enhance_rgba(range_legend_color, brightness=1.36, contrast=1.2, alpha=234),
-            False,
-        ),
-        ("平均强度线", tuple(theme.get("line_color") or DEFAULT_STRENGTH_THEME["line_color"]), False),
-    ]
-    draw.text((x1, y1), "图例", font=fonts["font_panel_title"], fill=(236, 243, 251, 255))
-    cur_x = x1 + 64 * scale
-    for label, color, hollow in legend_items:
-        _draw_legend_swatch(
-            draw,
-            (cur_x, y1 + 8 * scale, cur_x + 18 * scale, y1 + 18 * scale),
-            color=color,
-            hollow=hollow,
-        )
-        draw.text(
-            (cur_x + 28 * scale, y1 + 1 * scale),
-            label,
-            font=fonts["font_meta"],
-            fill=(173, 186, 205, 255),
-        )
-        cur_x += _measure_text(draw, label, fonts["font_meta"]) + 64 * scale
+def _draw_legend(draw: Any, *, top: int, tone: Dict[str, Any]) -> None:
+    box = (PAGE_MARGIN, top, PAGE_W - PAGE_MARGIN - 1, top + LEGEND_H - 1)
+    draw.rounded_rectangle(box, radius=RADIUS_CARD + 4, fill=C.SURFACE, outline=C.STROKE, width=1)
+    y = top + LEGEND_H // 2
+    x = box[0] + 26
+    draw.text((x, y), "图例", font=_ui_font(26, bold=True), fill=C.INK, anchor="lm")
+    x += 96
+    font = _ui_font(21)
+    for label, swatch in (
+        ("职责区间", _swatch_role_range),
+        ("全职责区间", _swatch_all_role_range),
+        ("玩家段位分布", _swatch_score_ticks),
+        ("平均强度线", _swatch_average_line),
+    ):
+        swatch(draw, x, y, tone)
+        draw.text((x + 52, y), label, font=font, fill=C.TEXT, anchor="lm")
+        x += 52 + _measure_text(draw, label, font) + 56
+
+
+def _swatch_role_range(draw: Any, x: int, y: int, tone: Dict[str, Any]) -> None:
+    draw.rounded_rectangle((x + 4, y - 13, x + 36, y + 13), radius=4, outline=tone["range"], width=3)
+
+
+def _swatch_all_role_range(draw: Any, x: int, y: int, tone: Dict[str, Any]) -> None:
+    draw.rounded_rectangle((x + 15, y - 14, x + 25, y + 14), radius=3, fill=tone["range"])
+
+
+def _swatch_score_ticks(draw: Any, x: int, y: int, tone: Dict[str, Any]) -> None:
+    for offset in (-10, 0, 10):
+        draw.rounded_rectangle((x + 4, y + offset - 3, x + 36, y + offset + 3), radius=3, fill=tone["range"])
+
+
+def _swatch_average_line(draw: Any, x: int, y: int, tone: Dict[str, Any]) -> None:
+    draw.line((x, y, x + 40, y), fill=tone["line"], width=5)
+    draw.ellipse((x + 13, y - 7, x + 27, y + 7), fill=tone["line"])
 
 
 def _draw_range_track(
@@ -770,72 +600,25 @@ def _draw_range_track(
     *,
     x: int,
     full_range: Dict[str, Any],
-    current_range: Dict[str, Any],
     cutout_range: Optional[Dict[str, Any]] = None,
     y_for: Any,
     width: int,
-    base_color: Tuple[int, int, int, int],
-    active_color: Tuple[int, int, int, int],
-    outline_color: Optional[Tuple[int, int, int, int]] = None,
-    outline_width: int = 0,
-    hollow: bool = False,
-    scale: int,
+    fill: Optional[Tuple[int, ...]] = None,
+    outline: Optional[Tuple[int, ...]] = None,
 ) -> None:
     full_min = int(full_range.get("min") or 0)
     full_max = int(full_range.get("max") or 0)
     if full_min <= 0 or full_max <= 0 or full_max < full_min:
         return
-    radius = max(scale, min(width // 12, 2 * scale))
-    outline = outline_color or _enhance_rgba(base_color, brightness=1.18, contrast=1.12, alpha=248)
-    outline_px = outline_width or max(scale, 1)
-    segments = _split_range_segments(full_min, full_max, cutout_range=cutout_range)
-    if not segments:
-        return
-    for segment_min, segment_max in segments:
+    for segment_min, segment_max in _split_range_segments(full_min, full_max, cutout_range=cutout_range):
         top = y_for(segment_max)
-        bottom = y_for(segment_min)
-        box = (x - width // 2, top, x + width // 2, bottom)
-        if hollow:
-            glow_outline = _enhance_rgba(outline, brightness=1.08, contrast=1.04, alpha=148)
-            draw.rounded_rectangle(
-                box,
-                radius=radius,
-                outline=glow_outline,
-                width=outline_px + max(scale, 1),
-            )
-            draw.rounded_rectangle(
-                box,
-                radius=radius,
-                outline=outline,
-                width=outline_px,
-            )
-        else:
-            draw.rounded_rectangle(
-                box,
-                radius=radius,
-                fill=base_color,
-                outline=outline,
-                width=outline_px,
-            )
-
-    current_min = int(current_range.get("min") or 0)
-    current_max = int(current_range.get("max") or 0)
-    if current_min <= 0 or current_max <= 0 or current_max < current_min:
-        return
-    if len(active_color) >= 4 and int(active_color[3]) <= 0:
-        return
-    inset = max(scale, 1)
-    for segment_min, segment_max in segments:
-        overlap_min = max(segment_min, current_min)
-        overlap_max = min(segment_max, current_max)
-        if overlap_max < overlap_min:
-            continue
-        active_top = y_for(overlap_max)
-        active_bottom = y_for(overlap_min)
+        bottom = max(y_for(segment_min), top + 4)
         draw.rounded_rectangle(
-            (x - width // 2 + inset, active_top, x + width // 2 - inset, active_bottom),
-            radius=max(radius - inset, 1),
-            fill=active_color,
+            (x - width // 2, top, x + width // 2, bottom),
+            radius=4,
+            fill=fill,
+            outline=outline,
+            width=ROLE_TRACK_OUTLINE,
         )
 
 
@@ -864,52 +647,73 @@ def _split_range_segments(
     return segments
 
 
-def _draw_match_backdrops(
+def _draw_match_tile(
     canvas: Any,
-    *,
     draw: Any,
-    matches: Sequence[Dict[str, Any]],
+    match: Dict[str, Any],
     config: Dict[str, Any],
-    x_positions: Sequence[int],
-    inner_left: int,
-    inner_right: int,
-    inner_top: int,
-    inner_bottom: int,
-    scale: int,
+    box: Tuple[int, int, int, int],
 ) -> None:
-    if not matches or not x_positions:
-        return
-    for idx, (x, match) in enumerate(zip(x_positions, matches)):
-        if idx == 0:
-            left = inner_left
-        else:
-            left = int((x_positions[idx - 1] + x) / 2)
-        if idx == len(x_positions) - 1:
-            right = inner_right
-        else:
-            right = int((x + x_positions[idx + 1]) / 2)
-        left += 4 * scale
-        right -= 4 * scale
-        width = right - left
-        height = inner_bottom - inner_top
-        if width <= 18 * scale or height <= 24 * scale:
-            continue
-        backdrop = _load_map_backdrop(
-            config=config,
-            map_guid=match.get("map_guid"),
-            size=(width, height),
-        )
-        if backdrop is not None:
-            canvas.alpha_composite(backdrop, (left, inner_top))
-        _draw_match_result_bars(
-            draw,
-            left=left,
-            right=right,
-            top=inner_top,
-            bottom=inner_bottom,
-            result=match.get("result"),
-            scale=scale,
-        )
+    from PIL import Image
+
+    left, top, right, bottom = box
+    size = (right - left, bottom - top)
+    color = _result_color(match.get("result"))
+    wash = mix(color, C.SCRIM, C.STRENGTH_RESULT_TINT)
+    cover = _map_cover(config, match.get("map_guid"), size)
+    if cover is not None:
+        cover = Image.alpha_composite(cover, Image.new("RGBA", size, (*wash, C.STRENGTH_MAP_SCRIM)))
+        canvas.paste(cover, (left, top), smooth_mask(size[0], size[1], RADIUS_CHIP))
+    else:
+        draw.rounded_rectangle((left, top, right - 1, bottom - 1), radius=RADIUS_CHIP, fill=wash)
+    draw.rounded_rectangle((left, top, right - 1, top + RESULT_STRIP_H), radius=3, fill=color)
+    draw.rounded_rectangle((left, bottom - RESULT_STRIP_H - 1, right - 1, bottom - 1), radius=3, fill=color)
+
+
+def _draw_match_label(
+    canvas: Any,
+    draw: Any,
+    match: Dict[str, Any],
+    config: Dict[str, Any],
+    index: int,
+    box: Tuple[int, int, int, int],
+) -> None:
+    left, top, right, bottom = box
+    color = _result_color(match.get("result"))
+    draw.rounded_rectangle(box, radius=RADIUS_CHIP + 2, fill=color)
+    draw.rounded_rectangle((left + 3, top + 40, right - 3, bottom - 3), radius=RADIUS_CHIP, fill=tinted(color, .12))
+    pad = 12
+
+    draw.text((left + pad, top + 21), f"{index}.", font=_ui_font(22, bold=True), fill=C.STREAK_TEXT, anchor="lm")
+    draw_map_mode_icon(canvas, match.get("map_guid"), left + pad + 42, top + 8, 26, color=C.STREAK_TEXT)
+    draw.text(
+        (right - pad, top + 21),
+        _match_result_text(match),
+        font=_ui_font(28, bold=True),
+        fill=C.STREAK_TEXT,
+        anchor="rm",
+    )
+
+    map_name = _map_name(config, match.get("map_guid"))
+    map_font = _fit_ui_font(draw, map_name, right - left - pad, 22, 15)
+    draw.text(
+        ((left + right) // 2, top + 62),
+        _fit_text(draw, map_name, map_font, right - left - pad),
+        font=map_font,
+        fill=C.INK,
+        anchor="mm",
+    )
+
+    meta_font = _ui_font(19)
+    avg_score = float(match.get("avg_score") or 0)
+    draw.text(
+        (left + pad, top + 92),
+        _format_match_date(int(match.get("begin_ts") or 0)),
+        font=meta_font,
+        fill=C.MUTED,
+        anchor="lm",
+    )
+    draw.text((right - pad, top + 92), f"{avg_score:.0f}" if avg_score > 0 else "--", font=meta_font, fill=C.TEXT, anchor="rm")
 
 
 def _draw_score_distribution_bars(
@@ -919,89 +723,46 @@ def _draw_score_distribution_bars(
     scores: Sequence[Any],
     y_for: Any,
     track_width: int,
-    fill: Tuple[int, int, int, int],
+    fill: Tuple[int, ...],
     inner_top: int,
     inner_bottom: int,
-    scale: int,
 ) -> None:
-    grouped_scores = _group_scores(scores)
-    if not grouped_scores:
-        return
-    inset_x = max(scale, 1)
-    x1 = x - track_width // 2 + inset_x
-    x2 = x + track_width // 2 - inset_x
-    if x2 <= x1:
-        return
-    base_half_height = max(2 * scale, 3)
-    extra_half_height = max(scale, 2)
-    for score_num, count in grouped_scores:
+    half_width = track_width // 2 - 1
+    for score_num, count in _group_scores(scores):
         y = y_for(score_num)
-        marker_half_height = base_half_height + max(count - 1, 0) * extra_half_height
-        y1 = max(inner_top, y - marker_half_height)
-        y2 = min(inner_bottom, y + marker_half_height)
+        half_height = 3 + (count - 1) * 2
+        y1 = max(inner_top, y - half_height)
+        y2 = min(inner_bottom, y + half_height)
         if y2 <= y1:
             continue
         draw.rounded_rectangle(
-            (x1, y1, x2, y2),
+            (x - half_width, y1, x + half_width, y2),
             radius=max((y2 - y1) // 2, 1),
             fill=fill,
         )
 
 
-def _load_map_backdrop(
-    *,
-    config: Dict[str, Any],
-    map_guid: Any,
-    size: Tuple[int, int],
-) -> Any:
-    from PIL import Image, ImageEnhance, ImageOps
+def _map_cover(config: Dict[str, Any], map_guid: Any, size: Tuple[int, int]) -> Any:
+    from PIL import Image, ImageOps
 
-    width, height = size
-    if width <= 0 or height <= 0:
-        return None
     icon_url = _map_icon_url(config, map_guid)
-    if not icon_url:
+    if not icon_url or size[0] <= 0 or size[1] <= 0:
         return None
-    local_path = get_cached_asset_path(icon_url, "maps")
-    if not local_path or not Path(local_path).exists():
-        return None
-    try:
-        image = Image.open(local_path).convert("RGBA")
-    except Exception:
-        return None
-
-    try:
-        image = ImageOps.fit(image, (width, height), method=Image.LANCZOS, centering=(0.5, 0.5))
-    except Exception:
+    key = (icon_url, size)
+    cover = _MAP_CACHE.get(key)
+    if cover is None:
+        local_path = get_cached_asset_path(icon_url, "maps")
+        if not local_path or not Path(local_path).exists():
+            return None
         try:
-            image = image.resize((width, height), Image.LANCZOS)
+            with Image.open(local_path) as source:
+                cover = ImageOps.fit(source.convert("RGBA"), size, method=Image.LANCZOS, centering=(0.5, 0.5))
         except Exception:
             return None
-    image = ImageEnhance.Brightness(image).enhance(0.9)
-    image = ImageEnhance.Color(image).enhance(0.96)
-    alpha = image.getchannel("A").point(lambda value: int(value * 0.5))
-    image.putalpha(alpha)
-    shade = Image.new("RGBA", image.size, (11, 17, 28, 18))
-    image.alpha_composite(shade)
-    return image
-
-
-def _draw_match_result_bars(
-    draw: Any,
-    *,
-    left: int,
-    right: int,
-    top: int,
-    bottom: int,
-    result: Any,
-    scale: int,
-) -> None:
-    if right <= left or bottom <= top:
-        return
-    fill = _enhance_rgba(_result_strip_color(result), brightness=1.1, contrast=1.12, alpha=236)
-    strip_height = max(8 * scale, 12)
-    draw.rectangle((left, top, right, min(bottom, top + strip_height)), fill=fill)
-    draw.rectangle((left, max(top, bottom - strip_height), right, bottom), fill=fill)
+        if len(_MAP_CACHE) >= 64:
+            _MAP_CACHE.clear()
+        _MAP_CACHE[key] = cover
+    return cover
 
 
 def _collect_chart_scores(matches: Sequence[Dict[str, Any]]) -> List[int]:
@@ -1081,11 +842,10 @@ def _load_rank_flat_icon(score: float, *, size: Tuple[int, int]) -> Any:
     return None
 
 
-def _summary_rank_icon_size(rank_level: int, *, scale: int) -> Tuple[int, int]:
-    height = 54 * scale
+def _summary_rank_icon_size(rank_level: int) -> Tuple[int, int]:
     if rank_level in TOP_TIER_ICON_LEVELS:
-        return (height * 4 // 3, height)
-    return (height, height)
+        return (SUMMARY_ICON_H * 4 // 3, SUMMARY_ICON_H)
+    return (SUMMARY_ICON_H, SUMMARY_ICON_H)
 
 
 def _rank_icon_level_from_score(score: float) -> int:
@@ -1109,14 +869,12 @@ def _rank_text_cn(rank_text: Any) -> str:
     return raw
 
 
-def _format_match_label(match: Dict[str, Any], config: Dict[str, Any]) -> str:
-    map_name = _map_name(config, match.get("map_guid"))
+def _match_result_text(match: Dict[str, Any]) -> str:
     try:
         result_key = int(match.get("result") or 0)
     except (TypeError, ValueError):
         result_key = 0
-    result_text = RESULT_LABELS.get(result_key, RESULT_LABELS[0])
-    return f"{map_name}（{result_text}）"
+    return RESULT_LABELS.get(result_key, RESULT_LABELS[0])
 
 
 def _map_icon_url(config: Dict[str, Any], map_guid: Any) -> str:
@@ -1218,33 +976,34 @@ def _cjk_ratio(text: str) -> float:
     return cjk_count / max(len(text), 1)
 
 
-def _load_fonts(scale: int) -> Dict[str, Any]:
-    return {
-        "font_title": _font_resource("bignoodletoooblique.ttf", 32 * scale, fallback="BigNoodleToo.ttf"),
-        "font_title_cn": _font_chinese(28 * scale, bold=True),
-        "font_id_suffix": _font_resource("BigNoodleToo.ttf", 18 * scale, fallback="en2.ttf"),
-        "font_panel_title": _font_chinese(18 * scale, bold=True),
-        "font_summary_rank": _font_chinese(24 * scale, bold=True),
-        "font_summary_label": _font_chinese(12 * scale, bold=True),
-        "font_sub": _font_chinese(14 * scale),
-        "font_meta": _font_chinese(11 * scale),
-        "font_axis": _font_chinese(12 * scale),
-        "font_mono": _font_resource("BigNoodleToo.ttf", 22 * scale, fallback="en.ttf"),
-    }
+def _ui_font(size: int, *, bold: bool = False) -> Any:
+    key = ("ui", int(size), bool(bold))
+    font = _FONT_CACHE.get(key)
+    if font is None:
+        font = load_font(int(size), name="simhei.ttf", fallback="GrotaRoundedExtraBold.otf", prefer_cjk=True, bold=bold)
+        if bold and Path(getattr(font, "path", "")).name.lower() == "simhei.ttf":
+            font.emulate_bold = True
+        _FONT_CACHE[key] = font
+    return font
 
 
-def _font_resource(name: str, size: int, *, fallback: str | None = None) -> Any:
-    return load_font(size, name=name, fallback=fallback)
+def _display_font(size: int, *, oblique: bool = True) -> Any:
+    key = ("display", int(size), bool(oblique))
+    font = _FONT_CACHE.get(key)
+    if font is None:
+        name = "bignoodletoooblique.ttf" if oblique else "BigNoodleToo.ttf"
+        font = load_font(int(size), name=name, fallback="BigNoodleToo.ttf" if oblique else "en2.ttf")
+        font.keep_face = True
+        _FONT_CACHE[key] = font
+    return font
 
 
-def _font_chinese(size: int, *, bold: bool = False) -> Any:
-    return load_font(
-        size,
-        name="simhei.ttf",
-        fallback="GrotaRoundedExtraBold.otf",
-        prefer_cjk=True,
-        bold=bold,
-    )
+def _fit_ui_font(draw: Any, text: str, max_width: int, largest: int, smallest: int) -> Any:
+    for size in range(largest, smallest - 1, -1):
+        font = _ui_font(size)
+        if _measure_text(draw, text, font) <= max_width:
+            return font
+    return _ui_font(smallest)
 
 
 def _measure_text(draw: Any, text: str, font: Any) -> int:
@@ -1277,10 +1036,6 @@ def _fit_text(draw: Any, text: str, font: Any, max_width: int) -> str:
     return (trimmed + suffix) if trimmed else suffix
 
 
-def _player_name_font_key(text: str) -> str:
-    return "font_title_cn" if _contains_cjk(text) else "font_title"
-
-
 def _contains_cjk(text: str) -> bool:
     for char in str(text or ""):
         if (
@@ -1292,111 +1047,13 @@ def _contains_cjk(text: str) -> bool:
     return False
 
 
-def _draw_contrast_text(
-    draw: Any,
-    position: Tuple[int, int],
-    text: str,
-    *,
-    font: Any,
-    fill: Tuple[int, int, int, int],
-    shadow_fill: Tuple[int, int, int, int],
-    shadow_offset: Tuple[int, int] = (0, 1),
-    stroke_width: int = 0,
-    stroke_fill: Optional[Tuple[int, int, int, int]] = None,
-) -> None:
-    shadow_x, shadow_y = shadow_offset
-    draw.text((position[0] + shadow_x, position[1] + shadow_y), text, font=font, fill=shadow_fill)
-    text_kwargs: Dict[str, Any] = {"font": font, "fill": fill}
-    if stroke_width > 0 and stroke_fill is not None:
-        text_kwargs.update({"stroke_width": stroke_width, "stroke_fill": stroke_fill})
-    try:
-        draw.text(position, text, **text_kwargs)
-    except TypeError:
-        text_kwargs.pop("stroke_width", None)
-        text_kwargs.pop("stroke_fill", None)
-        draw.text(position, text, **text_kwargs)
-
-
-def _draw_legend_swatch(
-    draw: Any,
-    box: Tuple[int, int, int, int],
-    *,
-    color: Tuple[int, int, int, int],
-    hollow: bool,
-) -> None:
-    x1, y1, x2, y2 = box
-    if hollow:
-        draw.rounded_rectangle(box, radius=max((y2 - y1) // 3, 1), outline=color, width=2)
-        return
-    draw.rectangle(box, fill=color)
-
-
-def _enhance_rgba(
-    color: Tuple[int, int, int, int],
-    *,
-    brightness: float = 1.0,
-    contrast: float = 1.0,
-    alpha: Optional[int] = None,
-) -> Tuple[int, int, int, int]:
-    red, green, blue = (
-        _clamp_color((128 + (channel - 128) * contrast) * brightness)
-        for channel in color[:3]
-    )
-    resolved_alpha = color[3] if len(color) >= 4 else 255
-    if alpha is not None:
-        resolved_alpha = _clamp_color(alpha)
-    return (red, green, blue, resolved_alpha)
-
-
-def _clamp_color(value: float) -> int:
-    return max(0, min(255, int(round(value))))
-
-
-def _result_color(result: Any) -> Tuple[int, int, int, int]:
+def _result_color(result: Any) -> Tuple[int, int, int]:
     try:
         result_num = int(result or 0)
     except (TypeError, ValueError):
         result_num = 0
     if result_num == 1:
-        return (246, 208, 75, 255)
+        return C.WIN
     if result_num == -1:
-        return (255, 92, 92, 255)
-    return (181, 190, 204, 255)
-
-
-def _result_strip_color(result: Any) -> Tuple[int, int, int, int]:
-    try:
-        result_num = int(result or 0)
-    except (TypeError, ValueError):
-        result_num = 0
-    if result_num == 1:
-        return (92, 219, 148, 220)
-    if result_num == -1:
-        return (255, 92, 92, 220)
-    return (160, 170, 185, 220)
-
-
-def _open_avatar(
-    avatar_bytes: Optional[bytes],
-    *,
-    size: int,
-    ring_color: Tuple[int, int, int, int],
-) -> Any:
-    from PIL import Image, ImageDraw, ImageOps
-
-    if not avatar_bytes:
-        return None
-    try:
-        avatar = Image.open(BytesIO(avatar_bytes)).convert("RGBA")
-    except Exception:
-        return None
-    avatar = ImageOps.fit(avatar, (size, size), method=Image.LANCZOS)
-    mask = Image.new("L", (size, size), 0)
-    ImageDraw.Draw(mask).ellipse((0, 0, size, size), fill=255)
-    avatar.putalpha(mask)
-    ring = Image.new("RGBA", (size + 12, size + 12), (0, 0, 0, 0))
-    ring_draw = ImageDraw.Draw(ring)
-    ring_draw.ellipse((0, 0, size + 12, size + 12), fill=ring_color)
-    ring_draw.ellipse((6, 6, size + 6, size + 6), fill=(0, 0, 0, 0))
-    ring.paste(avatar, (6, 6), avatar)
-    return ring
+        return C.LOSS
+    return C.MUTED

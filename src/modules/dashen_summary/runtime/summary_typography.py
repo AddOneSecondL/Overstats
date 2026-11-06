@@ -156,6 +156,9 @@ class SmoothDraw(SummaryDraw):
         size = getattr(font, "size", None)
         if not text or size is None or getattr(font, "path", "") == self.numeric_font_path:
             return None
+        # Display faces such as BigNoodle are chosen for their own Latin and digits.
+        if getattr(font, "keep_face", False):
+            return None
         latin = self.latin_font(size) or font
         # The heavy numeral face fills in at small sizes.
         numeric = latin if size < _SMALL_TEXT_SIZE else self.numeric_font(size) or font

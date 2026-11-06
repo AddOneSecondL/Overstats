@@ -43,6 +43,7 @@ from .summary_style import (
     RADIUS_TILE,
     horizontal_gradient,
     horizontal_scrim,
+    sticker_outline as _sticker_outline,
     themed,
     tinted,
     vertical_scrim,
@@ -3155,21 +3156,6 @@ async def _build_match_awards(customer_token, matches, detail_pairs, target, all
         record["season_baseline"] = hero_baseline(parsed,record["match"],record["hero_guid"])
         record["feature_evidence"] = _season_feature_evidence(record,parsed)
     return select_awards(records, history)
-
-
-def _sticker_outline(image, color, width=1.5):
-    """Dark die-cut edge so pale emblems keep their colour yet separate from paper."""
-    scale = 4
-    pad = ceil(width) + 1
-    big = image.resize((image.width * scale, image.height * scale), Image.Resampling.LANCZOS)
-    frame = Image.new("RGBA", (big.width + pad * scale * 2, big.height + pad * scale * 2), (0, 0, 0, 0))
-    frame.paste(big, (pad * scale, pad * scale))
-    alpha = frame.getchannel("A").point(lambda value: 255 if value > 60 else 0)
-    alpha = alpha.filter(ImageFilter.MaxFilter(int(width * scale) * 2 + 1))
-    edge = Image.new("RGBA", frame.size, (*color, 255))
-    edge.putalpha(alpha)
-    merged = Image.alpha_composite(edge, frame)
-    return merged.resize((image.width + pad * 2, image.height + pad * 2), Image.Resampling.LANCZOS)
 
 
 def _paste_summary_asset(canvas, filename, box, trim=False, on_chip=False):
