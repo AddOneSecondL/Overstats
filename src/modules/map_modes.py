@@ -45,13 +45,16 @@ def _icon(key, size):
         return source.convert("RGBA").resize((size, size), Image.Resampling.LANCZOS)
 
 
-def draw_map_mode_icon(canvas, value, x, y, size=22):
+def draw_map_mode_icon(canvas, value, x, y, size=22, color=None):
     key = MODE_ICONS.get(gameplay_mode(value))
     if not key:
         return False
     try:
         icon = _icon(key, max(1, int(size)))
-        canvas.paste(icon, (int(x), int(y)), icon)
+        if color:
+            canvas.paste(color, (int(x), int(y), int(x) + icon.width, int(y) + icon.height), icon.getchannel("A"))
+        else:
+            canvas.paste(icon, (int(x), int(y)), icon)
         return True
     except OSError:
         return False
