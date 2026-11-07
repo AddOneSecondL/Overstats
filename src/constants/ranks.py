@@ -3,8 +3,9 @@ from __future__ import annotations
 from typing import Any, Mapping, Optional
 
 
-# Dashen keeps the original rank ids for the eight existing ranks and uses 8
-# for Emerald.  The id therefore is not the display/sort order.
+# Rank buckets retain the original ids and use 8 for Emerald. These ids
+# are not the display order or necessarily the rankScore hundreds digit:
+# observed Dashen Emerald scores are 445..449, not 895..899.
 RANK_ORDER = (
     "Bronze",
     "Silver",
@@ -168,6 +169,10 @@ def raw_rank_score_parts(value: Any) -> Optional[tuple[int, int]]:
     score = _safe_int(value)
     if score is None or score <= 0:
         return None
+    # Emerald was inserted between Platinum (395..399) and Diamond
+    # (495..499). Normalize its compact score to our appended bucket id.
+    if 445 <= score <= 449:
+        return 8, 450 - score
     raw_rank_id, suffix = divmod(score, 100)
     if raw_rank_id not in RAW_RANK_ID_TO_NAME or not 95 <= suffix <= 99:
         return None

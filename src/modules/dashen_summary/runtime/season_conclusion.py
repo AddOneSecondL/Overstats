@@ -292,7 +292,8 @@ ATTR_TEXT_BY_GUID = {
 QUICK_DIST_BUCKET_START = 500
 QUICK_DIST_BUCKET_END = 4900
 QUICK_DIST_BUCKET_STEP = 100
-QUICK_DIST_SNAPSHOT_VERSION = 3
+# v4 includes Emerald rankScore 445..449, omitted by older snapshots.
+QUICK_DIST_SNAPSHOT_VERSION = 4
 QUICK_DIST_RANK_SPANS = (
     (500, 1000, "青铜"),
     (1000, 1500, "白银"),
@@ -1389,7 +1390,10 @@ def _get_rank_distribution_snapshot(target_day=None):
     if snapshot and int(snapshot.get("total_samples") or 0) > 0 and _is_rank_distribution_snapshot_compatible(snapshot):
         return snapshot
     built_snapshot = _build_rank_distribution_snapshot(target_day)
-    return built_snapshot if int(built_snapshot.get("total_samples") or 0) > 0 else (snapshot or built_snapshot)
+    # Never reuse an incompatible snapshot when rebuilding has no samples.
+    if int(built_snapshot.get("total_samples") or 0) > 0:
+        return built_snapshot
+    return snapshot if snapshot and _is_rank_distribution_snapshot_compatible(snapshot) else built_snapshot
 
 
 def _sample_period_quick_matches(matches, max_samples=12):
