@@ -61,6 +61,8 @@ from .render import (
     _load_role_icon_asset,
     _load_ow_config,
     _paste_perk_icon,
+    _perk_guid_candidates,
+    _perk_lookup,
     _resize_image,
     _resolve_player_hero,
     _text_size,
@@ -386,7 +388,7 @@ def _build_hero_average_comparison(
                 band = "below_median"
         else:
             band = classify_hero_average_band(normalized, ref)
-        results[guid] = {"band": band, "avg": ref.get("avg")}
+        results[guid] = {"band": band, "avg": ref.get("avg"), "normalized": normalized}
     return results
 
 
@@ -416,6 +418,12 @@ def _hero_stat_rows(
         label = str(attr.get("valueText") or guid)
         value_type = str(attr.get("valueType") or "")
         compare = compare_map.get(guid) or {}
+        ratio = None
+        try:
+            if compare.get("avg") and compare.get("normalized") is not None:
+                ratio = float(compare["normalized"]) / float(compare["avg"])
+        except (TypeError, ValueError, ZeroDivisionError):
+            ratio = None
         rows.append(
             {
                 "guid": guid,
@@ -424,6 +432,9 @@ def _hero_stat_rows(
                 "value_type": value_type,
                 "band": compare.get("band", "unknown"),
                 "avg_text": _format_avg_value(compare.get("avg"), label),
+                # Normalized value over the reference average; drives the delta and mini bar.
+                "avg_ratio": ratio if ratio is not None and math.isfinite(ratio) and ratio >= 0 else None,
+                "lower_is_better": guid == DEATH_GUID,
             }
         )
 
@@ -442,6 +453,51 @@ def _hero_stat_rows(
     return rows
 
 
+LATIN_RUN_RE = re.compile(r"([!-~](?:[ !-~]*[!-~])?)")
+DELTA_UP = (96, 216, 135, 255)
+DELTA_DOWN = (236, 112, 99, 255)
+
+
+FALLBACK_STAT_LABELS = {
+    KILL_GUID: "消灭",
+    ASSIST_GUID: "助攻",
+    DEATH_GUID: "阵亡",
+    FINAL_HIT_GUID: "最后一击",
+    GAME_TIME_GUID: "游戏时间",
+}
+
+
+def _display_label(row: dict[str, Any]) -> str:
+    """Stats missing from the config come through labelled with their raw id."""
+    label = str(row.get("label") or "")
+    if label.isdigit():
+        return FALLBACK_STAT_LABELS.get(str(row.get("guid") or label), "未知数据")
+    return label
+
+
+def _mixed_runs(text: Any, size: int) -> list[tuple[str, Any]]:
+    """simhei draws Latin and digits wide and spaced out; give ASCII runs the Latin face."""
+    return [
+        (part, _font_meta(size) if LATIN_RUN_RE.fullmatch(part) else _font_chinese(size))
+        for part in LATIN_RUN_RE.split(str(text or ""))
+        if part
+    ]
+
+
+def _mixed_width(draw: Any, text: Any, size: int) -> int:
+    return int(sum(draw.textlength(part, font=font) for part, font in _mixed_runs(text, size)))
+
+
+def _draw_mixed(draw: Any, xy: tuple[float, float], text: Any, size: int, fill: Any) -> int:
+    """Draw like a top-left anchored simhei string, with every run on the CJK baseline."""
+    x, y = xy
+    baseline = y + _font_chinese(size).getmetrics()[0]
+    for part, font in _mixed_runs(text, size):
+        draw.text((x, baseline), part, font=font, fill=fill, anchor="ls")
+        x += draw.textlength(part, font=font)
+    return int(x - xy[0])
+
+
 def _draw_legend(draw: Any, x: int, y: int, font: Any) -> None:
     legend = [
         ("颜色说明：", (185, 194, 210, 255)),
@@ -454,8 +510,7 @@ def _draw_legend(draw: Any, x: int, y: int, font: Any) -> None:
     ]
     current_x = x
     for text, color in legend:
-        draw.text((current_x, y), text, font=font, fill=color)
-        current_x += _measure(draw, text, font)
+        current_x += _draw_mixed(draw, (current_x, y), text, int(getattr(font, "size", 14)), color)
 
 
 def render_player_hero_detail(
@@ -474,7 +529,13 @@ def render_player_hero_detail(
     page_padding = 28
     card_gap = 18
     grid_gap = 14
-    stat_row_h = 28
+    # Tall enough for the value with its average beneath it, without the two overlapping.
+    stat_row_h = 39
+    stat_tile_h = 34
+    # Right-hand columns of each stat tile: value/average, vs-average delta, mini bar.
+    stat_value_w = 86
+    stat_delta_w = 46
+    stat_bar_w = 84
     legend_h = 52
 
     if not hero_list:
@@ -489,7 +550,8 @@ def render_player_hero_detail(
     for hero in hero_list:
         stat_rows = _hero_stat_rows(config, hero, rank_info=player_detail.get("rankInfo") or {})
         rows_per_col = max(1, math.ceil(len(stat_rows) / 2))
-        block_h = 100 + rows_per_col * stat_row_h + 18
+        # Bottom inset matches the 20px side inset of the stat grid.
+        block_h = 107 + rows_per_col * stat_row_h
         layout_rows.append((hero, stat_rows, block_h))
         total_height += block_h + card_gap
     total_height += page_padding
@@ -500,6 +562,7 @@ def render_player_hero_detail(
     _draw_legend(draw, page_padding, 58, _font_chinese(14))
 
     hero_lookup = {str(hero.get("heroGuid")): hero for hero in config.get("heroList", []) or [] if hero.get("heroGuid")}
+    perk_lookup = _perk_lookup(config)
     y = page_padding + legend_h
     for hero, stat_rows, block_h in layout_rows:
         box = (page_padding, y, card_width - page_padding, y + block_h)
@@ -533,17 +596,20 @@ def render_player_hero_detail(
                 ratio = max(0.0, min(1.0, hero_time / float(match_game_time_sec)))
             except (TypeError, ValueError, ZeroDivisionError):
                 ratio = 0.0
-            time_line = f"{int(hero_time // 60):02d}:{int(hero_time % 60):02d} | {ratio * 100:.1f}%"
+            time_line = f"{int(hero_time // 60):02d}:{int(hero_time % 60):02d}  |  {ratio * 100:.1f}%"
         else:
             time_line = f"{int(hero_time // 60):02d}:{int(hero_time % 60):02d}"
-        draw.text((hero_text_x, box[1] + 46), time_line, font=_font_chinese(15), fill=(186, 196, 212, 255))
+        draw.text((hero_text_x, box[1] + 48), time_line, font=_font_num_display(15), fill=(186, 196, 212, 255))
 
         perks = _extract_player_perks(hero)
         for perk_index, perk in enumerate(list(perks or [])[:2]):
             px = box[2] - 124 + perk_index * 48
             py = box[1] + 18
             draw.rounded_rectangle((px, py, px + 42, py + 42), radius=10, fill=(240, 244, 250, 255))
-            _paste_perk_icon(image, perk, (px + 6, py + 6), 30)
+            if not _paste_perk_icon(image, _perk_icon_url(perk_lookup, perk), (px + 6, py + 6), 30):
+                # Icon not cached: an empty slot reads better than a blank white tile.
+                draw.rounded_rectangle((px, py, px + 42, py + 42), radius=10, fill=(52, 60, 78, 255), outline=(98, 112, 136, 255), width=2)
+                draw.text((px + 21, py + 22), "?", font=_font_num_display(18), fill=(150, 162, 182, 255), anchor="mm")
 
         inner_left = box[0] + 20
         inner_top = box[1] + 92
@@ -555,15 +621,61 @@ def render_player_hero_detail(
             row_x = inner_left + column * (column_w + grid_gap)
             row_y = inner_top + row_index * stat_row_h
             fill = (40, 45, 59, 255) if row_index % 2 == 0 else (33, 38, 50, 255)
-            draw.rounded_rectangle((row_x, row_y, row_x + column_w, row_y + 22), radius=8, fill=fill)
+            draw.rounded_rectangle((row_x, row_y, row_x + column_w, row_y + stat_tile_h), radius=8, fill=fill)
             value_color = HIGHLIGHT_COLORS.get(row["band"], (246, 248, 255, 255))
-            draw.text((row_x + 12, row_y + 2), _fit_text(draw, row["label"], _font_chinese(14), column_w - 120), font=_font_chinese(14), fill=(194, 202, 216, 255))
-            draw.text((row_x + column_w - 14, row_y + 1), row["value_text"], font=_font_num_display(15), fill=value_color, anchor="ra")
-            if row["avg_text"] not in {"", "-"}:
-                draw.text((row_x + column_w - 14, row_y + 12), f"均值 {row['avg_text']}", font=_font_chinese(10), fill=(150, 160, 175, 255), anchor="ra")
+            has_avg = row["avg_text"] not in {"", "-"}
+            ratio = row.get("avg_ratio") if has_avg else None
+            value_right = row_x + column_w - 14
+            delta_right = value_right - stat_value_w - 10
+            bar_right = delta_right - stat_delta_w - 10
+            bar_left = bar_right - stat_bar_w
+            label_limit = (bar_left if ratio is not None else value_right - stat_value_w) - row_x - 24
+            draw.text((row_x + 12, row_y + stat_tile_h // 2), _fit_text(draw, _display_label(row), _font_chinese(14), label_limit), font=_font_chinese(14), fill=(194, 202, 216, 255), anchor="lm")
+            value_y = row_y + 2 if has_avg else row_y + (stat_tile_h - 16) // 2
+            draw.text((value_right, value_y), row["value_text"], font=_font_num_display(15), fill=value_color, anchor="ra")
+            if has_avg:
+                avg_font = _font_num_display(10)
+                avg_y = row_y + stat_tile_h - 3
+                draw.text((value_right, avg_y), row["avg_text"], font=avg_font, fill=(150, 160, 175, 255), anchor="rd")
+                avg_w = draw.textlength(row["avg_text"], font=avg_font)
+                draw.text((value_right - avg_w - 4, avg_y), "均值", font=_font_chinese(10), fill=(150, 160, 175, 255), anchor="rd")
+            if ratio is not None:
+                # Thin track: the tick marks the average, the fill reaches 2x average at most.
+                mid_y = row_y + stat_tile_h // 2
+                draw.rounded_rectangle((bar_left, mid_y - 3, bar_right, mid_y + 3), radius=3, fill=(24, 28, 38, 255))
+                fill_w = int(stat_bar_w * min(ratio, 2.0) / 2.0)
+                bar_color = value_color if row["band"] in HIGHLIGHT_COLORS else (112, 122, 140, 255)
+                if fill_w >= 6:
+                    draw.rounded_rectangle((bar_left, mid_y - 3, bar_left + fill_w, mid_y + 3), radius=3, fill=bar_color)
+                tick_x = bar_left + stat_bar_w // 2
+                draw.line((tick_x, mid_y - 6, tick_x, mid_y + 6), fill=(210, 216, 228, 200), width=2)
+                change = ratio - 1.0
+                better = change < 0 if row.get("lower_is_better") else change > 0
+                if abs(change) < 0.005:
+                    delta_text, delta_color = "±0%", (150, 160, 175, 255)
+                else:
+                    pct = min(abs(change) * 100, 999)
+                    delta_text = f"{'▲' if change > 0 else '▼'}{pct:.0f}%"
+                    delta_color = DELTA_UP if better else DELTA_DOWN
+                arrow, number = (delta_text[0], delta_text[1:]) if delta_text[0] in "▲▼" else ("", delta_text)
+                number_font = _font_num_display(12)
+                draw.text((delta_right, mid_y), number, font=number_font, fill=delta_color, anchor="rm")
+                if arrow:
+                    draw.text((delta_right - draw.textlength(number, font=number_font) - 2, mid_y), arrow, font=_font_chinese(10), fill=delta_color, anchor="rm")
         y += block_h + card_gap
 
     return _pil_to_rendered(image)
+
+
+def _perk_icon_url(perk_lookup: Dict[str, Dict[str, Any]], perk: Any) -> str:
+    """Perks arrive as ids or dicts; resolve them to an icon URL the way the scoreboard does."""
+    for candidate in _perk_guid_candidates(perk):
+        icon = (perk_lookup.get(candidate) or {}).get("icon")
+        if icon:
+            return str(icon)
+    if isinstance(perk, dict):
+        return str(perk.get("icon") or "")
+    return ""
 
 
 def render_all_players_waterfall(
@@ -795,7 +907,7 @@ def render_all_players_waterfall(
             hero_name = hero_info.get("name") or hero_guid or "未知英雄"
             row_map = {row["guid"]: row for row in _hero_stat_rows(config, hero, rank_info=player.get("rankInfo") or {})}
 
-            draw.rectangle((x + 8, current_y, x + player_w - 8, current_y + hero_header_h), fill=(30, 32, 42, 255))
+            draw.rectangle((x + 10, current_y, x + player_w - 10, current_y + hero_header_h), fill=(30, 32, 42, 255))
             icon = _load_icon_rgba(_hero_icon_url(hero_info, hero), size=(28, 28))
             if icon is not None:
                 image.paste(icon, (x + 14, current_y + 4), icon)
@@ -819,7 +931,9 @@ def render_all_players_waterfall(
 
             play_seconds = float(stat_map.get(GAME_TIME_GUID, 0) or 0)
             playtime_text = f"游戏时间{_format_seconds(play_seconds)}秒 | 占比{_format_ratio(play_seconds)}"
-            draw.text((x + 14, current_y + 28), _fit_text(draw, playtime_text, _font_meta(12), player_w - 28), font=_font_meta(12), fill=text_dim)
+            # en2 has no CJK glyphs, which dropped 游戏时间 / 秒 / 占比 from this line.
+            playtime_font = _font_chinese(12)
+            draw.text((x + 14, current_y + 30), _fit_text(draw, playtime_text, playtime_font, player_w - 28), font=playtime_font, fill=text_dim)
             current_y += hero_header_h
 
             stat_cell_w = (player_w - 20 - stat_gap) // 2
@@ -829,7 +943,7 @@ def render_all_players_waterfall(
                 row_x = x + 10 + column * (stat_cell_w + stat_gap)
                 row_y = current_y + row_index * stat_row_h
                 draw.rectangle((row_x, row_y, row_x + stat_cell_w, row_y + stat_row_h - 1), fill=row_color_a if row_index % 2 == 0 else row_color_b)
-                draw.text((row_x + 4, row_y + 4), _fit_text(draw, row["label"], _font_chinese(12), stat_cell_w - 60), font=_font_chinese(12), fill=text_dim)
+                draw.text((row_x + 4, row_y + 4), _fit_text(draw, _display_label(row), _font_chinese(12), stat_cell_w - 60), font=_font_chinese(12), fill=text_dim)
                 draw.text((row_x + stat_cell_w - 4, row_y + 3), row["value_text"], font=_font_num_display(13), fill=_value_fill(str(row["band"])), anchor="ra")
             current_y += math.ceil(len(stat_rows) / 2) * stat_row_h + hero_gap
 
@@ -1137,7 +1251,7 @@ def _render_all_players_waterfall_readable(
                 row_x = x + 12 + column * (stat_cell_w + stat_gap)
                 row_y = current_y + row_index * stat_row_h
                 draw.rounded_rectangle((row_x, row_y, row_x + stat_cell_w, row_y + stat_row_h - 2), radius=8, fill=row_color_a if row_index % 2 == 0 else row_color_b)
-                draw.text((row_x + 8, row_y + 4), _fit_text(draw, row["label"], _font_chinese(13), stat_cell_w - 86), font=_font_chinese(13), fill=text_dim)
+                draw.text((row_x + 8, row_y + 4), _fit_text(draw, _display_label(row), _font_chinese(13), stat_cell_w - 86), font=_font_chinese(13), fill=text_dim)
                 draw.text((row_x + stat_cell_w - 8, row_y + 3), row["value_text"], font=_font_num_display(15), fill=_value_fill(str(row["band"])), anchor="ra")
             current_y += math.ceil(len(stat_rows) / 2) * stat_row_h + hero_gap
 
@@ -1374,6 +1488,24 @@ def build_carry_index_data(match_data: dict[str, Any]) -> list[dict[str, Any]]:
     return carry_index_data
 
 
+EMPTY_SECTION_TEXT = {"", "无", "暂无", "none", "null", "n/a", "-"}
+TONE_COLORS = {
+    "good": (39, 174, 96, 255),
+    "bad": (235, 87, 87, 255),
+    "even": (104, 113, 128, 255),
+}
+
+
+def _comparison_tone(text: str) -> str:
+    if any(word in text for word in ("持平", "均势", "五五", "相当", "接近", "差不多")):
+        return "even"
+    if any(word in text for word in ("对方", "敌方", "落后", "劣势", "被压", "吃亏", "下风", "被打穿")):
+        return "bad"
+    if any(word in text for word in ("我方", "领先", "优势", "压制", "上风", "更强", "碾压")):
+        return "good"
+    return "even"
+
+
 def render_analysis_report(
     json_data: dict[str, Any],
     *,
@@ -1389,12 +1521,19 @@ def render_analysis_report(
     width = 800
     padding = 40
     line_spacing = 15
+    text_size = 22
+    line_h = 22 + line_spacing
+    text_x = padding + 20
+    text_w = width - padding * 2 - 20
     font_title = _font_chinese(40)
     font_sub = _font_chinese(26)
-    font_text = _font_chinese(22)
-    font_score = _font_chinese(32)
-    font_footer = _font_chinese(16)
+    font_text = _font_chinese(text_size)
+    font_score = _font_chinese(28)
     font_risk = _font_chinese(11)
+    body_color = (220, 225, 230, 255)
+    muted_color = (156, 166, 182, 255)
+    accent_color = (249, 158, 26, 255)
+    highlight_color = (255, 214, 140, 255)
 
     temp = Image.new("RGB", (1, 1))
     temp_draw = ImageDraw.Draw(temp)
@@ -1402,57 +1541,267 @@ def render_analysis_report(
     def measure(text: Any, font: Any) -> int:
         return _measure(temp_draw, text, font)
 
-    def wrap_lines(text: Any, font: Any, max_w: int) -> list[str]:
-        content = str(text or "")
-        lines = []
-        for segment in content.split("\n"):
-            current = ""
-            for char in segment:
-                if measure(current + char, font) <= max_w:
-                    current += char
-                else:
-                    lines.append(current)
-                    current = char
+    def text_width(text: Any) -> int:
+        return _mixed_width(temp_draw, text, text_size)
+
+    def wrap_rich(segments: Sequence[tuple[Any, Any]], max_w: int) -> list[list[tuple[str, Any]]]:
+        """Wrap coloured runs; Latin words and numbers stay whole, CJK breaks per character."""
+        lines: list[list[tuple[str, Any]]] = []
+        current: list[tuple[str, Any]] = []
+        used = 0
+
+        def push(text: str, color: Any) -> None:
+            nonlocal used
+            if current and current[-1][1] == color:
+                current[-1] = (current[-1][0] + text, color)
+            else:
+                current.append((text, color))
+            used += text_width(text)
+
+        def flush() -> None:
+            nonlocal current, used
             if current:
                 lines.append(current)
+            current, used = [], 0
+
+        for text, color in segments:
+            for index, segment in enumerate(str(text or "").split("\n")):
+                if index:
+                    flush()
+                for token in re.findall(r"[A-Za-z0-9_'%.+-]+|.", segment):
+                    token_w = text_width(token)
+                    if used + token_w <= max_w:
+                        push(token, color)
+                        continue
+                    flush()
+                    if token.isspace():
+                        continue
+                    for char in token if token_w > max_w else [token]:
+                        if current and used + text_width(char) > max_w:
+                            flush()
+                        push(char, color)
+        flush()
         return lines
 
-    red_black = json_data.get("red_black_list", {})
-    if isinstance(red_black, str):
-        red_black_text = red_black
-    else:
-        role_comparison = red_black.get("role_comparison", [])
-        role_text = "\n".join([f"  - {item}" for item in role_comparison]) if isinstance(role_comparison, list) else str(role_comparison)
-        red_black_text = f"MVP / 背锅位：{red_black.get('mvp_or_potg', '')}\n三路对比：\n{role_text}"
-        outstanding = red_black.get("outstanding_performance", "")
-        if outstanding:
-            red_black_text += f"\n亮点补充：{outstanding}"
+    def draw_rich(segments: Sequence[tuple[Any, Any]], y: int, dry: bool, x: int = text_x, max_w: int = text_w) -> int:
+        for line in wrap_rich(segments, max_w):
+            if not dry:
+                cursor = x
+                for text, color in line:
+                    cursor += _draw_mixed(draw, (cursor, y), text, text_size, color)
+            y += line_h
+        return y
 
+    red_black = json_data.get("red_black_list", {})
+    sections: list[dict[str, Any]] = [
+        {"type": "score", "title": "焦点玩家", "id": json_data.get("player_id", "未知"), "score": json_data.get("score", "N/A")},
+        {"type": "text", "title": "一句话总结", "segments": [(json_data.get("general_summary", ""), body_color)]},
+        {"type": "text", "title": "胜负关键", "segments": [("胜负手：", muted_color), (json_data.get("key_to_win_loss", ""), highlight_color)]},
+        {"type": "red_black", "title": "关键数据红黑榜", "data": red_black},
+        {"type": "text", "title": "最终局势", "segments": [(json_data.get("summary", ""), body_color)]},
+        {"type": "carry_index", "title": "全场表现评分", "data": json_data.get("carry_index_data", [])},
+        {"type": "attributes", "title": "团队属性与综合评价", "attr": json_data.get("attribute_scores", {}), "evaluation": json_data.get("evaluation", "")},
+        {"type": "text", "title": "EXTRA", "segments": [(json_data.get("extra", ""), body_color)]},
+    ]
+    # Sections the model left empty only add a heading over "无"; skip them.
     sections = [
-        {"type": "score", "title": "□ 焦点玩家", "id": json_data.get("player_id", "未知"), "score": json_data.get("score", "N/A")},
-        {"type": "text", "title": "□ 一句话总结", "text": json_data.get("general_summary", "")},
-        {"type": "text", "title": "□ 胜负关键", "text": f"胜负手：{json_data.get('key_to_win_loss', '')}"},
-        {"type": "text", "title": "□ 关键数据红黑榜", "text": red_black_text},
-        {"type": "text", "title": "□ 最终局势", "text": json_data.get("summary", "")},
-        {"type": "carry_index", "title": "□ 全场表现评分", "data": json_data.get("carry_index_data", [])},
-        {"type": "attributes", "title": "□ 团队属性与综合评价", "attr": json_data.get("attribute_scores", {}), "evaluation": json_data.get("evaluation", "")},
-        {"type": "text", "title": "□ EXTRA", "text": json_data.get("extra", "")},
+        section for section in sections
+        if section["type"] != "text" or str(section["segments"][-1][0] or "").strip().lower() not in EMPTY_SECTION_TEXT
     ]
 
-    total_height = 120
-    for section in sections:
-        total_height += 45
-        if section["type"] == "score":
-            total_height += 35
-        elif section["type"] == "text":
-            total_height += len(wrap_lines(section["text"], font_text, width - padding * 2 - 20)) * (22 + line_spacing) + 15
-        elif section["type"] == "carry_index":
-            total_height += len(section["data"]) * 35 + 15
-        elif section["type"] == "attributes":
-            total_height += 4 * 45
-            total_height += len(wrap_lines(f"综合评价：{section['evaluation']}", font_text, width - padding * 2 - 20)) * (22 + line_spacing) + 15
-        total_height += 30
-    total_height += 70 + (28 if footer_source else 0)
+    score_colors = {
+        "S": (255, 215, 0, 255),
+        "A": (186, 85, 211, 255),
+        "B": (65, 105, 225, 255),
+        "C": (46, 139, 87, 255),
+        "D": (128, 128, 128, 255),
+    }
+
+    def draw_title(section: dict[str, Any], y: int, dry: bool) -> int:
+        if not dry:
+            draw.rectangle((padding, y + 3, padding + 5, y + 29), fill=accent_color)
+            draw.text((padding + 18, y), section["title"], font=font_sub, fill=accent_color)
+            if section["type"] == "carry_index" and section["data"]:
+                legend_x = width - padding
+                for label, color in (("敌方", (255, 99, 71, 255)), ("我方", (135, 206, 250, 255))):
+                    legend_x -= _mixed_width(draw, label, 16)
+                    _draw_mixed(draw, (legend_x, y + 7), label, 16, muted_color)
+                    draw.rectangle((legend_x - 20, y + 10, legend_x - 8, y + 22), fill=color)
+                    legend_x -= 34
+        return y + 45
+
+    def draw_score(section: dict[str, Any], y: int, dry: bool) -> int:
+        if dry:
+            return y + 35
+        score_text = str(section["score"]).upper().strip()
+        score_color = score_colors.get(score_text[:1] if score_text else "", (255, 255, 255, 255))
+        id_prefix = "ID："
+        id_text = str(section["id"])
+        prefix_width = text_width(id_prefix)
+        badge_width, _, _ = measure_risk_status_badge(
+            draw, risk_status, font=font_risk, compact=True, padding_x=6, padding_y=3, max_width=118,
+        )
+        icon_left = width - padding - len(target_hero_images or ()) * 45
+        score_label_width = measure("评分：", font_text)
+        pill_w = max(52, int(draw.textlength(score_text, font=font_score)) + 26)
+        reserved_right = score_label_width + pill_w + 28
+        available_id_width = max(
+            60,
+            icon_left - 12 - text_x - prefix_width - reserved_right - (badge_width + 12 if badge_width else 12),
+        )
+        rendered_id = _fit_text(draw, id_text, font_text, available_id_width)
+        _draw_mixed(draw, (text_x, y), id_prefix, text_size, body_color)
+        cursor_x = text_x + prefix_width
+        cursor_x += _draw_mixed(draw, (cursor_x, y), rendered_id, text_size, body_color)
+        if badge_width:
+            drawn_width, _ = draw_risk_status_badge(
+                draw, cursor_x + 7, y - 2, risk_status, font=font_risk, compact=True, padding_x=6, padding_y=3, max_width=118,
+            )
+            cursor_x += drawn_width + 14
+        else:
+            cursor_x += 12
+        draw.text((cursor_x, y), "评分：", font=font_text, fill=body_color)
+        pill_x = cursor_x + score_label_width
+        center_y = y + 11
+        draw.rounded_rectangle((pill_x, center_y - 18, pill_x + pill_w, center_y + 18), radius=10, fill=score_color)
+        luminance = 0.299 * score_color[0] + 0.587 * score_color[1] + 0.114 * score_color[2]
+        draw.text((pill_x + pill_w // 2, center_y + 1), score_text, font=font_score,
+                  fill=(28, 24, 18, 255) if luminance > 160 else (255, 255, 255, 255), anchor="mm")
+        if target_hero_images:
+            icon_x = icon_left
+            for icon in target_hero_images:
+                image.paste(icon, (int(icon_x), int(y - 8)), icon)
+                icon_x += 45
+        return y + 35
+
+    def draw_red_black(section: dict[str, Any], y: int, dry: bool) -> int:
+        data = section["data"]
+        if isinstance(data, str):
+            return draw_rich([(data, body_color)], y, dry) + 15
+        y = draw_rich([("MVP / 背锅位：", muted_color), (data.get("mvp_or_potg", ""), highlight_color)], y, dry)
+        y = draw_rich([("三路对比：", muted_color)], y, dry)
+        role_comparison = data.get("role_comparison", [])
+        if not isinstance(role_comparison, list):
+            y = draw_rich([(f"  {role_comparison}", body_color)], y, dry)
+            role_comparison = []
+        for item in role_comparison:
+            item = str(item or "").strip()
+            match = re.match(r"([^：:]{1,6})[：:]\s*(.*)$", item, re.S)
+            tone = TONE_COLORS[_comparison_tone(match.group(2) if match else item)]
+            if match:
+                label, rest = match.group(1).strip(), match.group(2)
+                chip_w = text_width(label) + 20
+                chip_x = text_x + 20
+                if not dry:
+                    draw.rounded_rectangle((chip_x, y - 3, chip_x + chip_w, y + 27), radius=8, fill=tone)
+                    _draw_mixed(draw, (chip_x + 10, y + 1), label, text_size, (255, 255, 255, 255))
+                rest_x = chip_x + chip_w + 12
+                y = draw_rich([(rest, body_color)], y, dry, x=rest_x, max_w=text_x + text_w - rest_x)
+            else:
+                if not dry:
+                    draw.ellipse((text_x + 24, y + 7, text_x + 34, y + 17), fill=tone)
+                y = draw_rich([(item, body_color)], y, dry, x=text_x + 46, max_w=text_w - 46)
+        outstanding = data.get("outstanding_performance", "")
+        if outstanding:
+            y = draw_rich([("亮点补充：", muted_color), (outstanding, body_color)], y, dry)
+        return y + 15
+
+    def draw_carry(section: dict[str, Any], y: int, dry: bool) -> int:
+        carry_data = section["data"]
+        if not carry_data:
+            if not dry:
+                draw.text((text_x, y), "暂无数据", font=font_text, fill=body_color)
+            return y + 35 + 15
+        if dry:
+            return y + len(carry_data) * 35 + 15
+        max_score = max(1, max(abs(int(item.get("score", 0))) for item in carry_data))
+        rank_font = _font_num_display(15)
+        value_font = _font_num_display(16)
+        for rank, item in enumerate(carry_data, 1):
+            name_x = padding + 60
+            item_badge_width, _, _ = measure_risk_status_badge(
+                draw, item.get("risk_status"), font=font_risk, compact=True, padding_x=5, padding_y=2, max_width=80,
+            )
+            name_width_limit = max(38, 180 - (item_badge_width + 7 if item_badge_width else 0))
+            item_name = _fit_text(draw, str(item.get("name", "")), font_text, name_width_limit)
+            draw.text((padding + 12, y + 13), str(rank), font=rank_font,
+                      fill=accent_color if rank <= 3 else muted_color, anchor="rm")
+            name_w = _draw_mixed(draw, (name_x, y), item_name, text_size, body_color)
+            if item_badge_width:
+                draw_risk_status_badge(
+                    draw, name_x + name_w + 5, y + 1, item.get("risk_status"), font=font_risk,
+                    compact=True, padding_x=5, padding_y=2, max_width=80,
+                )
+            if item.get("icon") is not None:
+                image.paste(item["icon"], (padding + 20, y + 2), item["icon"])
+            score_val = int(item.get("score", 0))
+            bar_x = padding + 240
+            bar_y = y + 4
+            bar_w = 380
+            draw.rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + 16], fill=(50, 55, 60, 255))
+            fill_w = int(bar_w * abs(score_val) / max_score)
+            if fill_w > 0:
+                fill_color = (135, 206, 250, 255) if item.get("team") == "teammate" else (255, 99, 71, 255)
+                draw.rectangle([bar_x, bar_y, bar_x + fill_w, bar_y + 16], fill=fill_color)
+            # One right-aligned column, so the numbers no longer chase the bar ends.
+            draw.text((width - padding, bar_y + 8), str(score_val), font=value_font, fill=body_color, anchor="rm")
+            y += 35
+        return y + 15
+
+    def draw_attributes(section: dict[str, Any], y: int, dry: bool) -> int:
+        attributes = section["attr"]
+        items = [
+            ("抗压", attributes.get("anti_pressure", 0)),
+            ("团队", attributes.get("teamwork", 0)),
+            ("进攻", attributes.get("aggressiveness", 0)),
+            ("质量", attributes.get("match_quality", 0)),
+        ]
+        for name, raw_value in items:
+            if not dry:
+                try:
+                    value = max(0, min(100, int(raw_value)))
+                except Exception:
+                    value = 0
+                _draw_mixed(draw, (text_x, y), name, text_size, body_color)
+                draw.text((padding + 190, y + 12), str(value), font=_font_num_display(20), fill=body_color, anchor="rm")
+                bar_x = padding + 220
+                bar_y = y + 4
+                draw.rectangle([bar_x, bar_y, bar_x + 360, bar_y + 16], fill=(50, 55, 60, 255))
+                fill_w = int(360 * value / 100)
+                if value < 40:
+                    fill_color = (235, 87, 87, 255)
+                elif value < 70:
+                    fill_color = (242, 201, 76, 255)
+                else:
+                    fill_color = (39, 174, 96, 255)
+                if fill_w > 0:
+                    draw.rectangle([bar_x, bar_y, bar_x + fill_w, bar_y + 16], fill=fill_color)
+                # Gaps at 25/50/75 give the bar a scale.
+                for step in (90, 180, 270):
+                    draw.line((bar_x + step, bar_y, bar_x + step, bar_y + 16), fill=(20, 25, 30, 255), width=2)
+            y += 45
+        y = draw_rich([("综合评价：", muted_color), (section["evaluation"], body_color)], y, dry)
+        return y + 15
+
+    def draw_sections(dry: bool) -> int:
+        y = 110
+        for section in sections:
+            y = draw_title(section, y, dry)
+            if section["type"] == "score":
+                y = draw_score(section, y, dry)
+            elif section["type"] == "text":
+                y = draw_rich(section["segments"], y, dry) + 15
+            elif section["type"] == "red_black":
+                y = draw_red_black(section, y, dry)
+            elif section["type"] == "carry_index":
+                y = draw_carry(section, y, dry)
+            elif section["type"] == "attributes":
+                y = draw_attributes(section, y, dry)
+            y += 30
+        return y
+
+    draw = temp_draw
+    total_height = draw_sections(True) + 10 + 70 + (28 if footer_source else 0)
 
     image = Image.new("RGBA", (width, int(total_height)), (20, 25, 30, 255))
     draw = ImageDraw.Draw(image)
@@ -1475,160 +1824,13 @@ def render_analysis_report(
     draw_map_mode_icon(image, map_name, width - padding - measure(header_text, _font_chinese(22)) - 32, 27, 24)
     draw.text((width - padding - measure(header_text, _font_chinese(22)), 27), header_text, font=_font_chinese(22), fill=(255, 255, 255, 220))
 
-    score_colors = {
-        "S": (255, 215, 0, 255),
-        "A": (186, 85, 211, 255),
-        "B": (65, 105, 225, 255),
-        "C": (46, 139, 87, 255),
-        "D": (128, 128, 128, 255),
-    }
-
-    current_y = 110
-    for section in sections:
-        draw.text((padding, current_y), section["title"], font=font_sub, fill=(249, 158, 26, 255))
-        current_y += 45
-        if section["type"] == "score":
-            score_text = str(section["score"]).upper().strip()
-            score_color = score_colors.get(score_text[:1] if score_text else "", (255, 255, 255, 255))
-            row_x = padding + 20
-            id_prefix = "ID："
-            id_text = str(section["id"])
-            prefix_width = measure(id_prefix, font_text)
-            badge_width, _, _ = measure_risk_status_badge(
-                draw,
-                risk_status,
-                font=font_risk,
-                compact=True,
-                padding_x=6,
-                padding_y=3,
-                max_width=118,
-            )
-            icon_left = width - padding - len(target_hero_images or ()) * 45
-            score_label_width = measure("评分：", font_text)
-            score_width = measure(score_text, font_score)
-            reserved_right = score_label_width + score_width + 28
-            available_id_width = max(
-                60,
-                icon_left - 12 - row_x - prefix_width - reserved_right - (badge_width + 12 if badge_width else 12),
-            )
-            rendered_id = _fit_text(draw, id_text, font_text, available_id_width)
-            draw.text((row_x, current_y), id_prefix, font=font_text, fill=(220, 225, 230, 255))
-            id_x = row_x + prefix_width
-            draw.text((id_x, current_y), rendered_id, font=font_text, fill=(220, 225, 230, 255))
-            cursor_x = id_x + measure(rendered_id, font_text)
-            if badge_width:
-                drawn_width, _ = draw_risk_status_badge(
-                    draw,
-                    cursor_x + 7,
-                    current_y - 2,
-                    risk_status,
-                    font=font_risk,
-                    compact=True,
-                    padding_x=6,
-                    padding_y=3,
-                    max_width=118,
-                )
-                cursor_x += drawn_width + 14
-            else:
-                cursor_x += 12
-            draw.text((cursor_x, current_y), "评分：", font=font_text, fill=(220, 225, 230, 255))
-            draw.text((cursor_x + score_label_width, current_y - 8), score_text, font=font_score, fill=score_color)
-            if target_hero_images:
-                icon_x = width - padding - len(target_hero_images) * 45
-                for icon in target_hero_images:
-                    image.paste(icon, (int(icon_x), int(current_y - 8)), icon)
-                    icon_x += 45
-            current_y += 35
-        elif section["type"] == "text":
-            for line in wrap_lines(section["text"], font_text, width - padding * 2 - 20):
-                draw.text((padding + 20, current_y), line, font=font_text, fill=(220, 225, 230, 255))
-                current_y += 22 + line_spacing
-            current_y += 15
-        elif section["type"] == "carry_index":
-            carry_data = section["data"]
-            if not carry_data:
-                draw.text((padding + 20, current_y), "暂无数据", font=font_text, fill=(220, 225, 230, 255))
-                current_y += 35
-            else:
-                max_score = max(1, max(abs(int(item.get("score", 0))) for item in carry_data))
-                for item in carry_data:
-                    name_x = padding + 60
-                    item_badge_width, _, _ = measure_risk_status_badge(
-                        draw,
-                        item.get("risk_status"),
-                        font=font_risk,
-                        compact=True,
-                        padding_x=5,
-                        padding_y=2,
-                        max_width=80,
-                    )
-                    name_width_limit = max(38, 180 - (item_badge_width + 7 if item_badge_width else 0))
-                    item_name = _fit_text(draw, str(item.get("name", "")), font_text, name_width_limit)
-                    draw.text((name_x, current_y), item_name, font=font_text, fill=(220, 225, 230, 255))
-                    if item_badge_width:
-                        draw_risk_status_badge(
-                            draw,
-                            name_x + measure(item_name, font_text) + 5,
-                            current_y + 1,
-                            item.get("risk_status"),
-                            font=font_risk,
-                            compact=True,
-                            padding_x=5,
-                            padding_y=2,
-                            max_width=80,
-                        )
-                    if item.get("icon") is not None:
-                        image.paste(item["icon"], (padding + 20, current_y + 2), item["icon"])
-                    score_val = int(item.get("score", 0))
-                    bar_x = padding + 240
-                    bar_y = current_y + 4
-                    bar_w = 380
-                    draw.rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + 16], fill=(50, 55, 60, 255))
-                    fill_w = int(bar_w * abs(score_val) / max_score)
-                    if fill_w > 0:
-                        fill_color = (135, 206, 250, 255) if item.get("team") == "teammate" else (255, 99, 71, 255)
-                        draw.rectangle([bar_x, bar_y, bar_x + fill_w, bar_y + 16], fill=fill_color)
-                    draw.text((bar_x + fill_w + 8, current_y + 4), str(score_val), font=_font_chinese(16), fill=(220, 225, 230, 255))
-                    current_y += 35
-            current_y += 15
-        elif section["type"] == "attributes":
-            attributes = section["attr"]
-            items = [
-                ("抗压", attributes.get("anti_pressure", 0)),
-                ("团队", attributes.get("teamwork", 0)),
-                ("进攻", attributes.get("aggressiveness", 0)),
-                ("质量", attributes.get("match_quality", 0)),
-            ]
-            for name, raw_value in items:
-                try:
-                    value = max(0, min(100, int(raw_value)))
-                except Exception:
-                    value = 0
-                draw.text((padding + 20, current_y), f"{name}: {value:3d}", font=font_text, fill=(220, 225, 230, 255))
-                bar_x = padding + 220
-                bar_y = current_y + 4
-                draw.rectangle([bar_x, bar_y, bar_x + 360, bar_y + 16], fill=(50, 55, 60, 255))
-                fill_w = int(360 * value / 100)
-                if value < 40:
-                    fill_color = (235, 87, 87, 255)
-                elif value < 70:
-                    fill_color = (242, 201, 76, 255)
-                else:
-                    fill_color = (39, 174, 96, 255)
-                if fill_w > 0:
-                    draw.rectangle([bar_x, bar_y, bar_x + fill_w, bar_y + 16], fill=fill_color)
-                current_y += 45
-            for line in wrap_lines(f"综合评价：{section['evaluation']}", font_text, width - padding * 2 - 20):
-                draw.text((padding + 20, current_y), line, font=font_text, fill=(220, 225, 230, 255))
-                current_y += 22 + line_spacing
-            current_y += 15
-        current_y += 30
+    draw_sections(False)
 
     footer_y = int(total_height) - 48
     if footer_source:
-        draw.text((padding, footer_y - 20), f"提示词来源：{footer_source}", font=font_footer, fill=(156, 166, 182, 255))
+        _draw_mixed(draw, (padding, footer_y - 20), f"提示词来源：{footer_source}", 16, muted_color)
     footer = f"生成时间：{json_data.get('generated_at') or ''}".strip()
-    draw.text((padding, footer_y), footer, font=font_footer, fill=(156, 166, 182, 255))
+    _draw_mixed(draw, (padding, footer_y), footer, 16, muted_color)
     return _pil_to_rendered(image)
 
 

@@ -22,6 +22,32 @@ DEFAULT_SCORE_LOOKBACK = MAX_SCORE_LOOKBACK
 DEFAULT_STREAK_HISTORY_PAGES = 1
 DEFAULT_MATCH_CONCURRENCY = 4
 
+def match_hero_usage(data: Dict[str, Any], source_match: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Heroes the queried player used in a match, most played first, with their share of match time.
+
+    The detail payload's ``heroList`` carries per-hero time; without it, fall back to the
+    match list's main hero.
+    """
+    heroes: List[Dict[str, Any]] = []
+    game_time = _safe_float((data or {}).get("gameTimeSec"))
+    for item in (data or {}).get("heroList") or []:
+        if not isinstance(item, dict):
+            continue
+        hero_guid = str(item.get("heroId") or item.get("heroGuid") or "").strip()
+        if not hero_guid:
+            continue
+        rate = _safe_float(item.get("useTimeRate"))
+        if rate <= 0 and game_time > 0:
+            rate = _safe_float(item.get("userTimeSec")) / game_time * 100
+        heroes.append({"hero_guid": hero_guid, "time_rate": round(max(0.0, min(100.0, rate)), 1)})
+    heroes.sort(key=lambda hero: hero["time_rate"], reverse=True)
+    if not heroes:
+        fallback = str((source_match or {}).get("heroGuid") or "").strip()
+        if fallback:
+            heroes.append({"hero_guid": fallback, "time_rate": 100.0})
+    return heroes[:3]
+
+
 def normalize_limit(value: Any) -> int:
     try:
         limit = int(value or DEFAULT_MATCH_LIMIT)
@@ -453,6 +479,7 @@ class DashenQuickStrengthEngine:
             # Temporarily disabled to avoid extra quick-history fanout.
             "team_streak_avg": 0.0,
             "enemy_streak_avg": 0.0,
+            "heroes": match_hero_usage(data, source_match),
             "_used_previous_season_fallback": used_previous_fallback,
         }
 
@@ -491,5 +518,6 @@ class DashenQuickStrengthEngine:
             "enemy_scores": [],
             "team_streak_avg": 0.0,
             "enemy_streak_avg": 0.0,
+            "heroes": match_hero_usage({}, source_match),
             "_used_previous_season_fallback": False,
         }

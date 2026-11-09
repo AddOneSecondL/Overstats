@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from io import BytesIO
 import json
 from pathlib import Path
+import math
 import re
 import time
 from typing import Any, Dict, Sequence
@@ -55,6 +56,30 @@ except ModuleNotFoundError:
 RESOURCE_DIR = resolve_resource_dir()
 ASSET_MANIFEST_PATH = RESOURCE_DIR / "query_tool_assets" / "assets_manifest.json"
 _ASSET_MANIFEST_CACHE: Dict[str, Any] | None = None
+# score_board.png geometry: ally band from y=44, VS band at 463-579, bands 1061px wide.
+SCOREBOARD_TEAM_TOP = 44
+SCOREBOARD_VS_TOP = 463
+SCOREBOARD_VS_H = 116
+SCOREBOARD_LEFT_W = 1061
+SCOREBOARD_TEAM_ROW_Y = 85
+SCOREBOARD_ENEMY_ROW_Y = 620
+SCOREBOARD_PAGE_ROW_Y = 470
+SCOREBOARD_ROW_PITCH_5 = 83
+SCOREBOARD_ROW_PITCH_6 = 415 / 6
+ENDORSE_TAG_FILL = (135, 206, 235, 255)
+ENDORSE_TAG_TEXT = (16, 36, 52, 255)
+ENDORSE_TAGS_INLINE = 2
+ENDORSE_TAG_MAX_TEXT_W = 84
+# Name, #tag and endorser line positions (fractions of the row) and the name font size,
+# by how many endorser lines sit below the #tag.
+ENDORSE_ROW_LAYOUTS = {
+    0: (0.35, 0.70, [], 40),
+    1: (0.26, 0.56, [0.83], 32),
+    2: (0.18, 0.40, [0.63, 0.85], 26),
+}
+# Overwatch endorsement glyph (white, transparent) on its magenta badge.
+ENDORSE_ICON_PATH = RESOURCE_DIR / "endorse_icon.png"
+ENDORSE_ICON_FILL = (200, 31, 245, 255)
 ROLE_ICON_FILENAMES = {
     "tank": "tank.png",
     "dps": "dps.png",
@@ -102,6 +127,9 @@ def render_match_list(
     effective_hint_text = default_hint_text if hint_text is None else str(hint_text or "").strip()
     if effective_hint_text:
         rendered_footer_lines.append(effective_hint_text)
+    baselines = _match_list_baselines(recent_matches)
+    if baselines:
+        rendered_footer_lines.insert(0, f"黄色数字为该局全场最高；条形对比近 {len(recent_matches)} 场：竖线为均值，绿色高于均值，红色为阵亡偏多")
     footer_h = max(58, 24 + 22 * max(len(rendered_footer_lines), 1))
     img_h = row_h * max(len(recent_matches), 1) + 70 + footer_h
     img = Image.new("RGBA", (900, img_h), (22, 23, 30, 255))
@@ -131,16 +159,20 @@ def render_match_list(
     wins_recent = sum(1 for match in recent_matches if match.get("matchRet") == 1)
     win_rate = (wins_recent / total_recent * 100) if total_recent else 0
     wr_color = (100, 255, 120) if win_rate >= 50 else (255, 100, 100)
-    wr_label = f"近 {total_recent} 场胜率:"
-    draw.text((640, 18), wr_label, fill=(220, 220, 220), font=font)
-    draw.text((640 + _text_width(draw, wr_label, font) + 10, 15), f"{win_rate:.1f}%", fill=wr_color, font=font_title)
+    # Share the title's baseline so the small label and the large rate line up; numbers use the number face.
+    wr_baseline = 15 + font_title.getmetrics()[0]
+    wr_x = 640
+    for part, part_font in (("近 ", font), (str(total_recent), _font_num_display(18)), (" 场胜率:", font)):
+        draw.text((wr_x, wr_baseline), part, fill=(220, 220, 220), font=part_font, anchor="ls")
+        wr_x += _text_width(draw, part, part_font) + (2 if part_font is not font else 0)
+    draw.text((wr_x + 10, wr_baseline), f"{win_rate:.1f}%", fill=wr_color, font=_font_num_display(24), anchor="ls")
 
     y = 60
     if not recent_matches:
         _rounded_rect(draw, [20, y, 880, y + 50], radius=8, fill=(35, 37, 45, 255))
         draw.text((40, y + 15), "未找到可用对局。", fill=(230, 235, 245), font=font)
     for index, match in enumerate(recent_matches, start=1):
-        _draw_match_row(draw, img, config, match, index, y, font, font_sm)
+        _draw_match_row(draw, img, config, match, index, y, font, font_sm, baselines)
         y += row_h
 
     footer_top = img_h - footer_h
@@ -270,6 +302,16 @@ def _render_scoreboard_match_detail(
         img = Image.new("RGBA", (1825, 994), (24, 26, 34, 255))
         ImageDraw.Draw(img).rectangle((1125, 0, 1825, 994), fill=(32, 35, 45, 255))
 
+    teammate_list = list(data.get("teammateList") or [])
+    enemy_list = list(data.get("enemyList") or [])
+    # Rows keep the 5v5 pitch for small teams and the 6v6 pitch for larger ones;
+    # the team bands are rebuilt to that height instead of stretching rows to fill them.
+    pitch = SCOREBOARD_ROW_PITCH_5 if max(len(teammate_list), len(enemy_list)) <= 5 else SCOREBOARD_ROW_PITCH_6
+    team_h = round(pitch * max(1, len(teammate_list)))
+    enemy_h = round(pitch * max(1, len(enemy_list)))
+    enemy_top = SCOREBOARD_TEAM_TOP + team_h + SCOREBOARD_VS_H
+    img = _fit_scoreboard_sections(img, team_h, enemy_h)
+
     draw = ImageDraw.Draw(img, "RGBA")
     font_en_large = _font_en_oblique(80)
     font_cn = _font_chinese(40)
@@ -279,6 +321,7 @@ def _render_scoreboard_match_detail(
     map_info = _find_map(config, map_guid)
     map_name = map_info.get("name") or str(map_guid or "未知地图")
     _paste_map_image(img, map_info, (1125, 0), (700, 440))
+    _shade_map_title(img, 1125, 110)
 
     match_ret = data.get("matchRet", source_match.get("matchRet"))
     result_en = "VICTORY" if match_ret == 1 else "TIE" if match_ret == 0 else "DEFEAT"
@@ -308,23 +351,27 @@ def _render_scoreboard_match_detail(
     _draw_labeled_value(draw, 1165, 690, "· GAME LENGTH: ", _format_duration(game_time_sec), font_meta, font_num_display, fill="white")
     _draw_ban_heroes(img, draw, data, config)
 
-    teammate_list = list(data.get("teammateList") or [])
-    enemy_list = list(data.get("enemyList") or [])
     teammates = _sort_players(teammate_list, config)
     enemies = _sort_players(enemy_list, config)
+    lobby_names = {
+        str(player.get("bnetId")): _split_battletag(player)[0]
+        for player in teammate_list + enemy_list
+        if player.get("bnetId")
+    }
     teammate_parties = _process_friend_list(teammate_list)
     enemy_parties = _process_friend_list(enemy_list)
-    _prepare_scoreboard_section_lines(img, draw, len(teammates), 44, 415)
-    _prepare_scoreboard_section_lines(img, draw, len(enemies), 579, 415)
+    _prepare_scoreboard_section_lines(img, draw, len(teammates), SCOREBOARD_TEAM_TOP, team_h)
+    _prepare_scoreboard_section_lines(img, draw, len(enemies), enemy_top, enemy_h)
     _draw_scoreboard_players(
         draw,
         img,
         teammates,
         config,
-        44,
-        415,
+        SCOREBOARD_TEAM_TOP,
+        team_h,
         False,
         party_list=teammate_parties,
+        lobby_names=lobby_names,
         query_full_id=query_full_id,
         query_bnet_id=query_bnet_id,
         query_customer_token=query_customer_token,
@@ -334,10 +381,11 @@ def _render_scoreboard_match_detail(
         img,
         enemies,
         config,
-        579,
-        415,
+        enemy_top,
+        enemy_h,
         True,
         party_list=enemy_parties,
+        lobby_names=lobby_names,
         query_full_id=query_full_id,
         query_bnet_id=query_bnet_id,
         query_customer_token=query_customer_token,
@@ -347,6 +395,83 @@ def _render_scoreboard_match_detail(
     img = append_dashen_promo(img)
     img.convert("RGB").save(output, format="PNG", optimize=True)
     return RenderedImage(content=output.getvalue())
+
+
+def _fit_scoreboard_sections(template: Any, team_h: int, enemy_h: int) -> Any:
+    """Rebuild the left column so the team bands are exactly as tall as their rows.
+
+    Each band is stretched from one clean row of the template, the VS band is moved to sit
+    right under the ally rows, and spare space at the bottom takes the page background.
+    """
+    from PIL import Image
+
+    left_w = SCOREBOARD_LEFT_W
+    used_h = SCOREBOARD_TEAM_TOP + team_h + SCOREBOARD_VS_H + enemy_h + 2
+    height = max(template.height, used_h)
+    img = Image.new("RGBA", (template.width, height), template.getpixel((template.width - 1, template.height - 1)))
+    img.paste(template, (0, 0))
+    if height > template.height:
+        # Larger lobbies grow the canvas; the right panel continues its bottom row.
+        tail = template.crop((left_w, template.height - 1, template.width, template.height))
+        img.paste(tail.resize((template.width - left_w, height - template.height)), (left_w, template.height))
+
+    def stretch(source_y: int, top: int, band_h: int) -> None:
+        if band_h > 0:
+            row = template.crop((0, source_y, left_w, source_y + 1))
+            img.paste(row.resize((left_w, band_h)), (0, top))
+
+    stretch(SCOREBOARD_PAGE_ROW_Y, SCOREBOARD_TEAM_TOP, height - SCOREBOARD_TEAM_TOP)
+    stretch(SCOREBOARD_TEAM_ROW_Y, SCOREBOARD_TEAM_TOP, team_h)
+    vs_band = template.crop((0, SCOREBOARD_VS_TOP, left_w, SCOREBOARD_VS_TOP + SCOREBOARD_VS_H))
+    img.paste(vs_band, (0, SCOREBOARD_TEAM_TOP + team_h))
+    stretch(SCOREBOARD_ENEMY_ROW_Y, SCOREBOARD_TEAM_TOP + team_h + SCOREBOARD_VS_H, enemy_h)
+    return img
+
+
+_ENDORSE_ICON_CACHE: Dict[int, Any] = {}
+
+
+def _load_endorse_icon(height: int) -> Any:
+    if height not in _ENDORSE_ICON_CACHE:
+        icon = None
+        try:
+            from PIL import Image
+
+            source = Image.open(ENDORSE_ICON_PATH).convert("RGBA")
+            icon = _resize_image(source, (max(1, round(source.width * height / source.height)), height)).convert("RGBA")
+        except Exception:
+            icon = None
+        _ENDORSE_ICON_CACHE[height] = icon
+    return _ENDORSE_ICON_CACHE[height]
+
+
+def _player_left_match(player: Dict[str, Any]) -> bool:
+    """A 0/0/0 line means the player quit (or never loaded in)."""
+    return all(_safe_int(player.get(key)) == 0 for key in ("kill", "assist", "death"))
+
+
+def _endorser_names(player: Dict[str, Any], lobby_names: Dict[str, str]) -> list[str]:
+    """Names of the lobby players who endorsed this player, in payload order."""
+    endorsers = player.get("endorserBnetIds")
+    if not isinstance(endorsers, list):
+        return []
+    own_id = str(player.get("bnetId") or "")
+    ids = dict.fromkeys(str(item) for item in endorsers if item is not None)
+    return [lobby_names[item] for item in ids if item in lobby_names and item != own_id]
+
+
+def _shade_map_title(img: Any, left: int, height: int) -> None:
+    """Darken the top of the map art so the white map name stays readable on bright maps."""
+    from PIL import Image
+
+    width = img.width - left
+    if width <= 0 or height <= 0:
+        return
+    strip = Image.new("L", (1, height))
+    strip.putdata([int(165 * (1 - index / max(1, height - 1)) ** 1.6) for index in range(height)])
+    shade = Image.new("RGBA", (width, height), (0, 0, 0, 255))
+    shade.putalpha(strip.resize((width, height)))
+    img.alpha_composite(shade, (left, 0))
 
 
 def _extract_match_detail_data(payload: Any) -> Dict[str, Any]:
@@ -600,7 +725,7 @@ def _render_fight_match_detail(
         draw.rectangle((left_w, y, image_w - 24, y + round_header_h), fill=(40, 44, 58, 255))
         for label, x in [
             ("RANK", 246),
-            ("英雄", 326),
+            ("英雄", 338),
             ("玩家", 386),
             ("KAD", 568),
             ("伤害", 660),
@@ -611,7 +736,7 @@ def _render_fight_match_detail(
             ("装备", 1266),
         ]:
             label_font = font_en if str(label).isascii() else font_sm
-            draw.text((x, y + 9), label, font=label_font, fill=(178, 184, 198, 255))
+            draw.text((x, y + round_header_h // 2), label, font=label_font, fill=(178, 184, 198, 255), anchor="lm")
 
         allies = list(round_data.get("teammateList") or [])
         enemies = list(round_data.get("enemyList") or [])
@@ -620,7 +745,7 @@ def _render_fight_match_detail(
             if player_index == len(allies):
                 sep_y = row_y + 2
                 draw.rectangle((left_w, sep_y, image_w - 24, sep_y + team_separator_h - 4), fill=(18, 20, 27, 255))
-                draw.text((left_w + 28, sep_y + 4), "ALLY  VS  ENEMY", font=font_en, fill=(245, 247, 250, 255))
+                draw.text((left_w + 28, sep_y + (team_separator_h - 4) // 2), "ALLY  VS  ENEMY", font=font_en, fill=(245, 247, 250, 255), anchor="lm")
                 row_y += team_separator_h
             team_color = (76, 211, 128, 255) if player_index < len(allies) else (225, 92, 96, 255)
             _draw_fight_player_row(
@@ -646,6 +771,37 @@ def _render_fight_match_detail(
     return RenderedImage(content=output.getvalue())
 
 
+MATCH_LIST_STAT_KEYS = ("kill", "death", "assist", "heroDamage", "cure", "resistDamage")
+MATCH_LIST_MIN_SAMPLES = 3
+LIST_BAR_NEUTRAL = (104, 120, 146, 255)
+LIST_BAR_GOOD = (96, 216, 135, 255)
+LIST_BAR_BAD = (236, 108, 98, 255)
+LIST_BEST = (255, 215, 0)
+# Flags in the match data: the player had the most of this stat in that game.
+MATCH_LIST_MAX_FLAGS = {"kill": "killMax", "heroDamage": "heroDamageMax", "cure": "cureMax", "resistDamage": "resistDamageMax"}
+
+
+def _match_stat_number(match: Dict[str, Any], key: str) -> float | None:
+    value = match.get(key)
+    if value is None or value == "":
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) and number >= 0 else None
+
+
+def _match_list_baselines(matches: Sequence[Dict[str, Any]]) -> Dict[str, Dict[str, float]]:
+    """Average and best of each stat over the listed matches, for the per-row comparison bars."""
+    baselines = {}
+    for key in MATCH_LIST_STAT_KEYS:
+        values = [number for number in (_match_stat_number(match, key) for match in matches) if number is not None]
+        if len(values) >= MATCH_LIST_MIN_SAMPLES and max(values) > 0:
+            baselines[key] = {"avg": sum(values) / len(values), "max": max(values)}
+    return baselines
+
+
 def _match_stat_text(match: Dict[str, Any], key: str) -> str:
     value = match.get(key)
     if value is None or value == "":
@@ -656,7 +812,17 @@ def _match_stat_text(match: Dict[str, Any], key: str) -> str:
         return "—"
 
 
-def _draw_match_row(draw: Any, img: Any, config: Dict[str, Any], match: Dict[str, Any], index: int, y: int, font: Any, font_sm: Any) -> None:
+def _draw_match_row(
+    draw: Any,
+    img: Any,
+    config: Dict[str, Any],
+    match: Dict[str, Any],
+    index: int,
+    y: int,
+    font: Any,
+    font_sm: Any,
+    baselines: Dict[str, Dict[str, float]] | None = None,
+) -> None:
     _rounded_rect(draw, [20, y + 3, 880, y + 75], radius=9, fill=(12, 17, 25, 255))
     _rounded_rect(draw, [20, y, 880, y + 72], radius=9, fill=(34, 43, 57, 255))
     map_info = _find_map(config, match.get("mapGuid") or match.get("mapId"))
@@ -672,11 +838,21 @@ def _draw_match_row(draw: Any, img: Any, config: Dict[str, Any], match: Dict[str
     else:
         draw.text((51, y + 23), "?", font=font, fill=(137, 153, 173))
     map_name = map_info.get("name") or "未知地图"
-    draw_map_mode_icon(img, map_info, 308, y + 10, 24)
-    draw.text((96, y + 9), _fit_text(draw, f"{index}. {map_name}", font, 205), font=font, fill=(245, 248, 253))
-    draw.text((120, y + 40), _fit_text(draw, hero_info.get("name") or "未记录", _font(14), 82), font=_font(14), fill=(166, 191, 217))
+    # The index takes the number face; the map name stays in the CJK face on the same baseline.
+    title_baseline = y + 9 + font.getmetrics()[0]
+    index_text = f"{index}."
+    index_font = _font_num_display(18)
+    draw.text((96, title_baseline), index_text, font=index_font, fill=(245, 248, 253), anchor="ls")
+    name_x = 96 + _text_width(draw, index_text, index_font) + 8
+    title_text = _fit_text(draw, map_name, font, 205 - (name_x - 96))
+    draw.text((name_x, title_baseline), title_text, font=font, fill=(245, 248, 253), anchor="ls")
+    title_box = draw.textbbox((name_x, title_baseline), title_text, font=font, anchor="ls")
+    draw_map_mode_icon(img, map_info, title_box[2] + 8, (title_box[1] + title_box[3]) // 2 - 11, 22)
+    draw.text((120, y + 40), _fit_text(draw, hero_info.get("name") or "未记录", _font(14), 72), font=_font(14), fill=(166, 191, 217))
     mode, mode_color = _mode_label(match)
-    draw.text((210, y + 40), mode, font=_font(13), fill=mode_color)
+    # Mode, date and result are the row's key facts, so they are drawn larger than the details.
+    mode_font = _font(16)
+    draw.text((198, y + 49), _fit_text(draw, mode, mode_font, 76), font=mode_font, fill=mode_color, anchor="lm")
     extra_heroes = []
     seen_heroes = {hero_info.get("name")}
     for raw_hero in match.get("heroList") or []:
@@ -685,26 +861,49 @@ def _draw_match_row(draw: Any, img: Any, config: Dict[str, Any], match: Dict[str
             seen_heroes.add(info.get("name"))
             extra_heroes.append(info)
     for offset, info in enumerate(extra_heroes[:2]):
-        _draw_hero_icon(img, info, 273 + offset * 23, y + 39, 20)
+        _draw_hero_icon(img, info, 277 + offset * 23, y + 39, 20)
     if len(extra_heroes) > 2:
-        draw.text((319, y + 41), f"+{len(extra_heroes)-2}", font=_font(10), fill=(166, 191, 217))
+        draw.text((323, y + 41), f"+{len(extra_heroes)-2}", font=_font(10), fill=(166, 191, 217))
     stats = [
-        (342, 146, "K / D / A", ("kill", "death", "assist")),
-        (496, 220, "伤害 / 治疗 / 抵挡", ("heroDamage", "cure", "resistDamage")),
+        (342, 146, (("K", "kill"), ("D", "death"), ("A", "assist"))),
+        (496, 220, (("伤害", "heroDamage"), ("治疗", "cure"), ("抵挡", "resistDamage"))),
     ]
-    for x, width, label, keys in stats:
+    baselines = baselines or {}
+    label_font = _font(12)
+    for x, width, columns in stats:
         _rounded_rect(draw, [x, y + 8, x + width, y + 63], radius=6, fill=(22, 31, 44, 255))
-        label_font = _font(12)
-        value_font = _font(15)
-        value = " / ".join(_match_stat_text(match, key) for key in keys)
-        value = _fit_text(draw, value, value_font, width - 12)
-        draw.text((x + (width - _text_width(draw, label, label_font)) / 2, y + 14), label, font=label_font, fill=(154, 170, 191))
-        draw.text((x + (width - _text_width(draw, value, value_font)) / 2, y + 36), value, font=value_font, fill=(231, 236, 247))
-    draw.text((730, y + 12), _format_begin_ts(match.get("beginTs")), font=_font(12), fill=(157, 170, 188))
+        col_w = width / len(columns)
+        for col, (label, key) in enumerate(columns):
+            center = x + col_w * (col + 0.5)
+            if col:
+                draw.line((x + col_w * col, y + 17, x + col_w * col, y + 54), fill=(44, 56, 74, 255), width=1)
+            draw.text((center, y + 19), label, font=label_font, fill=(154, 170, 191), anchor="mm")
+            # One value per column, so the same stat lines up down the whole list.
+            text = _match_stat_text(match, key)
+            value_font = _fit_font(draw, text, _font_num_display, 17, 11, int(col_w) - 8)
+            number = _match_stat_number(match, key)
+            baseline = baselines.get(key)
+            flag = MATCH_LIST_MAX_FLAGS.get(key)
+            is_match_max = bool(flag and match.get(flag) is True and number is not None)
+            draw.text((center, y + 38), text, font=value_font, fill=LIST_BEST if is_match_max else (231, 236, 247), anchor="mm")
+            if not baseline or number is None:
+                continue
+            # Thin bar scaled to the best of the listed matches, with a tick at their average.
+            bar_w = col_w - 16
+            left = center - bar_w / 2
+            above = number > baseline["avg"]
+            color = (LIST_BAR_BAD if above else LIST_BAR_NEUTRAL) if key == "death" else (LIST_BAR_GOOD if above else LIST_BAR_NEUTRAL)
+            draw.rounded_rectangle((left, y + 51, left + bar_w, y + 54), radius=1, fill=(40, 50, 66, 255))
+            fill_w = bar_w * min(1.0, number / baseline["max"])
+            if fill_w >= 2:
+                draw.rounded_rectangle((left, y + 51, left + fill_w, y + 54), radius=1, fill=color)
+            tick_x = left + bar_w * baseline["avg"] / baseline["max"]
+            draw.line((tick_x, y + 49, tick_x, y + 56), fill=(226, 232, 242, 220), width=1)
+    draw.text((728, y + 20), _format_begin_ts(match.get("beginTs")), font=_font_num_display(16), fill=(196, 206, 222), anchor="lm")
     rank_info = match.get("rankInfo") or match.get("rank_info")
     _draw_rank_badge(draw, img, rank_info, 730, y + 36, 76, 26,
                      mode="fight" if "fight" in str(match.get("gameMode") or "").lower() else "normal")
-    draw.text((822, y + 38), result_text, font=font_sm, fill=result_color)
+    draw.text((848, y + 49), result_text, font=_font(21), fill=result_color, anchor="mm")
 
 
 def _draw_detail_map_background(img: Any, map_info: Dict[str, Any], width: int, height: int) -> None:
@@ -826,13 +1025,58 @@ def _draw_scoreboard_players(
     query_full_id: str,
     query_bnet_id: str,
     query_customer_token: str = "",
+    lobby_names: Dict[str, str] | None = None,
 ) -> None:
     if not players:
         return
     row_h = section_h / len(players)
+    tag_h = max(int(18 * row_h / 82), 12)
+    tag_font_size = max(int(12 * row_h / 82), 9)
+
+    endorse_icon = _load_endorse_icon(max(tag_h - 6, 6))
+    endorse_badge_w = (endorse_icon.width if endorse_icon is not None else tag_h) + 10
+
+    compact_tag_h = max(int(16 * row_h / 82), 11)
+
+    def draw_endorse_badge(x: float, center_y: float, h: int = tag_h) -> float:
+        """Magenta badge with the endorsement glyph that leads the endorser tags."""
+        box = (int(x), int(center_y - h / 2), int(x) + endorse_badge_w, int(center_y - h / 2) + h)
+        draw.rounded_rectangle(box, radius=h // 2, fill=ENDORSE_ICON_FILL)
+        if endorse_icon is not None:
+            img.alpha_composite(endorse_icon, (box[0] + 5, box[1] + (h - endorse_icon.height) // 2))
+        return x + endorse_badge_w + 4
+
+    def wrap_endorse_tags(names: Sequence[str], first_x: float, right: float) -> list[list[str]]:
+        """Split tags into lines: the first starts at `first_x`, later ones at the name column."""
+        lines: list[list[str]] = []
+        x = right
+        for name in names:
+            width = endorse_tag_width(name) + 4
+            if not lines or (lines[-1] and x + width > right):
+                lines.append([])
+                x = first_x if len(lines) == 1 else 140
+            lines[-1].append(name)
+            x += width
+        return lines
+
+    def endorse_tag_width(name: str) -> int:
+        font = _font_meta(tag_font_size + 2) if name.isascii() else _font_chinese(tag_font_size)
+        return min(_text_width(draw, name, font), ENDORSE_TAG_MAX_TEXT_W) + 12
+
+    def draw_endorse_tags(names: Sequence[str], x: float, center_y: float, right: float, h: int = tag_h) -> float:
+        """Sky-blue rounded tags, left to right; returns where they end."""
+        for name in names:
+            font = _font_meta(tag_font_size + 2) if name.isascii() else _font_chinese(tag_font_size)
+            text = _fit_text(draw, name, font, ENDORSE_TAG_MAX_TEXT_W)
+            tag_w = _text_width(draw, text, font) + 12
+            box = (int(x), int(center_y - h / 2), int(x + tag_w), int(center_y - h / 2) + h)
+            draw.rounded_rectangle(box, radius=h // 2, fill=ENDORSE_TAG_FILL)
+            draw.text((x + tag_w / 2, center_y), text, font=font, fill=ENDORSE_TAG_TEXT, anchor="mm")
+            x += tag_w + 4
+        return x
+
     font_num = _font_num(max(int(23 * row_h / 82), 10))
     font_num_small = _font_num_small(max(int(15 * row_h / 82), 10))
-    font_cn_sm = _font_chinese(max(int(15 * row_h / 82), 8))
     team_final_hit = sum(_safe_int(player.get("finalHit")) for player in players)
     me_party_index = _resolve_query_party_index(
         players,
@@ -848,14 +1092,25 @@ def _draw_scoreboard_players(
         accent = _party_color(party_index, is_enemy=is_enemy)
         draw.rectangle((126, int(y + 3), 132, int(y + row_h - 3)), fill=accent)
         if party_index >= 0:
-            draw.text((129, int(y + 12)), f"{party_index + 1}", font=font_cn_sm, fill=accent)
+            # The 6px party bar is too thin for its number, so the number sits on a chip over it.
+            chip = max(14, int(19 * row_h / 82))
+            chip_box = (129 - chip // 2, int(y + 6), 129 - chip // 2 + chip, int(y + 6) + chip)
+            draw.rounded_rectangle(chip_box, radius=max(3, chip // 4), fill=accent)
+            draw.text(
+                ((chip_box[0] + chip_box[2]) / 2, (chip_box[1] + chip_box[3]) / 2),
+                f"{party_index + 1}",
+                font=_font_num_small(max(10, int(chip * 0.72))),
+                fill=(18, 22, 30, 255),
+                anchor="mm",
+            )
 
         hero_info = _resolve_player_hero(config, player)
         role_icon_size = max(int(32 * row_h / 82), 10)
         _draw_player_role_icon(img, hero_info, player, 4, int(y + (row_h - role_icon_size) / 2) - 3, role_icon_size)
 
         icon_url = _hero_icon_url(hero_info, player)
-        hero_size = max(int(80 * row_h / 82), 20)
+        # Keep a 3px margin so the portrait and its badge never touch the row separators.
+        hero_size = max(min(int(80 * row_h / 82), int(row_h) - 6), 20)
         _paste_icon_from_url(img, icon_url, (38, int(y + (row_h - hero_size) / 2)), (hero_size, hero_size), ("heroes", "misc"))
         badge_size = max(16, min(26, hero_size // 3))
         draw_subrole_badge(img, hero_info, 38 + hero_size - badge_size, int(y + (row_h + hero_size) / 2) - badge_size, badge_size)
@@ -865,7 +1120,23 @@ def _draw_scoreboard_players(
         _draw_rank_badge(draw, img, player.get("rankInfo"), 0, int(y + row_h - rank_h - 3), rank_w, rank_h, mode="normal")
 
         perks = _extract_player_perks(player)
+        battletag, battlenum = _split_battletag(player)
+        endorser_names = _endorser_names(player, lobby_names or {})
+        # Tags stop short of the perk icons, or of the stat columns when there are none.
+        tags_right = 316 if perks else 460
+        tag_text = f"#{battlenum}" if battlenum else ""
+        inline_x = 140 + (_text_width(draw, tag_text, font_num_small) + 8 if tag_text else 0)
+        inline = endorser_names[:ENDORSE_TAGS_INLINE]
+        inline_fits = inline_x + endorse_badge_w + 4 + sum(endorse_tag_width(name) + 4 for name in inline) <= tags_right
+        # Endorsers past the first two, or all of them when two don't fit beside the #tag,
+        # wrap onto new lines below; the name and #tag move up to make room.
+        if not inline_fits:
+            inline = []
+        extra_lines = wrap_endorse_tags(endorser_names[len(inline):], 140 + (0 if inline else endorse_badge_w + 4), tags_right)
+        name_frac, num_frac, line_fracs, name_size = ENDORSE_ROW_LAYOUTS[min(len(extra_lines), 2)]
         _draw_perks(draw, img, config, perks, y, row_h)
+        name_y = y + row_h * name_frac
+        num_y = y + row_h * num_frac
 
         stat_y = y + row_h * 0.4
         sub_y = y + row_h * 0.75
@@ -893,9 +1164,6 @@ def _draw_scoreboard_players(
         draw.text((870, sub_y), f"HT:{healing_taken:,}", font=font_num_small, fill="lightgrey", anchor="ms")
         draw.text((1000, sub_y), f"FLETA:{fleta_pct:.2f}%", font=font_num_small, fill="lightgrey", anchor="ms")
 
-        battletag, battlenum = _split_battletag(player)
-        name_y = y + row_h * 0.35
-        num_y = y + row_h * 0.70
         is_me = _is_query_player(
             player,
             query_full_id=query_full_id,
@@ -907,7 +1175,7 @@ def _draw_scoreboard_players(
         name_is_ascii = bool(re.match(r"^[a-zA-Z0-9_\\-]+$", battletag))
         risk_status = player.get("riskStatus") or player.get("risk_status")
         risk_font = _font_chinese(max(int(11 * row_h / 82), 8))
-        risk_width, _, _ = measure_risk_status_badge(
+        risk_width, risk_height, _ = measure_risk_status_badge(
             draw,
             risk_status,
             font=risk_font,
@@ -921,7 +1189,7 @@ def _draw_scoreboard_players(
             draw,
             battletag.upper() if name_is_ascii else battletag,
             _font_en_oblique if name_is_ascii else _font_chinese,
-            max(int(40 * row_h / 82), 10),
+            max(int(name_size * row_h / 82), 10),
             max(int(16 * row_h / 82), 8),
             name_width_limit,
         )
@@ -943,7 +1211,7 @@ def _draw_scoreboard_players(
             draw_risk_status_badge(
                 draw,
                 140 + rendered_name_width + 6,
-                int(name_y - max(int(11 * row_h / 82), 8) / 2 - 3),
+                int(name_y - risk_height / 2),
                 risk_status,
                 font=risk_font,
                 compact=True,
@@ -951,7 +1219,29 @@ def _draw_scoreboard_players(
                 padding_y=2,
                 max_width=94,
             )
-        draw.text((140, num_y), f"#{battlenum}" if battlenum else "", font=font_num_small, fill=num_color, anchor="lm")
+        draw.text((140, num_y), tag_text, font=font_num_small, fill=num_color, anchor="lm")
+        if inline:
+            draw_endorse_tags(inline, draw_endorse_badge(inline_x, num_y), num_y, tags_right)
+        if extra_lines:
+            # Two wrapped lines need slimmer tags to share the bottom of the row.
+            line_h = tag_h if len(extra_lines) < 2 else compact_tag_h
+            if len(extra_lines) > len(line_fracs):
+                # Extreme counts: everything past the last line joins it rather than being dropped.
+                extra_lines = extra_lines[: len(line_fracs) - 1] + [sum(extra_lines[len(line_fracs) - 1:], [])]
+            for line_index, (names, frac) in enumerate(zip(extra_lines, line_fracs)):
+                line_y = y + row_h * frac
+                # The badge leads whichever line the tags start on.
+                tags_x = draw_endorse_badge(140, line_y, line_h) if not inline and line_index == 0 else 140
+                draw_endorse_tags(names, tags_x, line_y, tags_right, line_h)
+
+        if _player_left_match(player):
+            # Leavers fade back so the players who finished the match stand out.
+            # Drawing an alpha fill onto RGBA replaces pixels, so composite the veil instead.
+            from PIL import Image
+
+            veil_top, veil_bottom = int(y) + 2, int(y + row_h) - 2
+            if veil_bottom > veil_top:
+                img.alpha_composite(Image.new("RGBA", (SCOREBOARD_LEFT_W, veil_bottom - veil_top), (14, 18, 26, 150)), (0, veil_top))
 
 
 def _prepare_scoreboard_section_lines(
@@ -1042,15 +1332,16 @@ def _draw_fight_player_row(
     hero_info = _resolve_player_hero(config, player)
     draw.rectangle((230, y, 1876, y + 54), fill=(34, 37, 49, 255))
     draw.rectangle((230, y, 236, y + 54), fill=team_color)
-    _draw_rank_badge(draw, img, player.get("rankInfo"), 244, y + 11, 78, 32, mode="fight")
+    # Badge, role and hero sit side by side; the role icon used to be pasted over the badge.
+    _draw_rank_badge(draw, img, player.get("rankInfo"), 244, y + 13, 68, 28, mode="fight")
+    _draw_player_role_icon(img, hero_info, player, 316, y + 18, 18)
     _paste_icon_from_url(
         img,
         _hero_icon_url(hero_info, player),
-        (333, y + 8),
+        (338, y + 9),
         (36, 36),
         ("heroes", "misc"),
     )
-    _draw_player_role_icon(img, hero_info, player, 288, y + 11, 28)
     rendered_name = _fit_text(
         draw,
         display_name.upper() if name_is_ascii else display_name,
@@ -1476,7 +1767,7 @@ def _draw_perks(draw: Any, img: Any, config: Dict[str, Any], perks: Sequence[Dic
     for idx, perk in enumerate(list(perks)[:2]):
         candidates = _perk_guid_candidates(perk)
         perk_info = next((perk_lookup.get(candidate) for candidate in candidates if perk_lookup.get(candidate)), {})
-        icon_url = perk_info.get("icon") or perk.get("icon")
+        icon_url = perk_info.get("icon") or (perk.get("icon") if isinstance(perk, dict) else None)
         size = max(int(62 * row_h / 82), 18)
         x = int(320 + idx * (size + 4))
         py = int(y + (row_h - size) / 2)
@@ -1589,7 +1880,7 @@ def _draw_ban_heroes(img: Any, draw: Any, data: Dict[str, Any], config: Dict[str
         draw.rounded_rectangle((x, y, x + 104, y + 104), radius=8, outline=(225, 0, 18), width=4)
         _paste_icon_from_url(img, _hero_icon_url(hero), (x + 8, y + 8), (88, 88), ("heroes", "misc"))
         name = str(hero.get("name") or hero.get("heroGuid") or "")
-        draw.text((x, y + 120), _fit_text(draw, name, font, 104), font=font, fill=(245, 245, 245))
+        draw.text((x + 52, y + 120), _fit_text(draw, name, font, 104), font=font, fill=(245, 245, 245), anchor="ma")
 
 
 def _crop_center_to_size(img: Any, target_size: tuple[int, int]) -> Any:

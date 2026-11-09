@@ -1,10 +1,11 @@
 from io import BytesIO
-import re
 
-from PIL import Image, ImageDraw, ImageOps
-from ..dashen_rank_history.render import (_font_chinese, _load_ow_config,
+from PIL import Image, ImageColor, ImageOps
+from ..dashen_rank_history.render import (_ui_font, _load_ow_config,
                                          _find_hero, _load_remote_asset_image, ROLE_LABELS)
-from ..font_resolver import load_font, resolve_resource_dir
+from ..dashen_summary.runtime.summary_style import C, RADIUS_CARD, mix, themed, vertical_scrim
+from ..dashen_summary.runtime.summary_typography import SmoothDraw, smooth_mask
+from ..font_resolver import resolve_resource_dir
 try:
     from overstats.src.constants.backgrounds import build_random_map_background
     from overstats.src.constants.ranks import RANK_LABELS_CN, rank_name_to_icon_level, raw_rank_score_to_icon_level
@@ -13,6 +14,7 @@ except ModuleNotFoundError:
     from src.constants.ranks import RANK_LABELS_CN, rank_name_to_icon_level, raw_rank_score_to_icon_level
 
 
+RANK_TIER_TEXT = (24, 38, 58)
 # Icon asset IDs are not rank order: Emerald (9) sits below Diamond (5).
 RANK_BORDER_STYLES = [
     (1, '#bc8968'), (2, '#c6d2e0'), (3, '#edc65d'),
@@ -73,55 +75,59 @@ def streak_color(streak):
     return '#ffab62'
 
 
+def ink(color):
+    """Semantic hex colors are tuned for dark cards; deepen them on the paper theme."""
+    if not isinstance(color,str):
+        return color
+    rgb=ImageColor.getrgb(color)
+    return mix(C.INK,rgb,.52) if C.NAME=='day' else rgb
+
+
+def page_background(size):
+    background = build_random_map_background(
+        size, blur_radius=50, brightness=C.PAGE_BRIGHTNESS, color=C.PAGE_COLOR,
+        overlay=C.PAGE_OVERLAY, directory=resolve_resource_dir()/'query_tool_assets'/'maps')
+    if background is None:
+        return Image.new('RGBA',size,(*C.SCRIM,255))
+    return Image.alpha_composite(background,vertical_scrim(size,0,C.PAGE_FADE))
+
+
+@themed
 def render_overview(result):
     teams = result['teams']
     columns = max(1, len(teams['teammate']), len(teams['enemy']))
     width, height = 48 + columns * 332, 1272
-    canvas = build_random_map_background(
-        (width, height), blur_radius=14, brightness=.85, color=.9,
-        overlay=(12,22,38,100), directory=resolve_resource_dir()/'query_tool_assets'/'maps')
-    if canvas is None:
-        canvas = Image.new('RGBA',(width,height),(24,34,56,255))
-    draw = ImageDraw.Draw(canvas)
-    fonts = {size: _font_chinese(size) for size in (12,14,16,18,20,24,28)}
-    number_fonts = {size: load_font(size, name='GrotaRoundedExtraBold.otf') for size in fonts}
+    canvas = page_background((width,height))
+    res = resolve_resource_dir()
+    draw = SmoothDraw(canvas,'RGBA',numeric_font_path=res/'GrotaRoundedExtraBold.otf',latin_font_path=res/'en2.ttf')
     config = _load_ow_config()
 
-    def text(x,y,value,size=18,color='#f3f6ff',limit=280):
+    def text(x,y,value,size=18,color=None,limit=280,bold=False):
         value = str(value)
-        def runs(value):
-            return [(part, number_fonts[size] if part[0].isascii() and part[0].isdigit() else fonts[size])
-                    for part in re.split(r'([0-9]+(?:[.,][0-9]+)*)', value) if part]
-        def measure(value):
-            return sum(draw.textlength(part,font=font) for part,font in runs(value))
-        while len(value)>1 and measure(value)>limit:
+        font = _ui_font(size,bold=bold)
+        while len(value)>1 and draw.textlength(value,font=font)>limit:
             value=value[:-2]+'…'
-        for part,font in runs(value):
-            draw.text((x,y+size),part,font=font,fill=color,anchor='ls')
-            x+=draw.textlength(part,font=font)
+        draw.text((x,y+size),value,font=font,fill=ink(color or C.INK),anchor='ls')
 
     def portrait(image,x,y,size,radius=12):
         if image is None:
             return False
         image=ImageOps.fit(image.convert('RGBA'),(size,size),method=Image.Resampling.LANCZOS)
-        mask=Image.new('L',(size,size));ImageDraw.Draw(mask).rounded_rectangle((0,0,size-1,size-1),radius=radius,fill=255)
-        canvas.paste(image,(x,y),mask)
+        canvas.paste(image,(x,y),smooth_mask(size,size,radius))
         return True
 
-    text(24,14,'双方概览',28,limit=width-48)
+    text(24,14,'双方概览',28,limit=width-48,bold=True)
     for row,(team,label,color) in enumerate([('teammate','队友','#63d6ae'),('enemy','对手','#ff889a')]):
         top=60+row*596
-        text(24,top,f'{label}  {len(teams[team])}',20,color)
+        text(24,top,f'{label}  {len(teams[team])}',20,color,bold=True)
         if not teams[team]:
-            text(24,top+54,'暂无玩家',18,'#a9b9d1')
+            text(24,top+54,'暂无玩家',18,C.MUTED)
         for col,player in enumerate(teams[team]):
             x,y=24+col*332,top+30
-            panel=Image.new('RGBA',(316,560))
-            ImageDraw.Draw(panel).rounded_rectangle(
-                (0,0,315,559),radius=18,fill=(22,32,50,205),
-                outline=opponent_border(player) if team=='enemy' else (105,124,151,150),
+            draw.rounded_rectangle(
+                (x,y,x+315,y+559),radius=RADIUS_CARD+4,fill=C.SURFACE,
+                outline=ink(opponent_border(player)) if team=='enemy' else C.STROKE,
                 width=5 if team=='enemy' else 1)
-            canvas.alpha_composite(panel,(x,y))
             name,number=player['battletag'].rsplit('#',1)
             avatar=None
             if player.get('_avatar_bytes'):
@@ -131,58 +137,58 @@ def render_overview(result):
                 except (OSError,ValueError):
                     pass
             if not portrait(avatar,x+16,y+16,56):
-                draw.rounded_rectangle((x+16,y+16,x+72,y+72),radius=12,fill='#34445e')
+                draw.rounded_rectangle((x+16,y+16,x+72,y+72),radius=12,fill=C.SURFACE_RAISED)
                 text(x+31,y+29,name[:1],24,color,26)
-            text(x+84,y+17,name,20,limit=216)
-            text(x+84,y+46,'#'+number,16,'#a9b9d1',216)
+            text(x+84,y+17,name,20,limit=216,bold=True)
+            text(x+84,y+46,'#'+number,16,C.MUTED,216)
             if player['status']!='ok':
-                text(x+16,y+113,player['message'],18,'#ffba9b')
+                text(x+16,y+113,player['message'],18,C.ACCENT)
                 continue
             hours=player.get('total_playtime_hours')
             time_color,emphasized=playtime_style(hours)
-            text(x+16,y+83,'总时长',16,'#a9b9d1',78)
+            text(x+16,y+83,'总时长',16,C.MUTED,78)
             if emphasized:
                 draw.rounded_rectangle((x+80,y+78,x+300,y+108),radius=8,
-                                       fill='#172237',outline=time_color,width=2)
+                                       fill=C.SURFACE_RAISED,outline=ink(time_color),width=2)
             text(x+88,y+80,'—' if hours is None else f'{hours:,.1f} h',
                  24 if emphasized else 20,time_color,208)
-            draw.line((x+16,y+112,x+300,y+112),fill='#41516b')
-            text(x+16,y+122,'段位',16,color)
-            text(x+244,y+122,f'S{player["season"] or "—"}',16,'#a9b9d1',56)
+            draw.line((x+16,y+112,x+300,y+112),fill=C.HAIRLINE,width=1)
+            text(x+16,y+122,'段位',16,color,bold=True)
+            text(x+244,y+122,f'S{player["season"] or "—"}',16,C.MUTED,56)
             for i,rank in enumerate(player['ranks'][:4]):
                 rx,ry=x+16+(i%2)*146,y+147+(i//2)*45
-                text(rx,ry,ROLE_LABELS.get(rank['role_type'],rank['role_type']),14,'#a9b9d1',138)
+                text(rx,ry,ROLE_LABELS.get(rank['role_type'],rank['role_type']),14,C.MUTED,138)
                 if rank.get('is_history') and rank['score'] > 0:
-                    text(rx,ry+18,rank.get('history_season',''),12,'#f3cd86',36)
+                    text(rx,ry+18,rank.get('history_season',''),12,C.DRAW,36)
                 level=rank_name_to_icon_level(rank['rank_name']) or raw_rank_score_to_icon_level(rank['score'])
                 asset=resolve_resource_dir()/'rank_flat'/f'{level}.png'
                 if level and asset.exists():
                     with Image.open(asset) as badge:
                         canvas.alpha_composite(badge.convert('RGBA').resize((100,29),Image.Resampling.LANCZOS),(rx+36,ry+3))
-                    text(rx+103,ry+7,rank['tier'],18,'#18263a',28)
+                    text(rx+103,ry+7,rank['tier'],18,RANK_TIER_TEXT,28)
                 else:
                     label_rank=RANK_LABELS_CN.get(rank['rank_name'],rank['rank_name']) if rank['score']>0 else '未定级'
                     text(rx+38,ry+5,label_rank+str(rank['tier'] if rank['score']>0 else ''),16,limit=100)
-            draw.line((x+16,y+235,x+300,y+235),fill='#41516b')
-            text(x+16,y+247,'常用英雄',16,color)
+            draw.line((x+16,y+235,x+300,y+235),fill=C.HAIRLINE,width=1)
+            text(x+16,y+247,'常用英雄',16,color,bold=True)
             mode='快速' if '快速' in player['hero_source'] else '竞技'
             if '6V6' in player['hero_source']:mode+=' 6V6'
-            text(x+226,y+247,mode,14,'#a9b9d1',74)
+            text(x+226,y+247,mode,14,C.MUTED,74)
             if not player['heroes']:
-                text(x+16,y+296,'暂无记录',16,'#a9b9d1')
+                text(x+16,y+296,'暂无记录',16,C.MUTED)
             for i,hero in enumerate(player['heroes'][:3]):
                 hx,hy=x+16+i*98,y+278
                 info=_find_hero(config,hero['hero_guid'])
                 hero_name=info.get('name') or hero['name'] or '未知英雄'
                 icon=_load_remote_asset_image(str(info.get('icon') or ''),category='heroes')
                 if not portrait(icon,hx+9,hy,64,10):
-                    draw.rounded_rectangle((hx+9,hy,hx+73,hy+64),radius=10,fill='#34445e')
+                    draw.rounded_rectangle((hx+9,hy,hx+73,hy+64),radius=10,fill=C.SURFACE_RAISED)
                     text(hx+26,hy+20,hero_name[:1],24,color,32)
                 text(hx,hy+71,hero_name,16,limit=92)
-                text(hx,hy+94,f'{hero["game_time"]/3600:.1f} h',14,'#a9b9d1',92)
-            draw.line((x+16,y+400,x+300,y+400),fill='#41516b')
+                text(hx,hy+94,f'{hero["game_time"]/3600:.1f} h',14,C.MUTED,92)
+            draw.line((x+16,y+400,x+300,y+400),fill=C.HAIRLINE,width=1)
             stats=player.get('recent_stats',{})
-            text(x+16,y+407,'近期战绩',14,color)
+            text(x+16,y+407,'近期战绩',14,color,bold=True)
             for i,(key,mode_label) in enumerate([('quick','快速'),('competitive','竞技')]):
                 stat=stats.get(key,{})
                 count=stat.get('sample_size',0)
@@ -190,21 +196,21 @@ def render_overview(result):
                 streak=stat.get('streak')
                 sy=y+430+i*27
                 # Actual counts remain visible even when the API returns fewer than 24.
-                text(x+112+i*94,y+407,f'{mode_label}{count}场'+('*' if stat.get('incomplete') else ''),12,'#a9b9d1',94)
+                text(x+112+i*94,y+407,f'{mode_label}{count}场'+('*' if stat.get('incomplete') else ''),12,C.MUTED,94)
                 text(x+16,sy,f'{mode_label}胜率',14,limit=64)
                 text(x+80,sy,'—' if rate is None else f'{rate:.0f}%',18,win_rate_color(rate),70)
                 text(x+163,sy,'连胜场',14,limit=60)
                 text(x+232,sy,'—' if streak is None else f'{streak:+d}' if streak else '0',18,streak_color(streak),65)
-            draw.line((x+16,y+490,x+300,y+490),fill='#41516b')
+            draw.line((x+16,y+490,x+300,y+490),fill=C.HAIRLINE,width=1)
             boards=player['leaderboards']
             if not boards:
-                text(x+16,y+509,'省榜暂不可用' if player['leaderboard_status']!='ok' else '暂无省榜',16,'#a9b9d1')
+                text(x+16,y+509,'省榜暂不可用' if player['leaderboard_status']!='ok' else '暂无省榜',16,C.MUTED)
             for i,b in enumerate(boards[:2]):
                 info=_find_hero(config,b['hero_guid'])
                 province=b['province']
                 if not province.endswith(('省','市','区')) and province not in ('全国','香港','澳门','台湾'):
                     province+='省'
                 hero_name=info.get('name') or next((h['name'] for h in player['heroes'] if h['hero_guid']==b['hero_guid']),'英雄')
-                text(x+16,y+502+i*26,f'{hero_name} · {province}{b["rank"]}强',16,'#f3cd86',284)
+                text(x+16,y+502+i*26,f'{hero_name} · {province}{b["rank"]}强',16,C.DRAW,284)
     output=BytesIO();canvas.convert('RGB').save(output,format='PNG')
     return output.getvalue()

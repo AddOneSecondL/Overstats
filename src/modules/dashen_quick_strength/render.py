@@ -27,6 +27,7 @@ from ..dashen_summary.runtime.summary_style import (
 )
 from ..dashen_summary.runtime.summary_typography import SmoothDraw, smooth_mask
 from .engine import score_to_rank
+from ..dashen_match.render import _cached_path_for_url, _find_hero, _hero_icon_url
 
 try:
     from overstats.src.modules.query_tool import get_cached_asset_path
@@ -94,6 +95,12 @@ ROLE_TRACK_OUTLINE = 5
 ALL_ROLE_TRACK_W = 14
 RESULT_STRIP_H = 12
 SUMMARY_ICON_H = 76
+# Band at the top of each match column for the main hero icon; the score scale starts below it.
+HERO_BAND_H = 84
+HERO_ICON_H = 60
+# A second hero is shown when it took more than this share of the match time.
+SECOND_HERO_SHARE = 30.0
+HERO_SPLIT_SLANT = 9
 _FONT_CACHE: Dict[Any, Any] = {}
 _MAP_CACHE: Dict[Any, Any] = {}
 
@@ -392,6 +399,7 @@ def _draw_chart(
     inner_right = box[2] - CHART_PAD
     inner_top = top + CHART_HEAD
     inner_bottom = inner_top + PLOT_H
+    plot_top = inner_top + HERO_BAND_H
 
     if not matches:
         draw.text(
@@ -419,10 +427,10 @@ def _draw_chart(
 
     def y_for(score: float) -> int:
         if score_max <= score_min:
-            return int((inner_top + inner_bottom) / 2)
+            return int((plot_top + inner_bottom) / 2)
         ratio = (float(score) - score_min) / max(score_max - score_min, 1)
         ratio = max(0.0, min(1.0, ratio))
-        return int(inner_bottom - ratio * (inner_bottom - inner_top))
+        return int(inner_bottom - ratio * (inner_bottom - plot_top))
 
     column_width = (inner_right - inner_left) / len(matches)
     columns = [
@@ -433,6 +441,7 @@ def _draw_chart(
 
     for (left, right), match in zip(columns, matches):
         _draw_match_tile(canvas, draw, match, config, (left, inner_top, right, inner_bottom))
+        _draw_match_heroes(canvas, draw, match, config, (left, inner_top + RESULT_STRIP_H, right, plot_top))
 
     _draw_rank_axis(draw, inner_left, columns, y_for, score_min, score_max)
 
@@ -462,7 +471,7 @@ def _draw_chart(
             y_for=y_for,
             track_width=ROLE_TRACK_W,
             fill=tone["range"],
-            inner_top=inner_top,
+            inner_top=plot_top,
             inner_bottom=inner_bottom,
         )
 
@@ -668,6 +677,89 @@ def _draw_match_tile(
         draw.rounded_rectangle((left, top, right - 1, bottom - 1), radius=RADIUS_CHIP, fill=wash)
     draw.rounded_rectangle((left, top, right - 1, top + RESULT_STRIP_H), radius=3, fill=color)
     draw.rounded_rectangle((left, bottom - RESULT_STRIP_H - 1, right - 1, bottom - 1), radius=3, fill=color)
+
+
+def _hero_portrait(config: Dict[str, Any], hero_guid: Any, size: Tuple[int, int]) -> Any:
+    from PIL import Image, ImageOps
+
+    hero_info = _find_hero(config, hero_guid)
+    url = _hero_icon_url(hero_info) if hero_info else ""
+    path = _cached_path_for_url(url, ("heroes", "misc")) if url else None
+    if not path or size[0] <= 0 or size[1] <= 0:
+        return None
+    key = ("hero", str(path), size)
+    portrait = _MAP_CACHE.get(key)
+    if portrait is None:
+        try:
+            with Image.open(path) as source:
+                portrait = ImageOps.fit(source.convert("RGBA"), size, method=Image.LANCZOS, centering=(0.5, 0.3))
+        except Exception:
+            return None
+        if len(_MAP_CACHE) >= 64:
+            _MAP_CACHE.clear()
+        _MAP_CACHE[key] = portrait
+    return portrait
+
+
+def _polygon_mask(size: Tuple[int, int], points: Sequence[Tuple[float, float]], scale: int = 4) -> Any:
+    """Anti-aliased polygon mask: drawn at `scale`x and reduced, so slanted edges stay smooth."""
+    from PIL import Image, ImageDraw
+
+    big = Image.new("L", (size[0] * scale, size[1] * scale), 0)
+    ImageDraw.Draw(big).polygon([(x * scale, y * scale) for x, y in points], fill=255)
+    return big.resize(size, Image.LANCZOS)
+
+
+def _draw_match_heroes(
+    canvas: Any,
+    draw: Any,
+    match: Dict[str, Any],
+    config: Dict[str, Any],
+    box: Tuple[int, int, int, int],
+) -> None:
+    """Main hero above the column; a second hero over 30% of match time shares a slanted split."""
+    from PIL import Image, ImageDraw
+
+    heroes = [hero for hero in match.get("heroes") or [] if isinstance(hero, dict) and hero.get("hero_guid")]
+    if not heroes:
+        return
+    shown = heroes[:1]
+    if len(heroes) > 1:
+        try:
+            if float(heroes[1].get("time_rate") or 0) > SECOND_HERO_SHARE:
+                shown = heroes[:2]
+        except (TypeError, ValueError):
+            pass
+    left, top, right, bottom = box
+    height = max(16, min(HERO_ICON_H, bottom - top - 12, right - left - 8))
+    width = height if len(shown) == 1 else max(height, min(int(height * 1.7), right - left - 8))
+    x = (left + right - width) // 2
+    y = top + (bottom - top - height) // 2
+    tile = Image.new("RGBA", (width, height), (*C.SURFACE_RAISED[:3], 255))
+    if len(shown) == 1:
+        portrait = _hero_portrait(config, shown[0]["hero_guid"], (width, height))
+        if portrait is not None:
+            tile.alpha_composite(portrait)
+    else:
+        # Each half is a full portrait clipped by the slanted split, so faces stay centred.
+        half = width // 2
+        top_x, bottom_x = half + HERO_SPLIT_SLANT, half - HERO_SPLIT_SLANT
+        regions = (
+            [(0, 0), (top_x, 0), (bottom_x, height), (0, height)],
+            [(top_x, 0), (width, 0), (width, height), (bottom_x, height)],
+        )
+        slot_w = half + HERO_SPLIT_SLANT + 2
+        for index, (hero, region) in enumerate(zip(shown, regions)):
+            portrait = _hero_portrait(config, hero["hero_guid"], (slot_w, height))
+            if portrait is None:
+                continue
+            layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+            layer.paste(portrait, (0 if index == 0 else width - slot_w, 0))
+            tile.paste(layer, (0, 0), _polygon_mask((width, height), region))
+        divider = [(top_x - 2, -1), (top_x + 2, -1), (bottom_x + 2, height + 1), (bottom_x - 2, height + 1)]
+        tile.paste(Image.new("RGBA", (width, height), (*C.SCRIM[:3], 255)), (0, 0), _polygon_mask((width, height), divider))
+    canvas.paste(tile, (x, y), smooth_mask(width, height, RADIUS_CHIP))
+    draw.rounded_rectangle((x - 1, y - 1, x + width, y + height), radius=RADIUS_CHIP + 1, outline=with_alpha(C.SCRIM, 230), width=3)
 
 
 def _draw_match_label(

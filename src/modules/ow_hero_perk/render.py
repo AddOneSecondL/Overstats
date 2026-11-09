@@ -8,9 +8,11 @@ from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 import re
-from typing import Any, Dict, Iterable, Optional, Sequence
+from typing import Any, Dict, Iterable, Sequence
 
 from ...constants.backgrounds import build_random_map_background
+from ..dashen_summary.runtime.summary_style import C, RADIUS_CARD, RADIUS_TILE, themed, vertical_scrim
+from ..dashen_summary.runtime.summary_typography import SmoothDraw, smooth_mask
 
 try:
     from overstats.src.modules.font_resolver import load_font
@@ -35,17 +37,23 @@ def _resolve_resource_dir() -> Path:
 RESOURCE_DIR = _resolve_resource_dir()
 PERK_BG_PATH = RESOURCE_DIR / "perk_bg.png"
 
-CARD_FILL = (18, 24, 34, 198)
-CARD_INNER_FILL = (28, 36, 50, 216)
-CARD_OUTLINE = (81, 103, 130, 180)
-TEXT_MAIN = (244, 248, 255, 255)
-TEXT_SUB = (190, 202, 220, 255)
-TEXT_DIM = (145, 155, 170, 255)
-BAR_BG = (54, 62, 76, 210)
-BLUE_FILL = (65, 131, 215, 255)
-RED_FILL = (217, 30, 24, 255)
-MINOR_ACCENT = (117, 223, 174, 255)
-MAJOR_ACCENT = (255, 158, 198, 255)
+PAGE_W = 2000
+PAGE_MARGIN = 40
+PAGE_TOP = 32
+PAGE_BOTTOM = 32
+SECTION_GAP = 20
+HEADER_H = 150
+SECTION_HEAD = 70
+PERK_CARD_H = 410
+DUEL_H = 104
+SECTION_H = SECTION_HEAD + PERK_CARD_H + DUEL_H
+PAGE_H = PAGE_TOP + HEADER_H + SECTION_GAP + SECTION_H + PAGE_BOTTOM
+SECTION_PAD = 22
+ICON_BOX = 104
+ICON_PLATE = 86
+ICON_SIZE = 54
+ICON_TEXT = (22, 25, 32)
+_FONT_CACHE: Dict[Any, Any] = {}
 
 ROLE_LABELS = {
     "tank": "重装",
@@ -54,12 +62,12 @@ ROLE_LABELS = {
     "healer": "支援",
     "support": "支援",
 }
-ROLE_BADGE_COLORS = {
-    "tank": (118, 164, 255, 235),
-    "dps": (255, 146, 104, 235),
-    "damage": (255, 146, 104, 235),
-    "healer": (117, 223, 174, 235),
-    "support": (117, 223, 174, 235),
+ROLE_THEME_KEYS = {
+    "tank": "Tank",
+    "dps": "Damage",
+    "damage": "Damage",
+    "healer": "Support",
+    "support": "Support",
 }
 
 
@@ -69,6 +77,7 @@ class RenderedImage:
     media_type: str = "image/png"
 
 
+@themed
 def render_hero_perk_overview(
     *,
     hero: Dict[str, Any],
@@ -76,125 +85,104 @@ def render_hero_perk_overview(
     major: Dict[str, Any],
 ) -> RenderedImage:
     try:
-        from PIL import Image, ImageDraw
+        from PIL import Image  # noqa: F401
     except ModuleNotFoundError as exc:
         raise RuntimeError("render.py requires Pillow to output images") from exc
 
-    scale = 2
-    base_width = 1500
-    base_height = 760
-    width = base_width * scale
-    height = base_height * scale
-    canvas = Image.new("RGBA", (width, height), (9, 13, 19, 255))
-    draw = ImageDraw.Draw(canvas, "RGBA")
-    fonts = _load_fonts(scale)
-
-    background = build_random_map_background(
-        (width, height),
-        blur_radius=42,
-        overlay=(5, 8, 14, 166),
-        brightness=0.78,
-        color=0.86,
-    )
-    if background is not None:
-        canvas.alpha_composite(background)
-    canvas.alpha_composite(_gradient_overlay((width, height)))
-
-    padding = 50 * scale
-    gap = 26 * scale
-    header_height = 112 * scale
-    header_box = (padding, 36 * scale, width - padding, 36 * scale + header_height)
-    _draw_card_shell(draw, header_box, radius=10 * scale)
-    _draw_header(canvas, draw, hero=hero, bounds=header_box, fonts=fonts, scale=scale)
-
-    section_top = header_box[3] + 28 * scale
-    section_bottom = height - 42 * scale
-    section_width = int((width - (padding * 2) - gap) / 2)
-    minor_box = (padding, section_top, padding + section_width, section_bottom)
-    major_box = (padding + section_width + gap, section_top, width - padding, section_bottom)
-    _draw_section(
+    canvas = _page_background((PAGE_W, PAGE_H))
+    draw = SmoothDraw(
         canvas,
-        draw,
-        bounds=minor_box,
-        title=_bucket_title(minor, "次级威能"),
-        bucket=minor,
-        header_accent=MINOR_ACCENT,
-        fonts=fonts,
-        scale=scale,
+        "RGBA",
+        numeric_font_path=RESOURCE_DIR / "GrotaRoundedExtraBold.otf",
+        latin_font_path=RESOURCE_DIR / "en2.ttf",
     )
-    _draw_section(
-        canvas,
-        draw,
-        bounds=major_box,
-        title=_bucket_title(major, "主要威能"),
-        bucket=major,
-        header_accent=MAJOR_ACCENT,
-        fonts=fonts,
-        scale=scale,
-    )
+    left, right = PAGE_MARGIN, PAGE_W - PAGE_MARGIN - 1
+    _draw_header(canvas, draw, hero=hero, bounds=(left, PAGE_TOP, right, PAGE_TOP + HEADER_H - 1))
+
+    section_top = PAGE_TOP + HEADER_H + SECTION_GAP
+    section_bottom = section_top + SECTION_H - 1
+    section_width = (right - left - SECTION_GAP) // 2
+    left_team = C.STRENGTH_TONES["quick"]["line"]
+    right_team = C.STRENGTH_TONES["competitive"]["line"]
+    for bounds, bucket, fallback, accent in (
+        ((left, section_top, left + section_width, section_bottom), minor, "次级威能", C.TEAL),
+        ((right - section_width, section_top, right, section_bottom), major, "主要威能", C.MATCH_MODES["competitive"]),
+    ):
+        _draw_section(
+            canvas,
+            draw,
+            bounds=bounds,
+            title=_bucket_title(bucket, fallback),
+            bucket=bucket,
+            header_accent=accent,
+            left_team=left_team,
+            right_team=right_team,
+        )
 
     output = BytesIO()
-    canvas = canvas.resize((base_width, base_height), Image.LANCZOS)
     canvas = append_dashen_promo(canvas)
     canvas.save(output, format="PNG")
     return RenderedImage(content=output.getvalue())
 
 
-def _draw_header(
-    canvas: Any,
-    draw: Any,
-    *,
-    hero: Dict[str, Any],
-    bounds: tuple[int, int, int, int],
-    fonts: Dict[str, Any],
-    scale: int,
-) -> None:
-    left, top, right, bottom = bounds
-    avatar_size = 82 * scale
-    avatar_x = left + 22 * scale
-    avatar_y = top + int((bottom - top - avatar_size) / 2)
-    avatar_box = (avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size)
-    draw.rounded_rectangle(
-        avatar_box,
-        radius=10 * scale,
-        fill=(28, 36, 50, 220),
-        outline=(96, 126, 160, 180),
-        width=max(1, scale),
-    )
+def _page_background(size: tuple[int, int]) -> Any:
+    from PIL import Image
 
+    background = build_random_map_background(
+        size,
+        blur_radius=50,
+        overlay=C.PAGE_OVERLAY,
+        brightness=C.PAGE_BRIGHTNESS,
+        color=C.PAGE_COLOR,
+    )
+    if background is None:
+        return Image.new("RGBA", size, (*C.SCRIM, 255))
+    return Image.alpha_composite(background, vertical_scrim(size, 0, C.PAGE_FADE))
+
+
+def _draw_card_shell(draw: Any, box: tuple[int, int, int, int]) -> None:
+    draw.rounded_rectangle(box, radius=RADIUS_CARD + 4, fill=C.SURFACE, outline=C.STROKE, width=1)
+
+
+def _draw_header(canvas: Any, draw: Any, *, hero: Dict[str, Any], bounds: tuple[int, int, int, int]) -> None:
+    from PIL import ImageOps
+
+    left, top, right, bottom = bounds
+    _draw_card_shell(draw, bounds)
+    avatar_size = 110
+    avatar_x = left + 24
+    avatar_y = top + (bottom - top - avatar_size) // 2
     hero_icon = _open_cached_asset(hero.get("icon_url"), ("heroes", "misc"))
     if hero_icon is not None:
-        hero_icon = hero_icon.resize((avatar_size - 8 * scale, avatar_size - 8 * scale))
-        canvas.paste(hero_icon, (avatar_x + 4 * scale, avatar_y + 4 * scale), hero_icon)
+        fitted = ImageOps.fit(hero_icon, (avatar_size, avatar_size), method=_lanczos())
+        canvas.paste(fitted, (avatar_x, avatar_y), smooth_mask(avatar_size, avatar_size, RADIUS_TILE + 4))
     else:
-        fallback = str(hero.get("hero_name") or "?")[:2]
-        tw, th = _measure(draw, fallback, fonts["hero_fallback"])
-        draw.text(
-            (avatar_x + (avatar_size - tw) / 2, avatar_y + (avatar_size - th) / 2),
-            fallback,
-            font=fonts["hero_fallback"],
-            fill=TEXT_MAIN,
+        draw.rounded_rectangle(
+            (avatar_x, avatar_y, avatar_x + avatar_size - 1, avatar_y + avatar_size - 1),
+            radius=RADIUS_TILE + 4,
+            fill=C.SURFACE_RAISED,
         )
+        fallback = str(hero.get("hero_name") or "?")[:2]
+        draw.text((avatar_x + avatar_size // 2, avatar_y + avatar_size // 2), fallback, font=_ui_font(40, bold=True), fill=C.INK, anchor="mm")
+    draw.rounded_rectangle(
+        (avatar_x - 1, avatar_y - 1, avatar_x + avatar_size, avatar_y + avatar_size),
+        radius=RADIUS_TILE + 5,
+        outline=C.STROKE,
+        width=1,
+    )
 
-    text_x = avatar_x + avatar_size + 22 * scale
+    text_x = avatar_x + avatar_size + 28
     hero_name = str(hero.get("hero_name") or "未知英雄")
-    draw.text((text_x, top + 20 * scale), hero_name, font=fonts["header_name"], fill=TEXT_MAIN)
+    draw.text((text_x, top + 52), hero_name, font=_ui_font(50, bold=True), fill=C.INK, anchor="lm")
 
     role_key = str(hero.get("hero_role") or "").strip().lower()
     role_text = ROLE_LABELS.get(role_key, str(hero.get("hero_role") or "未知职责"))
+    role_fill = C.ROLE_COLORS.get(ROLE_THEME_KEYS.get(role_key), C.MUTED)
+    chip_right = _draw_role_badge(draw, (text_x, top + 92), role_text, fill=role_fill)
     subrole = get_subrole(hero)
     if subrole:
-        draw_subrole_badge(canvas, hero, text_x+86*scale, top+62*scale, 28*scale)
-        draw.text((text_x+120*scale, top+66*scale), subrole["displayName"], font=fonts["section_meta"], fill=TEXT_SUB)
-    role_fill = ROLE_BADGE_COLORS.get(role_key, (93, 112, 140, 235))
-    _draw_role_badge(
-        draw,
-        (text_x, top + 62 * scale),
-        role_text,
-        fill=role_fill,
-        fonts=fonts,
-        scale=scale,
-    )
+        draw_subrole_badge(canvas, hero, chip_right + 14, top + 92, 38)
+        draw.text((chip_right + 62, top + 111), subrole["displayName"], font=_ui_font(22), fill=C.TEXT, anchor="lm")
 
 
 def _draw_section(
@@ -204,81 +192,57 @@ def _draw_section(
     bounds: tuple[int, int, int, int],
     title: str,
     bucket: Dict[str, Any],
-    header_accent: tuple[int, int, int, int],
-    fonts: Dict[str, Any],
-    scale: int,
+    header_accent: tuple[int, ...],
+    left_team: tuple[int, ...],
+    right_team: tuple[int, ...],
 ) -> None:
     left, top, right, bottom = bounds
-    _draw_card_shell(draw, bounds, radius=10 * scale)
-    title_y = top + 16 * scale
-    draw.text((left + 18 * scale, title_y), title, font=fonts["section_title"], fill=TEXT_MAIN)
+    _draw_card_shell(draw, bounds)
+    draw.polygon([(left + 26, top + 20), (left + 34, top + 20), (left + 29, top + 46), (left + 21, top + 46)], fill=header_accent)
+    draw.text((left + 46, top + 33), title, font=_ui_font(32, bold=True), fill=C.INK, anchor="lm")
     sample_text = f"样本 { _format_count(bucket.get('sample_count')) }"
-    sample_w, _ = _measure(draw, sample_text, fonts["section_meta"])
-    draw.text((right - 18 * scale - sample_w, title_y + 4 * scale), sample_text, font=fonts["section_meta"], fill=TEXT_SUB)
-    draw.line((left + 18 * scale, top + 56 * scale, right - 18 * scale, top + 56 * scale), fill=(93, 112, 140, 145), width=max(1, scale))
+    draw.text((right - SECTION_PAD, top + 33), sample_text, font=_ui_font(22), fill=C.TEXT, anchor="rm")
 
     perks = [item for item in list(bucket.get("perks") or []) if isinstance(item, dict)][:2]
     if not perks:
         draw.text(
-            (left + 24 * scale, top + 92 * scale),
+            ((left + right) // 2, (top + bottom) // 2),
             "暂无该档位的可用威能数据",
-            font=fonts["card_body"],
-            fill=TEXT_DIM,
+            font=_ui_font(24),
+            fill=C.FAINT,
+            anchor="mm",
         )
         return
 
-    inner_gap = 18 * scale
-    card_top = top + 76 * scale
-    card_bottom = bottom - 94 * scale
-    card_width = int((right - left - 36 * scale - inner_gap) / 2)
-    left_card = (left + 18 * scale, card_top, left + 18 * scale + card_width, card_bottom)
-    right_card = (left_card[2] + inner_gap, card_top, right - 18 * scale, card_bottom)
+    inner_gap = 18
+    card_top = top + SECTION_HEAD
+    card_bottom = card_top + PERK_CARD_H - 1
+    card_width = (right - left - SECTION_PAD * 2 - inner_gap) // 2
+    left_card = (left + SECTION_PAD, card_top, left + SECTION_PAD + card_width, card_bottom)
+    right_card = (left_card[2] + inner_gap, card_top, right - SECTION_PAD, card_bottom)
 
     left_perk = perks[0] if len(perks) > 0 else {}
     right_perk = perks[1] if len(perks) > 1 else {}
-    _draw_perk_card(
-        canvas,
-        draw,
-        bounds=left_card,
-        perk=left_perk,
-        team_fill=BLUE_FILL,
-        header_accent=header_accent,
-        fonts=fonts,
-        scale=scale,
-    )
+    _draw_perk_card(canvas, draw, bounds=left_card, perk=left_perk, team_fill=left_team, header_accent=header_accent)
     if right_perk:
-        _draw_perk_card(
-            canvas,
-            draw,
-            bounds=right_card,
-            perk=right_perk,
-            team_fill=RED_FILL,
-            header_accent=header_accent,
-            fonts=fonts,
-            scale=scale,
-        )
+        _draw_perk_card(canvas, draw, bounds=right_card, perk=right_perk, team_fill=right_team, header_accent=header_accent)
     else:
-        draw.rounded_rectangle(
-            right_card,
-            radius=8 * scale,
-            fill=(28, 36, 50, 150),
-            outline=(81, 103, 130, 90),
-            width=max(1, scale),
-        )
+        draw.rounded_rectangle(right_card, radius=RADIUS_TILE + 2, fill=C.SURFACE_SUNKEN, outline=C.STROKE, width=1)
         draw.text(
-            (right_card[0] + 18 * scale, right_card[1] + 24 * scale),
+            ((right_card[0] + right_card[2]) // 2, (right_card[1] + right_card[3]) // 2),
             "暂无第二个威能",
-            font=fonts["card_title"],
-            fill=TEXT_DIM,
+            font=_ui_font(24),
+            fill=C.FAINT,
+            anchor="mm",
         )
 
     _draw_duel_bar(
         draw,
-        bounds=(left + 18 * scale, bottom - 58 * scale, right - 18 * scale, bottom - 30 * scale),
+        bounds=(left + SECTION_PAD, bottom - 42, right - SECTION_PAD, bottom - 20),
         left_perk=left_perk,
         right_perk=right_perk,
-        fonts=fonts,
-        scale=scale,
+        left_team=left_team,
+        right_team=right_team,
     )
 
 
@@ -288,88 +252,67 @@ def _draw_perk_card(
     *,
     bounds: tuple[int, int, int, int],
     perk: Dict[str, Any],
-    team_fill: tuple[int, int, int, int],
-    header_accent: tuple[int, int, int, int],
-    fonts: Dict[str, Any],
-    scale: int,
+    team_fill: tuple[int, ...],
+    header_accent: tuple[int, ...],
 ) -> None:
     from PIL import Image
 
     left, top, right, bottom = bounds
-    draw.rounded_rectangle(
-        bounds,
-        radius=8 * scale,
-        fill=CARD_INNER_FILL,
-        outline=(81, 103, 130, 150),
-        width=max(1, scale),
-    )
-    draw.rounded_rectangle(
-        (left, top, right, top + 6 * scale),
-        radius=8 * scale,
-        fill=_with_alpha(header_accent, 230),
-    )
+    pad = 20
+    draw.rounded_rectangle(bounds, radius=RADIUS_TILE + 2, fill=C.SURFACE_SUNKEN, outline=C.STROKE, width=1)
+    draw.rounded_rectangle((left, top, right, top + 6), radius=3, fill=header_accent)
 
-    icon_box = (left + 18 * scale, top + 22 * scale, left + 108 * scale, top + 112 * scale)
+    icon_x, icon_y = left + pad, top + 24
     draw.rounded_rectangle(
-        icon_box,
-        radius=10 * scale,
-        fill=(23, 31, 44, 255),
-        outline=(96, 126, 160, 180),
-        width=max(1, scale),
+        (icon_x, icon_y, icon_x + ICON_BOX - 1, icon_y + ICON_BOX - 1),
+        radius=RADIUS_TILE,
+        fill=C.PERK_PLATE or C.SURFACE_RAISED,
     )
+    plate_x = icon_x + (ICON_BOX - ICON_PLATE) // 2
+    plate_y = icon_y + (ICON_BOX - ICON_PLATE) // 2
     perk_bg = _open_local_rgba(PERK_BG_PATH)
     if perk_bg is not None:
-        perk_bg = perk_bg.resize((74 * scale, 74 * scale), Image.LANCZOS)
-        canvas.paste(perk_bg, (left + 26 * scale, top + 30 * scale), perk_bg)
+        perk_bg = perk_bg.resize((ICON_PLATE, ICON_PLATE), Image.LANCZOS)
+        canvas.paste(perk_bg, (plate_x, plate_y), perk_bg)
 
     perk_icon = _open_cached_asset(perk.get("icon_url"), ("perk", "misc"))
     if perk_icon is not None:
-        target = 46 * scale
-        icon_w, icon_h = _contain_size(perk_icon.width, perk_icon.height, target, target)
+        icon_w, icon_h = _contain_size(perk_icon.width, perk_icon.height, ICON_SIZE, ICON_SIZE)
         perk_icon = perk_icon.resize((icon_w, icon_h), Image.LANCZOS)
         perk_icon = _swap_nearly_white_to_black(perk_icon)
-        paste_x = left + 26 * scale + int((74 * scale - icon_w) / 2)
-        paste_y = top + 30 * scale + int((74 * scale - icon_h) / 2)
-        canvas.paste(perk_icon, (paste_x, paste_y), perk_icon)
+        canvas.paste(perk_icon, (plate_x + (ICON_PLATE - icon_w) // 2, plate_y + (ICON_PLATE - icon_h) // 2), perk_icon)
     else:
         fallback = str(perk.get("name") or "?")[:2]
-        tw, th = _measure(draw, fallback, fonts["perk_fallback"])
         draw.text(
-            (left + 63 * scale - tw / 2, top + 67 * scale - th / 2),
+            (icon_x + ICON_BOX // 2, icon_y + ICON_BOX // 2),
             fallback,
-            font=fonts["perk_fallback"],
-            fill=TEXT_MAIN,
+            font=_ui_font(24, bold=True),
+            fill=ICON_TEXT if perk_bg is not None else C.INK,
+            anchor="mm",
         )
 
-    info_left = left + 126 * scale
-    info_width = max(1, right - info_left - 18 * scale)
+    name_left = icon_x + ICON_BOX + 18
     name = str(perk.get("name") or "未知威能")
-    name_lines = _wrap_text(draw, name, fonts["card_title"], info_width, 2, allow_space_join=False)
+    name_font = _ui_font(29, bold=True)
+    name_lines = _wrap_text(draw, name, name_font, max(1, right - name_left - pad), 2, allow_space_join=False)
+    name_top = icon_y + ICON_BOX // 2 - (len(name_lines) - 1) * 18
     for index, line in enumerate(name_lines):
-        draw.text((info_left, top + 22 * scale + index * 28 * scale), line, font=fonts["card_title"], fill=TEXT_MAIN)
+        draw.text((name_left, name_top + index * 36), line, font=name_font, fill=C.INK, anchor="lm")
 
-    desc_top = top + 84 * scale
+    desc_top = icon_y + ICON_BOX + 22
     desc = str(perk.get("desc") or "暂无描述")
-    desc_lines = _wrap_text(draw, desc, fonts["card_body"], info_width, 4)
-    for index, line in enumerate(desc_lines):
-        draw.text((info_left, desc_top + index * 24 * scale), line, font=fonts["card_body"], fill=TEXT_SUB)
+    desc_font = _ui_font(22)
+    for index, line in enumerate(_wrap_text(draw, desc, desc_font, max(1, right - left - pad * 2), 5)):
+        draw.text((left + pad, desc_top + index * 31), line, font=desc_font, fill=C.TEXT)
 
-    footer_y = bottom - 78 * scale
-    draw.text((info_left, footer_y), "使用数", font=fonts["metric_label"], fill=TEXT_DIM)
-    draw.text(
-        (info_left, footer_y + 26 * scale),
-        _format_count(perk.get("pick_count")),
-        font=fonts["metric_value"],
-        fill=team_fill,
-    )
-    sample_label_x = info_left + 124 * scale
-    draw.text((sample_label_x, footer_y), "使用率", font=fonts["metric_label"], fill=TEXT_DIM)
-    draw.text(
-        (sample_label_x, footer_y + 26 * scale),
-        f"{float(perk.get('pick_rate') or 0.0) * 100:.1f}%",
-        font=fonts["metric_value"],
-        fill=TEXT_MAIN,
-    )
+    footer_y = bottom - 82
+    draw.line((left + pad, footer_y - 12, right - pad, footer_y - 12), fill=C.HAIRLINE, width=1)
+    middle = (left + right) // 2
+    label_font, value_font = _ui_font(20), _ui_font(32, bold=True)
+    draw.text((left + pad, footer_y), "使用数", font=label_font, fill=C.MUTED)
+    draw.text((left + pad, footer_y + 28), _format_count(perk.get("pick_count")), font=value_font, fill=team_fill)
+    draw.text((middle + 10, footer_y), "使用率", font=label_font, fill=C.MUTED)
+    draw.text((middle + 10, footer_y + 28), f"{float(perk.get('pick_rate') or 0.0) * 100:.1f}%", font=value_font, fill=C.INK)
 
 
 def _draw_duel_bar(
@@ -378,85 +321,55 @@ def _draw_duel_bar(
     bounds: tuple[int, int, int, int],
     left_perk: Dict[str, Any],
     right_perk: Dict[str, Any],
-    fonts: Dict[str, Any],
-    scale: int,
+    left_team: tuple[int, ...],
+    right_team: tuple[int, ...],
 ) -> None:
     left, top, right, bottom = bounds
-    bar_top = top + 12 * scale
-    label_y = top - 16 * scale
+    label_y = top - 20
+    label_font = _ui_font(26, bold=True)
     left_rate = max(0.0, min(float(left_perk.get("pick_rate") or 0.0), 1.0))
     right_rate = max(0.0, min(float(right_perk.get("pick_rate") or 0.0), 1.0))
 
-    left_label = f"{left_rate * 100:.1f}%"
-    draw.text((left, label_y), left_label, font=fonts["bar_rate"], fill=BLUE_FILL)
+    draw.text((left, label_y), f"{left_rate * 100:.1f}%", font=label_font, fill=left_team, anchor="lm")
+    draw.text((right, label_y), f"{right_rate * 100:.1f}%", font=label_font, fill=right_team, anchor="rm")
 
-    right_label = f"{right_rate * 100:.1f}%"
-    right_w, _ = _measure(draw, right_label, fonts["bar_rate"])
-    draw.text((right - right_w, label_y), right_label, font=fonts["bar_rate"], fill=RED_FILL)
-
-    draw.rounded_rectangle((left, bar_top, right, bottom), radius=6 * scale, fill=BAR_BG)
+    radius = (bottom - top) // 2
+    draw.rounded_rectangle(bounds, radius=radius, fill=C.SURFACE_RAISED)
     bar_width = right - left
     left_width = int(bar_width * left_rate)
     right_width = int(bar_width * right_rate)
 
     if left_width > 0:
-        draw.rounded_rectangle((left, bar_top, left + left_width, bottom), radius=6 * scale, fill=BLUE_FILL)
+        draw.rounded_rectangle((left, top, left + left_width, bottom), radius=radius, fill=left_team)
     if right_width > 0:
-        draw.rounded_rectangle((right - right_width, bar_top, right, bottom), radius=6 * scale, fill=RED_FILL)
+        draw.rounded_rectangle((right - right_width, top, right, bottom), radius=radius, fill=right_team)
 
 
-def _draw_role_badge(
-    draw: Any,
-    position: tuple[int, int],
-    label: str,
-    *,
-    fill: tuple[int, int, int, int],
-    fonts: Dict[str, Any],
-    scale: int,
-) -> None:
+def _draw_role_badge(draw: Any, position: tuple[int, int], label: str, *, fill: tuple[int, ...]) -> int:
     x, y = position
-    text_w, text_h = _measure(draw, label, fonts["role"])
-    padding_x = 12 * scale
-    height = 30 * scale
-    width = int(text_w + padding_x * 2)
-    box = (x, y, x + width, y + height)
-    draw.rounded_rectangle(box, radius=height // 2, fill=fill)
-    draw.text((x + padding_x, y + int((height - text_h) / 2) - 2 * scale), label, font=fonts["role"], fill=(18, 24, 34, 255))
+    font = _ui_font(22, bold=True)
+    height = 38
+    width = int(_measure(draw, label, font)[0]) + 36
+    draw.rounded_rectangle((x, y, x + width, y + height), radius=height // 2, fill=fill)
+    draw.text((x + width // 2, y + height // 2), label, font=font, fill=C.STREAK_TEXT, anchor="mm")
+    return x + width
 
 
-def _draw_card_shell(draw: Any, box: tuple[int, int, int, int], *, radius: int) -> None:
-    draw.rounded_rectangle(box, radius=radius, fill=CARD_FILL, outline=CARD_OUTLINE, width=max(1, radius // 8))
+def _lanczos() -> Any:
+    from PIL import Image
+
+    return Image.Resampling.LANCZOS
 
 
-def _load_fonts(scale: int) -> Dict[str, Any]:
-    return {
-        "header_name": _load_summary_font(34 * scale, bold=True),
-        "role": _load_summary_font(16 * scale, bold=True),
-        "section_title": _load_summary_font(24 * scale, bold=True),
-        "section_meta": _load_summary_font(15 * scale),
-        "card_title": _load_summary_font(20 * scale, bold=True),
-        "card_body": _load_summary_font(14 * scale),
-        "metric_label": _load_summary_font(13 * scale),
-        "metric_value": _load_summary_font(20 * scale, bold=True),
-        "bar_rate": _load_summary_font(18 * scale, bold=True),
-        "hero_fallback": _load_summary_font(28 * scale, bold=True),
-        "perk_fallback": _load_summary_font(20 * scale, bold=True),
-    }
-
-
-def _load_summary_font(size: int, *, bold: bool = False) -> Any:
-    adjusted = int(size)
-    if adjusted <= 22:
-        adjusted += 2
-    elif adjusted <= 36:
-        adjusted += 1
-    return load_font(
-        adjusted,
-        name="simhei.ttf",
-        fallback="en.ttf",
-        prefer_cjk=True,
-        bold=bold,
-    )
+def _ui_font(size: int, *, bold: bool = False) -> Any:
+    key = (int(size), bool(bold))
+    font = _FONT_CACHE.get(key)
+    if font is None:
+        font = load_font(int(size), name="simhei.ttf", fallback="en.ttf", prefer_cjk=True, bold=bold)
+        if bold and Path(getattr(font, "path", "")).name.lower() == "simhei.ttf":
+            font.emulate_bold = True
+        _FONT_CACHE[key] = font
+    return font
 
 
 def _bucket_title(bucket: Dict[str, Any], fallback: str) -> str:
@@ -502,29 +415,6 @@ def _swap_nearly_white_to_black(image: Any) -> Any:
     return image
 
 
-def _gradient_overlay(size: tuple[int, int]) -> Any:
-    from PIL import Image
-
-    width, height = size
-    image = Image.new("RGBA", size, (0, 0, 0, 0))
-    pixels = image.load()
-    for y in range(height):
-        vertical_ratio = y / max(1, height - 1)
-        base_alpha = int(62 + 82 * vertical_ratio)
-        for x in range(width):
-            side_ratio = abs((x / max(1, width - 1)) - 0.5) * 2.0
-            alpha = min(255, int(base_alpha + 18 * side_ratio))
-            pixels[x, y] = (6, 11, 18, alpha)
-    return image
-
-
-def _with_alpha(color: Sequence[int], alpha: int) -> tuple[int, int, int, int]:
-    red = int(color[0]) if len(color) > 0 else 255
-    green = int(color[1]) if len(color) > 1 else 255
-    blue = int(color[2]) if len(color) > 2 else 255
-    return red, green, blue, int(alpha)
-
-
 def _measure(draw: Any, text: str, font: Any) -> tuple[float, float]:
     bbox = draw.textbbox((0, 0), str(text or ""), font=font)
     return float(bbox[2] - bbox[0]), float(bbox[3] - bbox[1])
@@ -543,7 +433,7 @@ def _wrap_text(
         return [""]
 
     use_word_tokens = allow_space_join and (" " in normalized)
-    tokens: Iterable[str] = normalized.split(" ") if use_word_tokens else list(normalized)
+    tokens: Iterable[str] = normalized.split(" ") if use_word_tokens else re.findall(r"[0-9]+(?:\.[0-9]+)?%?|.", normalized)
     separator = " " if use_word_tokens else ""
     lines: list[str] = []
     current = ""

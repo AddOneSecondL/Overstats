@@ -70,6 +70,7 @@ class DashenQuickStrengthMatchPoint:
     enemy_scores: Sequence[int]
     team_streak_avg: float
     enemy_streak_avg: float
+    heroes: Sequence[Dict[str, Any]] = ()
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -87,6 +88,7 @@ class DashenQuickStrengthMatchPoint:
             "enemy_scores": [int(score) for score in self.enemy_scores],
             "team_streak_avg": float(self.team_streak_avg),
             "enemy_streak_avg": float(self.enemy_streak_avg),
+            "heroes": [dict(hero) for hero in self.heroes],
         }
 
 
@@ -166,6 +168,7 @@ class DashenQuickStrengthModule:
                 enemy_scores=tuple(int(score) for score in list(item.get("enemy_scores") or [])),
                 team_streak_avg=float(item.get("team_streak_avg") or 0),
                 enemy_streak_avg=float(item.get("enemy_streak_avg") or 0),
+                heroes=tuple(dict(hero) for hero in list(item.get("heroes") or []) if isinstance(hero, dict)),
             )
             for item in match_dicts
         )

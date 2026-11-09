@@ -11,6 +11,7 @@ try:
 except ModuleNotFoundError:
     from src.constants.ranks import get_rank_score, raw_rank_score_to_strength, strength_score_to_rank
 
+from ..dashen_quick_strength.engine import match_hero_usage
 from .requests import DashenCompetitiveStrengthRequests, get_live_dashen_season, normalize_role_type
 
 
@@ -344,6 +345,7 @@ class DashenCompetitiveStrengthEngine:
             "enemy_scores": list(enemy_scores),
             "team_streak_avg": 0.0,
             "enemy_streak_avg": 0.0,
+            "heroes": match_hero_usage(data, source_match),
             "_used_previous_season_fallback": used_previous_fallback,
         }
 
@@ -363,5 +365,6 @@ class DashenCompetitiveStrengthEngine:
             "enemy_scores": [],
             "team_streak_avg": 0.0,
             "enemy_streak_avg": 0.0,
+            "heroes": match_hero_usage({}, source_match),
             "_used_previous_season_fallback": False,
         }

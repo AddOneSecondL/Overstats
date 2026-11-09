@@ -631,15 +631,6 @@ def _load_local_rgba(path: Path) -> Any:
         return None
 
 
-def _font_chinese(size: int) -> Any:
-    return load_font(
-        size,
-        name="simhei.ttf",
-        fallback="GrotaRoundedExtraBold.otf",
-        prefer_cjk=True,
-    )
-
-
 def _ui_font(size: int, *, bold: bool = False) -> Any:
     key = ("ui", int(size), bool(bold))
     font = _FONT_CACHE.get(key)
