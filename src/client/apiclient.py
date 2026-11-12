@@ -1296,6 +1296,123 @@ class DashenAPIClient:
             params={"token": customer_token},
         )
 
+    async def _query_account_api(
+        self, path: str, credential: DashenCredential, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        # Account-scoped APIs must not rotate to an unrelated account.
+        return await self.request_json(
+            "GET", f"{DASHEN_API_ROOT}/{path}", credential=credential,
+            params={**params, "server": credential.server, "dts": credential.dts,
+                    "roleId": credential.role_id, "token": credential.token},
+        )
+
+    async def get_friend_module(
+        self, *, credential: DashenCredential, season: int,
+        mode: str = "LeisurePreset", page: int = 1, size: int = 15,
+        sort_key: str = "match_cnt", sort_type: int = 0,
+    ) -> Dict[str, Any]:
+        """Read the selected account's friend statistics (raw response)."""
+        return await self._query_account_api("getFriendModule", credential, {
+            "season": season, "mode": mode, "page": page, "size": size,
+            "sortKey": sort_key, "sortType": sort_type,
+        })
+
+    async def get_friend_billboard(
+        self, *, credential: DashenCredential, season: int,
+        mode: str = "LeisurePreset",
+    ) -> Dict[str, Any]:
+        return await self._query_account_api("bnFriend/getBillboard", credential,
+                                             {"season": season, "mode": mode})
+
+    async def get_share_report(
+        self, *, credential: DashenCredential, game_mode: str = "leisure",
+        role_type: str = "preset", time_type: str = "sevenDays",
+    ) -> Dict[str, Any]:
+        """Official summary; sevenDays is the captured weekly-report selector."""
+        return await self._query_account_api("share/getReport", credential, {
+            "gameMode": game_mode, "roleType": role_type, "timeType": time_type,
+        })
+
+    async def _query_cuican(self, path: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        # These read-only leaderboard routes use response-issued query tokens,
+        # never Dashen login credentials.
+        return await self.request_json(
+            "GET", f"https://webapi.blizzard.cn/ow-cuican-qualifying-server/{path}",
+            params=params,
+        )
+
+    async def cuican_minitool_career(self, shard_id: int) -> Dict[str, Any]:
+        """Read a captured minitool career shard; shard IDs are not player IDs.
+
+        The player-to-shard lookup algorithm is not established by this capture.
+        Returns the raw {players: {...}} document, without a code/data envelope.
+        """
+        if isinstance(shard_id, bool) or not isinstance(shard_id, int) or shard_id < 0:
+            raise ValueError("shard_id must be a non-negative integer")
+        return await self.request_json(
+            "GET",
+            "https://act.ds.163.com/wp/minitool/"
+            f"b6556abe-49be-426e-9d8c-1fab05ca5d6a/career/{shard_id}.json",
+            raise_on_http_error=True,
+        )
+
+    async def cuican_seasons(self) -> Dict[str, Any]:
+        return await self._query_cuican("leaderboard/seasons", {})
+
+    async def cuican_ranking(
+        self, season_id: str, profession: int, match_type: int = 1,
+    ) -> Dict[str, Any]:
+        return await self._query_cuican("leaderboard/ranking", {
+            "season_id": season_id, "profession": profession, "match_type": match_type,
+        })
+
+    async def cuican_search(
+        self, key_word: str, season_id: str, match_type: int = 1,
+    ) -> Dict[str, Any]:
+        return await self._query_cuican("leaderboard/search", {
+            "key_word": key_word, "season_id": season_id, "match_type": match_type,
+        })
+
+    async def cuican_active_professions(
+        self, user_id: str, user_token: str, season_id: str, match_type: int = 1,
+    ) -> Dict[str, Any]:
+        return await self._query_cuican("leaderboard/player/active-professions", {
+            "user_id": user_id, "user_token": user_token,
+            "season_id": season_id, "match_type": match_type,
+        })
+
+    async def cuican_best_records(self, user_id: str, user_token: str) -> Dict[str, Any]:
+        return await self._query_cuican("leaderboard/player/best-records", {
+            "user_id": user_id, "user_token": user_token,
+        })
+
+    async def cuican_season_stats(
+        self, user_id: str, user_token: str, season_id: str,
+        profession: int, match_type: int = 1,
+    ) -> Dict[str, Any]:
+        return await self._query_cuican("leaderboard/player/season-stats", {
+            "user_id": user_id, "user_token": user_token, "season_id": season_id,
+            "profession": profession, "match_type": match_type,
+        })
+
+    async def cuican_matches(
+        self, user_id: str, user_token: str, season_id: str,
+        profession: int = 0, match_type: int = 1, *,
+        last_id: int = -1, page_size: int = 20,
+    ) -> Dict[str, Any]:
+        return await self._query_cuican("leaderboard/player/matches", {
+            "user_id": user_id, "user_token": user_token, "season_id": season_id,
+            "profession": profession, "match_type": match_type,
+            "last_id": last_id, "page_size": page_size,
+        })
+
+    async def cuican_match_detail(
+        self, match_id: str, season_id: str, match_id_token: str,
+    ) -> Dict[str, Any]:
+        return await self._query_cuican("leaderboard/match/detail", {
+            "match_id": match_id, "season_id": season_id, "match_id_token": match_id_token,
+        })
+
     async def fetch_ow_esports_payload(self) -> Dict[str, Any]:
         return await self.request_json(
             "GET",
