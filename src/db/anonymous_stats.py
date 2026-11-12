@@ -33,6 +33,10 @@ def initialize(conn):
       hero_guid TEXT NOT NULL, perk_level INTEGER NOT NULL, rank_bucket_key INTEGER NOT NULL,
       sample_count INTEGER NOT NULL, PRIMARY KEY(hero_guid,perk_level,rank_bucket_key));
     """)
+    # The primary-key index omits count. Reading distributions through it
+    # requires random table-page reads for every value on small-memory hosts.
+    conn.execute("""CREATE INDEX IF NOT EXISTS anonymous_distribution_summary_cover
+      ON anonymous_stat_distribution(hero_guid,statmap_name,rank_bucket_key,value,count)""")
     conn.execute("INSERT OR IGNORE INTO anonymous_meta VALUES ('event_key', ?)", (secrets.token_bytes(32),))
     # Existing anonymous perk totals remain usable after upgrading.
     conn.execute("""INSERT OR IGNORE INTO anonymous_perk_samples
@@ -96,17 +100,36 @@ def write(conn, batches):
                       WHERE hero_guid=? AND perk_level=? AND rank_bucket_key=?""", (total,total,now,*group))
                 counts['perk_picks'] += len(choices)
         for group in changed:
-            rows = conn.execute('SELECT value,count FROM anonymous_stat_distribution WHERE hero_guid=? AND statmap_name=? AND rank_bucket_key=? ORDER BY value', group).fetchall()
-            count = sum(n for _, n in rows)
-            def at(position):
-                running = 0
-                for value, n in rows:
-                    running += n
-                    if running >= position:
-                        return value
-            avg = sum(v*n for v,n in rows)/count
-            median = (at((count+1)//2)+at((count+2)//2))/2
-            values = [at(max(1,math.ceil(count*q/100))) for q in QUANTILES]
+            count, total = conn.execute(
+                "SELECT SUM(count), SUM(value * count) FROM anonymous_stat_distribution "
+                "WHERE hero_guid=? AND statmap_name=? AND rank_bucket_key=?", group,
+            ).fetchone()
+            # Walk the weighted distribution once, keeping only ten cut points.
+            # No fetchall/list of the growing distribution and no repeated scans
+            # in Python for each quantile. Both queries use the covering index.
+            positions = [(count + 1) // 2, (count + 2) // 2]
+            positions.extend(max(1, math.ceil(count * q / 100)) for q in QUANTILES)
+            targets = sorted(set(positions))
+            selected = {}
+            running = 0
+            cursor = conn.execute(
+                "SELECT value,count FROM anonymous_stat_distribution "
+                "WHERE hero_guid=? AND statmap_name=? AND rank_bucket_key=? ORDER BY value", group,
+            )
+            try:
+                target_index = 0
+                for value, weight in cursor:
+                    running += weight
+                    while target_index < len(targets) and running >= targets[target_index]:
+                        selected[targets[target_index]] = value
+                        target_index += 1
+                    if target_index == len(targets):
+                        break
+            finally:
+                cursor.close()
+            avg = total / count
+            median = (selected[positions[0]] + selected[positions[1]]) / 2
+            values = [selected[position] for position in positions[2:]]
             conn.execute("""INSERT INTO comp_data_summary
               (hero_guid,statmap_name,rank_bucket_key,sample_count,avg_value,median_value,
                top20_value,top10_value,top5_value,top2_value,bottom20_value,bottom10_value,bottom5_value,bottom2_value,updated_at)

@@ -1,4 +1,9 @@
-from ...map_modes import draw_map_mode_icon as _draw_map_mode_icon
+from ...map_modes import draw_map_mode_icon as _draw_map_mode_icon, gameplay_mode
+from .season_panels import (
+    build_season_data, draw_rank_panel, draw_season_panel, rank_panel_height, season_chip, season_glow,
+    season_map_wash, season_panel_height,
+)
+from ....constants.ranks import rank_info_score_to_strength
 from ...subroles import draw_subrole_badge, get_subrole
 from ...dashen_promo import append_dashen_promo
 
@@ -2889,20 +2894,23 @@ def _draw_weather_glyph(draw, label, x, y, size, color):
             draw.line((cx + dx * size, cloud_y + size * .34, cx + (dx - .07) * size, cloud_y + size * .5), fill=color, width=max(1.4, size * .09))
 
 
+def _weather_calendar_range(daily_stats):
+    end_day = max(daily_stats)
+    start_day = min(daily_stats)
+    start_day -= datetime.timedelta(days=start_day.weekday())
+    total_weeks = ((end_day - start_day).days + 7) // 7
+    return start_day, end_day, total_weeks
+
+
 def _draw_period_weather_calendar(draw, matches, x, y, w, h):
     daily_stats = _daily_win_stats(matches)
     if not daily_stats:
         draw.text((x, y), "暂无足够日期数据。", font=_load_font(18), fill=C.FAINT)
         return 120
 
-    end_day = max(daily_stats)
-    start_day = end_day - datetime.timedelta(days=41)
-    while start_day.weekday() != 0:
-        start_day -= datetime.timedelta(days=1)
-    total_days = (end_day - start_day).days + 1
-    total_weeks = max(1, (total_days + 6) // 7)
+    start_day, end_day, total_weeks = _weather_calendar_range(daily_stats)
 
-    draw.text((x, y), "最近胜率晴雨表", font=_load_font(17, bold=True), fill=C.INK)
+    draw.text((x, y), "赛季胜率晴雨表", font=_load_font(17, bold=True), fill=C.INK)
     draw.text((x + 150, y + 2), f"{start_day:%m-%d} 至 {end_day:%m-%d}", font=_load_font(14), fill=C.MUTED)
 
     weekdays = ["一", "二", "三", "四", "五", "六", "日"]
@@ -3965,22 +3973,27 @@ async def _render_period_image(
     awards = match_awards or {}
     quick_dist_h = 440 if awards.get("best") or awards.get("breakthrough") else 160
     bottom_y1 = quick_dist_y1 + quick_dist_h + section_gap
-    weather_source_matches = all_matches if all_matches else matches
+    weather_source_matches = all_matches if all_matches is not None else matches
+    season_data = build_season_data(weather_source_matches, matches, gameplay_mode,
+                                    rank_info_score_to_strength, _canonical_hero_guid)
+    season_map_marks = {guid: i+1 for i, (guid, _) in enumerate(season_data["maps"])}
+    season_hero_marks = {guid: i+1 for i, (guid, _) in enumerate(season_data["heroes"])}
+    rank_y1 = bottom_y1
+    rank_h = card_head + rank_panel_height() + 16 if season_data["show_trend"] else 0
+    if rank_h:
+        bottom_y1 += rank_h + section_gap
     weather_daily_stats = _daily_win_stats(weather_source_matches)
     if weather_daily_stats:
-        weather_end_day = max(weather_daily_stats)
-        weather_start_day = weather_end_day - datetime.timedelta(days=41)
-        while weather_start_day.weekday() != 0:
-            weather_start_day -= datetime.timedelta(days=1)
-        weather_total_days = (weather_end_day - weather_start_day).days + 1
-        weather_total_weeks = max(1, (weather_total_days + 6) // 7)
+        _, _, weather_total_weeks = _weather_calendar_range(weather_daily_stats)
     else:
         weather_total_weeks = 6
     daily_chart_h = 250
     activity_height = 280 if period_scope_text == "本周" else 252
-    weather_panel_h = daily_chart_h + 18 + activity_height
+    weather_panel_h = max(daily_chart_h + 18 + activity_height, 56 + weather_total_weeks * 42)
     bottom_h = card_head + weather_panel_h + 22
-    footer_y = bottom_y1 + bottom_h + 14
+    season_panel_y = bottom_y1 + bottom_h + section_gap
+    season_panel_h = card_head + season_panel_height() + 18
+    footer_y = season_panel_y + season_panel_h + 14
 
     height = footer_y + 34
     _render_step(
@@ -4093,14 +4106,24 @@ async def _render_period_image(
         row_y = hero_start_y + idx * hero_pitch
         hero_icon = await _load_summary_image(_hero_icon_url(hero_guid))
         ring_color = _hero_ring_color(_role_label(hero_guid))
+        season_place = season_hero_marks.get(_canonical_hero_guid(hero_guid))
+        if season_place:
+            season_glow(canvas, (left_inner - 3, row_y - 3, left_inner + 51, row_y + 51), C, 27, spread=12, strength=210)
         draw.ellipse((left_inner, row_y, left_inner + 48, row_y + 48), fill=tinted(ring_color, .35), outline=ring_color, width=2)
         if hero_icon:
             hero_icon = _cover_fit(hero_icon, (44, 44))
             _paste_hero_icon(canvas, draw, hero_icon, left_inner + 3, row_y + 3, 44)
         text_x = left_inner + 62
         hero_name_font = _load_font(19, bold=True)
-        draw.text((text_x, row_y + 2), _hero_name(hero_guid), font=hero_name_font, fill=C.INK)
-        medal_x = text_x + _text_size(draw, _hero_name(hero_guid), hero_name_font)[0] + 12
+        hero_label = _truncate_to_width(draw, _hero_name(hero_guid), hero_name_font, left_end - text_x - 260)
+        draw.text((text_x, row_y + 2), hero_label, font=hero_name_font, fill=C.INK)
+        medal_x = text_x + _text_size(draw, hero_label, hero_name_font)[0] + 12
+        if season_place:
+            chip_width = draw.textlength(f"赛季#{season_place}", font=_load_font(13, bold=True)) + 14
+            chip_x = left_end - 160 - chip_width
+            season_chip(draw, chip_x, row_y + 13, season_place, _load_font, C)
+        else:
+            chip_x = left_end - 160
         medal_data = stats["hero_medals"].get(str(hero_guid), {})
         for medal_text, medal_value, medal_color in (
             ("K", medal_data.get("K", 0), C.LOSS),
@@ -4113,6 +4136,8 @@ async def _render_period_image(
             label = f"{medal_text}×{medal_value}"
             medal_font = _load_font(13, bold=True)
             label_w = _text_size(draw, label, medal_font)[0]
+            if medal_x + label_w + 20 > chip_x - 8:
+                break
             draw.rounded_rectangle((medal_x, row_y + 3, medal_x + label_w + 14, row_y + 23), radius=RADIUS_CHIP, fill=tinted(medal_color, .32))
             draw.text((medal_x + 7, row_y + 13), label, font=medal_font, fill=medal_color, anchor="lm")
             medal_x += label_w + 20
@@ -4137,11 +4162,19 @@ async def _render_period_image(
             cell_x = left_inner + col * (cell_w + cell_gap)
             cell_y = compact_y + row * 58
             draw.rounded_rectangle((cell_x, cell_y, cell_x + cell_w, cell_y + 50), radius=RADIUS_TILE, fill=C.SURFACE_SUNKEN)
+            season_place = season_hero_marks.get(_canonical_hero_guid(hero_guid))
+            if season_place:
+                season_glow(canvas, (cell_x + 5, cell_y + 4, cell_x + 47, cell_y + 46), C, 21, spread=8, strength=200)
             hero_icon = await _load_summary_image(_hero_icon_url(hero_guid))
             if hero_icon:
                 hero_icon = _cover_fit(hero_icon, (38, 38))
                 _paste_hero_icon(canvas, draw, hero_icon, cell_x + 7, cell_y + 6, 38)
-            draw.text((cell_x + 54, cell_y + 7), _truncate_to_width(draw, _hero_name(hero_guid), _load_font(13), cell_w - 62), font=_load_font(13), fill=C.TEXT)
+            name_limit = cell_w - 62
+            if season_place:
+                chip_w = draw.textlength(f"赛季#{season_place}", font=_load_font(11, bold=True)) + 14
+                season_chip(draw, cell_x + cell_w - 8 - chip_w, cell_y + 16, season_place, _load_font, C, size=11)
+                name_limit -= chip_w + 6
+            draw.text((cell_x + 54, cell_y + 7), _truncate_to_width(draw, _hero_name(hero_guid), _load_font(13), name_limit), font=_load_font(13), fill=C.TEXT)
             oh_wins = hero_win_rows.get(str(hero_guid), {}).get("wins", 0)
             oh_total = hero_win_rows.get(str(hero_guid), {}).get("total", count)
             draw.text((cell_x + 54, cell_y + 28), f"{count}场", font=_load_font(13), fill=C.MUTED)
@@ -4214,13 +4247,22 @@ async def _render_period_image(
         row_box = (cell_x, row_y, cell_x + map_cell_w, row_y + map_pitch - 8)
         if not await _paste_remote_cover(canvas, row_box, _map_icon_url(map_guid), radius=RADIUS_TILE, tint=None, scrim=C.MAP_SCRIM):
             draw.rounded_rectangle((row_box[0], row_box[1], row_box[2] - 1, row_box[3] - 1), radius=RADIUS_TILE, fill=C.SURFACE_RAISED)
+        map_place = season_map_marks.get(str(map_guid))
+        if map_place:
+            season_map_wash(canvas, row_box, C, RADIUS_TILE)
         center_y = row_y + (map_pitch - 8) // 2
         cell_right = cell_x + map_cell_w - 14
         rate_x, count_x = cell_right, cell_right - (64 if map_columns == 1 else 54)
         map_name = _map_name(map_guid)
-        map_font = _fit_text_font(draw, map_name, map_cell_w - 150, 17, 12, bold=True)
+        map_chip_size = 10 if map_columns > 1 else 12
+        map_chip_width = (draw.textlength(f"赛季#{map_place}", font=_load_font(map_chip_size, bold=True)) + 14) if map_place else 0
+        name_width = max(24, count_x - 50 - (cell_x + 40) - map_chip_width - (8 if map_place else 0))
+        map_font = _fit_text_font(draw, map_name, name_width, 17, 12, bold=True)
+        map_name = _truncate_to_width(draw, map_name, map_font, name_width)
         draw_map_mode_icon(canvas, map_guid, cell_x + 12, center_y - 11, 22)
         draw.text((cell_x + 40, center_y), map_name, font=map_font, fill=C.INK, anchor="lm")
+        if map_place:
+            season_chip(draw, cell_x + 40 + draw.textlength(map_name, font=map_font) + 8, center_y, map_place, _load_font, C, size=map_chip_size)
         draw.text((count_x, center_y), f'{data["total"]}场', font=_load_font(15), fill=C.TEXT, anchor="rm")
         draw.text((rate_x, center_y), _fmt_pct(data["wins"], data["total"]), font=_load_font(15, bold=True), fill=_summary_winrate_color(data["total"], data["wins"]), anchor="rm")
     _render_step("MAP_CARD_DONE", extra=f"map_rows={len(map_rows)}")
@@ -4392,6 +4434,21 @@ async def _render_period_image(
         draw.text((left_end - 12, center_y), result_text, font=_load_font(14, bold=True), fill=color, anchor="rm")
     _render_step("HIGHLIGHT_CARD_DONE", extra=f"rows={len(highlight_rows)}")
 
+    if rank_h:
+        _card(draw, (page_left, rank_y1, page_right - 1, rank_y1 + rank_h - 1), "赛季竞技段位")
+        draw_rank_panel(draw, season_data, (page_left + card_pad, rank_y1 + card_head,
+                        page_right - card_pad, rank_y1 + card_head + rank_panel_height()), _load_font, C, strength_score_to_rank)
+    _card(draw, (page_left, season_panel_y, page_right - 1, season_panel_y + season_panel_h - 1), "赛季统计")
+    legend_right = page_right - card_pad
+    legend_y = season_panel_y + 31
+    legend_font = _load_font(13)
+    legend_text = "赛季常用地图 / 英雄"
+    draw.text((legend_right, legend_y), legend_text, font=legend_font, fill=C.MUTED, anchor="rm")
+    chip_w = draw.textlength("赛季#1", font=_load_font(12, bold=True)) + 14
+    season_chip(draw, legend_right - draw.textlength(legend_text, font=legend_font) - 10 - chip_w, legend_y, 1, _load_font, C, size=12)
+    draw_season_panel(canvas, draw, season_data, (page_left + card_pad, season_panel_y + card_head,
+                      page_right - card_pad, season_panel_y + card_head + season_panel_height()),
+                      _load_font, C, _map_name, _truncate_to_width)
     _card(draw, (page_left, bottom_y1, page_right - 1, bottom_y1 + bottom_h - 1), "胜率晴雨表")
     calendar_w = 620
     charts_x = page_left + card_pad + calendar_w + 36

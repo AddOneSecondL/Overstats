@@ -241,18 +241,11 @@ def _compress_rendered_image(image: Any, *, max_bytes: int, fallback_bytes: byte
     best_media_type = "image/png"
     scaled_images: dict[float, Any] = {1.0: image}
 
-    for scale in PNG_SCALE_STEPS:
+    # Once PNG exceeds the transport budget, avoid repeatedly optimizing
+    # several huge PNGs. Prefer a full-resolution JPEG before reducing size.
+    for scale in JPEG_SCALE_STEPS:
         candidate = _scaled_image(image, scale=scale, cache=scaled_images)
-        png_bytes = _save_png_bytes(candidate)
-        if len(png_bytes) < len(best_bytes):
-            best_bytes = png_bytes
-            best_media_type = "image/png"
-        if len(png_bytes) <= max_bytes:
-            return RenderedImage(content=png_bytes, media_type="image/png")
-
-    for quality in JPEG_QUALITY_STEPS:
-        for scale in JPEG_SCALE_STEPS:
-            candidate = _scaled_image(image, scale=scale, cache=scaled_images)
+        for quality in JPEG_QUALITY_STEPS:
             jpeg_bytes = _save_jpeg_bytes(candidate, quality=quality)
             if len(jpeg_bytes) < len(best_bytes):
                 best_bytes = jpeg_bytes
@@ -275,13 +268,17 @@ def _scaled_image(image: Any, *, scale: float, cache: dict[float, Any]) -> Any:
         ),
         _resampling_lanczos(),
     )
+    # Keep the source and one resized candidate, not every full-size bitmap.
+    for previous in list(cache):
+        if previous != 1.0:
+            del cache[previous]
     cache[scale] = scaled
     return scaled
 
 
 def _save_png_bytes(image: Any) -> bytes:
     output = BytesIO()
-    image.save(output, format="PNG", optimize=True)
+    image.save(output, format="PNG", optimize=False, compress_level=3)
     return output.getvalue()
 
 
@@ -292,8 +289,8 @@ def _save_jpeg_bytes(image: Any, *, quality: int) -> bytes:
             output,
             format="JPEG",
             quality=max(70, int(quality)),
-            optimize=True,
-            progressive=True,
+            optimize=False,
+            progressive=False,
             subsampling=0,
         )
     except OSError:

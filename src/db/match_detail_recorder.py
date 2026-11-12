@@ -350,7 +350,11 @@ class MatchDetailRecorder:
         # Only distributions, choices and one-way event digests enter the queue.
         event = anonymize(parsed, self._key)
         if event[0] or event[1]:
+            started = time.monotonic()
             await self._queue.put(event)
+            wait_ms = int((time.monotonic() - started) * 1000)
+            if wait_ms >= 200:
+                print(f"[anonymous-statistics] enqueue_wait_ms={wait_ms} queued={self._queue.qsize()}")
 
     async def close(self) -> None:
         if not self._started or self._closed:
@@ -370,12 +374,15 @@ class MatchDetailRecorder:
             batch = [event]
             while len(batch) < 32 and not self._queue.empty():
                 batch.append(self._queue.get_nowait())
+            started = time.monotonic()
             try:
                 await asyncio.to_thread(self._write_batch, batch)
             except Exception as exc:
                 # Never log payloads, URLs or identifiers on failure.
                 self.db._warn_once(f"anonymous statistics write failed: {type(exc).__name__}")
             finally:
+                cost_ms = int((time.monotonic() - started) * 1000)
+                print(f"[anonymous-statistics] batch_size={len(batch)} batch_ms={cost_ms} queued={self._queue.qsize()}")
                 for _ in batch:
                     self._queue.task_done()
 

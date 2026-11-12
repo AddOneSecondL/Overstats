@@ -52,6 +52,7 @@ class OWShopModule:
         time_provider: Optional[Callable[[], float]] = None,
         renderer: Optional[Callable[..., RenderedImage]] = None,
     ) -> None:
+        self._query_lock = asyncio.Lock()
         self.requests = requests or OWShopRequests()
         self.cache_root = Path(cache_root or DEFAULT_CACHE_ROOT)
         self.time_provider = time_provider or time.time
@@ -67,6 +68,11 @@ class OWShopModule:
         self.image_asset_dir = self.cache_root / "images"
 
     async def query_shop(self, *, render: bool = False) -> OWShopOutput:
+        # Coalesce cache misses: concurrent callers reuse the first rendered file.
+        async with self._query_lock:
+            return await self._query_shop(render=render)
+
+    async def _query_shop(self, *, render: bool = False) -> OWShopOutput:
         snapshot = self._load_cached_snapshot()
         if snapshot is None:
             snapshot = await self._refresh_snapshot()
@@ -144,7 +150,9 @@ class OWShopModule:
         ]
         asset_paths = await self.requests.cache_images(image_urls, self.image_asset_dir)
         try:
-            rendered = self.renderer(sections=sections, generated_at=generated_at, asset_paths=asset_paths)
+            rendered = await asyncio.to_thread(
+                self.renderer, sections=sections, generated_at=generated_at, asset_paths=asset_paths,
+            )
         except RuntimeError as exc:
             raise ModuleError(
                 error="render_dependency_missing",

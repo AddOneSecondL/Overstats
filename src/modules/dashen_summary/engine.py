@@ -32,13 +32,12 @@ TITLE_BY_SCOPE = {
 }
 DEFAULT_SUMMARY_CONCURRENCY = 2
 DEFAULT_MATCH_LOOKBACK_DAYS = 8
-DEFAULT_WEATHER_LOOKBACK_DAYS = 45
 DEFAULT_WEATHER_CACHE_TTL = 600
 DEFAULT_WEATHER_CACHE_MAX = 256
 DEFAULT_FIGHT_PAGE_BATCH = 2
 
 _RUNTIME: "SummaryRuntime | None" = None
-_WEATHER_MATCH_CACHE: Dict[Tuple[str, bool, int, str], Dict[str, Any]] = {}
+_WEATHER_MATCH_CACHE: Dict[Tuple[str, int, str], Dict[str, Any]] = {}
 
 
 def _read_env_int(name: str, default: int) -> int:
@@ -59,10 +58,6 @@ SUMMARY_SEMAPHORE = asyncio.Semaphore(SUMMARY_CONCURRENCY)
 SUMMARY_MATCH_FETCH_LOOKBACK_DAYS = max(
     8,
     _read_env_int("OVERSTATS_SUMMARY_MATCH_LOOKBACK_DAYS", DEFAULT_MATCH_LOOKBACK_DAYS),
-)
-SUMMARY_WEATHER_FETCH_LOOKBACK_DAYS = max(
-    8,
-    _read_env_int("OVERSTATS_SUMMARY_WEATHER_LOOKBACK_DAYS", DEFAULT_WEATHER_LOOKBACK_DAYS),
 )
 SUMMARY_WEATHER_MATCH_CACHE_TTL = max(
     60,
@@ -371,42 +366,85 @@ async def _get_summary_match_lists_with_fight(
     return all_matches
 
 
+async def _fetch_weather_season_matches(runtime: SummaryRuntime, customer_token: str) -> List[Dict[str, Any]]:
+    """Fetch only the selected current season, without a date cutoff or prior-season fallback."""
+    logical_season = int(runtime.dashen.season)
+    request_season = None if logical_season == runtime.dashen.get_live_dashen_season() else logical_season
+
+    async def fetch_mode(mode: str, fight: bool) -> List[Dict[str, Any]]:
+        rows, seen = [], set()
+        page = 1
+        batch_size = FIGHT_PAGE_BATCH if fight else runtime.dashen.SUMMARY_NORMAL_PAGE_BATCH
+        while True:
+            method = dashen_api_client.fight_query_match_list if fight else dashen_api_client.query_match_list
+            payloads = await asyncio.gather(*(
+                runtime.dashen._run_summary_request(method(
+                    customer_token, game_mode=mode, page=page + offset, season=request_season,
+                )) for offset in range(batch_size)
+            ))
+            batch_has_data = False
+            added = 0
+            for payload in payloads:
+                if not isinstance(payload, dict) or payload.get("code") != 0:
+                    raise ValueError("Season match page failed")
+                entries = _extract_match_entries(payload, "matchList", "recentMatchList")
+                batch_has_data |= bool(entries)
+                for match in entries:
+                    item = dict(match)
+                    key = str(item.get("matchId") or "")
+                    if not key:
+                        raise ValueError("Season match page has no match identity")
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    item["_dashenSeason"] = logical_season
+                    if fight:
+                        item["gameMode"] = mode
+                        item["_summaryFightOnly"] = True
+                    else:
+                        item.setdefault("gameMode", mode)
+                    rows.append(item)
+                    added += 1
+            if not batch_has_data:
+                return rows
+            if not added:
+                raise ValueError("Season match pagination did not advance")
+            page += batch_size
+
+    lists = await asyncio.gather(fetch_mode("leisure", False), fetch_mode("sport", False),
+                                 *(fetch_mode(mode, True) for mode in ("QuickFight", "LeisureFight", "SportFight")))
+    merged = {}
+    for rows in lists:
+        for row in rows:
+            merged.setdefault(str(row["matchId"]), row)
+    return sorted(merged.values(), key=_summary_match_begin_ts, reverse=True)
+
+
 async def _get_weather_matches(
     runtime: SummaryRuntime,
     customer_token: str,
     include_previous_season: bool,
     fallback_matches: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
+    # Period selection may cross a rollover; the season chart must not do so.
     now_ts = time.time()
-    cache_key = (
-        str(customer_token),
-        bool(include_previous_season),
-        int(SUMMARY_WEATHER_FETCH_LOOKBACK_DAYS),
-        datetime.datetime.now().strftime("%Y-%m-%d"),
-    )
+    cache_key = (str(customer_token), int(runtime.dashen.season), "full-season")
     cached = _WEATHER_MATCH_CACHE.get(cache_key)
     if cached and cached.get("expiry", 0) > now_ts:
-        return [dict(match) for match in cached.get("matches", []) if isinstance(match, dict)]
-
+        return [dict(match) for match in cached.get("matches", [])]
     try:
-        weather_matches = await _get_summary_match_lists_with_fight(
-            runtime,
-            customer_token,
-            include_previous_season=include_previous_season,
-            min_begin_ts=_summary_recent_fetch_min_ts(SUMMARY_WEATHER_FETCH_LOOKBACK_DAYS),
-        )
+        weather_matches = await _fetch_weather_season_matches(runtime, customer_token)
     except Exception:
-        return fallback_matches
-
-    weather_matches = [match for match in weather_matches if isinstance(match, dict)]
-    weather_matches.sort(key=lambda item: item.get("beginTs") or 0, reverse=True)
+        # Never label a recent/partial fallback as a complete season.
+        raise ModuleError(error="summary_season_history_unavailable",
+                          message="赛季比赛概览获取不完整，请稍后重试。", status_code=502) from None
     _WEATHER_MATCH_CACHE[cache_key] = {
-        "expiry": now_ts + SUMMARY_WEATHER_MATCH_CACHE_TTL,
+        "expiry": time.time() + SUMMARY_WEATHER_MATCH_CACHE_TTL,
         "matches": [dict(match) for match in weather_matches],
     }
     while len(_WEATHER_MATCH_CACHE) > SUMMARY_WEATHER_MATCH_CACHE_MAX_SIZE:
         _WEATHER_MATCH_CACHE.pop(next(iter(_WEATHER_MATCH_CACHE)), None)
-    return weather_matches or fallback_matches
+    return weather_matches
 
 
 def _today_period(all_matches: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

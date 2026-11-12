@@ -808,9 +808,11 @@ class SafeClient:
             else None
         )
         request_id = self._mark_request_start()
+        domain_acquired = False
         try:
             if domain_sem is not None:
                 await domain_sem.acquire()
+                domain_acquired = True
             if rate_limiter is not None:
                 await rate_limiter.acquire()
             return await self._request_with_retry(
@@ -822,7 +824,7 @@ class SafeClient:
                 **kwargs,
             )
         finally:
-            if domain_sem is not None:
+            if domain_acquired:
                 domain_sem.release()
             self._mark_request_done(request_id)
             sem.release()
