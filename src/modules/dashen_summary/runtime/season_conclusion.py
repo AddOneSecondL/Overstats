@@ -41,6 +41,8 @@ from .match_awards import rates as _award_rates, select_awards, record_key as _a
 from .teammate_awards import accumulate_award_metrics, select_teammate_awards
 from .season_baseline import parse_count_info, hero_baseline, number as _baseline_number
 from .period_activity import hourly_activity, stacked_activity
+from .summary_perks import PerkCatalog, hero_choices, period_choices, draw_choices
+from ...query_tool import get_cached_asset_path
 from .summary_style import (
     C,
     RADIUS_CARD,
@@ -139,6 +141,7 @@ TIMELINE_RIBBON_H = 26
 GROUP_TITLE_COLOR_RE = re.compile(r"^(?:背景颜色)?#([0-9A-Fa-f]{6})$")
 
 OW_CONFIG = load_ow_config()
+PERK_CATALOG = PerkCatalog(OW_CONFIG)
 
 
 async def _ensure_resolved_target_risk_status(resolved_target):
@@ -2898,7 +2901,7 @@ def _weather_calendar_range(daily_stats):
     end_day = max(daily_stats)
     start_day = min(daily_stats)
     start_day -= datetime.timedelta(days=start_day.weekday())
-    total_weeks = ((end_day - start_day).days + 7) // 7
+    total_weeks = max(6, ((end_day - start_day).days + 7) // 7)
     return start_day, end_day, total_weeks
 
 
@@ -3058,6 +3061,7 @@ def _award_record(match, detail, target, period_start):
         if _role_label(player.get("heroGuid")) == role:
             peers.append({"rates": _award_rates(player, seconds)})
     return {"match": match, "hero_guid": hero, "map_guid": match.get("mapGuid") or root.get("mapGuid"),
+            "perk_choices": hero_choices(me, _canonical_hero_guid).get(hero, []),
             "role": role, "heroes": heroes, "hero_details": hero_list, "rank_info": me.get("rankInfo") or me.get("rank_info") or match.get("rankInfo") or {}, "rates": values, "peers": peers, "seconds": seconds,
             "result": _int(match.get("matchRet")), "timestamp": _num(match.get("beginTs")),
             "period_start": period_start, "mode": _mode_label(match),
@@ -3263,6 +3267,49 @@ def _award_source_text(entry):
     }.get(source,"数据不足")
 
 
+async def _prefetch_perk_icons(entries):
+    async def load(url):
+        if _has_cached_summary_image(url):
+            return
+        for category in ("perk", "hero_perks", "misc"):
+            path = get_cached_asset_path(url, category)
+            if path:
+                try:
+                    with Image.open(path) as asset:
+                        _put_summary_image_cache(url, asset.convert("RGBA"))
+                    return
+                except (OSError, ValueError):
+                    continue
+        await _load_summary_image(url)
+    urls = {entry.get("icon") for entry in entries if entry.get("icon")}
+    try:
+        await asyncio.wait_for(asyncio.gather(*(load(url) for url in urls)), timeout=3)
+    except asyncio.TimeoutError:
+        pass
+
+
+async def _draw_perk_choices(canvas, draw, entries, x, y, width, counts=False):
+    icons = {}
+    for item in entries[:4]:
+        url = item.get("icon")
+        if not url or url in icons:
+            continue
+        icon = _get_cached_summary_image_copy(url)
+        if icon is None:
+            for category in ("perk", "hero_perks", "misc"):
+                path = get_cached_asset_path(url, category)
+                if path:
+                    try:
+                        with Image.open(path) as asset:
+                            icon = asset.convert("RGBA")
+                        break
+                    except (OSError, ValueError):
+                        continue
+        icons[url] = icon
+    draw_choices(draw, entries, x, y, width, _load_font, C, _truncate_to_width,
+                 counts=counts, canvas=canvas, icons=icons)
+
+
 async def _draw_award_card(canvas, draw, box, title, entry, breakthrough=False):
     x,y,right,bottom = box
     color = C.TEAL if breakthrough else C.DRAW
@@ -3303,11 +3350,13 @@ async def _draw_award_card(canvas, draw, box, title, entry, breakthrough=False):
     draw.text((right-74,y+194),"综合评价",font=_load_font(13),fill=C.TEXT,anchor="ma")
     heroes = [h for h in entry.get("heroes",[hero]) if h != hero]
     draw.text((x+32,y+246),"本局还使用" if heroes else "本局主英雄",font=_load_font(13),fill=C.MUTED)
-    for i,h in enumerate((heroes or [hero])[:8]):
-        await _paste_summary_hero(canvas,draw,h,(x+122+i*38,y+238,32,32))
-    if len(heroes)>8:
-        draw.text((x+430,y+246),f"+{len(heroes)-8}",font=_load_font(13),fill=color)
+    for i,h in enumerate((heroes or [hero])[:3]):
+        await _paste_summary_hero(canvas,draw,h,(x+122+i*36,y+238,32,32))
+    if len(heroes)>3:
+        draw.text((x+234,y+246),f"+{len(heroes)-3}",font=_load_font(13),fill=color)
     feature_rows = entry.get("feature_evidence",[])[:2]
+    await _draw_perk_choices(canvas, draw, PERK_CATALOG.resolve(hero, entry.get("perk_choices") or []),
+                            x+284, y+242, right-x-316)
     evidence_y = y+284
     for i,ev in enumerate(feature_rows):
         name=_truncate_to_width(draw,ev["label"],_load_font(15),245)
@@ -3835,6 +3884,13 @@ async def _render_period_image(
 
     hero_rows_all = stats["heroes"].most_common()
     hero_top_rows = hero_rows_all[:5]
+    period_keys = {_award_key({"match": match}) for match in matches}
+    perk_observations = [
+        (_award_key({"match": match}), _resolve_me_player_detail(detail, resolved_target))
+        for match, detail in detail_pairs
+        if not _is_fight(match) and _award_key({"match": match}) in period_keys
+    ]
+    period_perks = period_choices(perk_observations, _canonical_hero_guid)
     other_heroes = hero_rows_all[5:]
     other_hero_rows = (len(other_heroes) + 2) // 3 if other_heroes else 0
     hero_other_height = 34 + other_hero_rows * 58 if other_heroes else 0
@@ -3909,7 +3965,7 @@ async def _render_period_image(
     map_lines = max(1, (len(map_rows) + map_columns - 1) // map_columns)
     highlight_rows_total = 5 + max(1, len(data_king_text))
     hero_lines = max(1, len(hero_top_rows))
-    hero_base, map_base, highlight_base = 60, 52, 48
+    hero_base, map_base, highlight_base = 64, 52, 48
 
     stats_highlight_rows = (len(stat_highlights) + 2) // 3 if stat_highlights else 0
     stats_highlight_h = 32 + stats_highlight_rows * 108 if stat_highlights else 32
@@ -4020,6 +4076,13 @@ async def _render_period_image(
     for record in (match_awards or {}).get("records", []):
         prefetch_urls.extend(_hero_icon_url(hero) for hero in record.get("heroes", []))
     prefetch_urls.extend(_hero_icon_url(hero) for _, hero in OMNIC_BOT_TIERS)
+    perk_entries = []
+    for hero, _ in hero_top_rows:
+        perk_entries.extend(PERK_CATALOG.resolve(hero, period_perks.get(_canonical_hero_guid(hero), {}).get("choices", []))[:4])
+    for entry in (awards.get("best"), awards.get("breakthrough")):
+        if entry:
+            perk_entries.extend(PERK_CATALOG.resolve(entry["hero_guid"], entry.get("perk_choices") or [])[:4])
+    await _prefetch_perk_icons(perk_entries)
     await _prefetch_summary_images(prefetch_urls)
     _render_step("ASSET_PREFETCH_DONE", extra=f"url_candidates={len(prefetch_urls)}")
 
@@ -4115,15 +4178,12 @@ async def _render_period_image(
             _paste_hero_icon(canvas, draw, hero_icon, left_inner + 3, row_y + 3, 44)
         text_x = left_inner + 62
         hero_name_font = _load_font(19, bold=True)
-        hero_label = _truncate_to_width(draw, _hero_name(hero_guid), hero_name_font, left_end - text_x - 260)
+        hero_label = _truncate_to_width(draw, _hero_name(hero_guid), hero_name_font, 120)
         draw.text((text_x, row_y + 2), hero_label, font=hero_name_font, fill=C.INK)
         medal_x = text_x + _text_size(draw, hero_label, hero_name_font)[0] + 12
         if season_place:
-            chip_width = draw.textlength(f"赛季#{season_place}", font=_load_font(13, bold=True)) + 14
-            chip_x = left_end - 160 - chip_width
-            season_chip(draw, chip_x, row_y + 13, season_place, _load_font, C)
-        else:
-            chip_x = left_end - 160
+            season_chip(draw, text_x, row_y + 35, season_place, _load_font, C)
+        chip_x = left_end - 250
         medal_data = stats["hero_medals"].get(str(hero_guid), {})
         for medal_text, medal_value, medal_color in (
             ("K", medal_data.get("K", 0), C.LOSS),
@@ -4143,12 +4203,16 @@ async def _render_period_image(
             medal_x += label_w + 20
         wins = hero_win_rows.get(str(hero_guid), {}).get("wins", 0)
         total = hero_win_rows.get(str(hero_guid), {}).get("total", count)
-        _draw_bar(draw, text_x, row_y + 35, left_end - text_x, 6, count / max_hero, ring_color)
+        _draw_bar(draw, text_x, row_y + 51, left_end - text_x, 6, count / max_hero, ring_color)
         rate_font = _load_font(15, bold=True)
         rate_text = f"胜率 {int(round((wins / max(total, 1)) * 100))}%"
-        draw.text((left_end, row_y + 4), rate_text, font=rate_font, fill=_summary_winrate_color(total, wins), anchor="ra")
+        draw.text((left_end, row_y + 28), rate_text, font=rate_font, fill=_summary_winrate_color(total, wins), anchor="ra")
         rate_w = _text_size(draw, rate_text, rate_font)[0]
-        draw.text((left_end - rate_w - 16, row_y + 4), f"{count}场", font=_load_font(15), fill=C.TEXT, anchor="ra")
+        draw.text((left_end - rate_w - 16, row_y + 28), f"{count}场", font=_load_font(15), fill=C.TEXT, anchor="ra")
+        perk_data = period_perks.get(_canonical_hero_guid(hero_guid), {})
+        choices = PERK_CATALOG.resolve(hero_guid, perk_data.get("choices") or [])
+        await _draw_perk_choices(canvas, draw, choices, medal_x, row_y+1,
+                                left_end-medal_x, counts=True)
 
     if other_heroes:
         compact_title_y = hero_start_y + len(hero_top_rows) * hero_pitch + 4
