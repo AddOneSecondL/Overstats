@@ -35,6 +35,8 @@ try:
     from overstats.src.constants.ranks import (
         get_rank_name,
         get_rank_score,
+        is_unranked_placeholder,
+        display_rank_label,
         get_rank_sub_tier,
         rank_name_cn,
         rank_info_to_icon_level,
@@ -45,6 +47,8 @@ except ModuleNotFoundError:
     from src.constants.ranks import (
         get_rank_name,
         get_rank_score,
+        is_unranked_placeholder,
+        display_rank_label,
         get_rank_sub_tier,
         rank_name_cn,
         rank_info_to_icon_level,
@@ -2207,15 +2211,17 @@ def _role_style(role: str) -> tuple[tuple[int, int, int, int], tuple[int, int, i
 
 
 def _rank_label(rank_info: Dict[str, Any], *, mode: str) -> str:
+    if is_unranked_placeholder(rank_info):
+        return rank_name_cn("Unranked")
     score = _safe_int(get_rank_score(rank_info))
     tier = str(get_rank_sub_tier(rank_info) or "").strip()
     rank_name = str(get_rank_name(rank_info) or "").strip()
     if rank_name and mode != "fight":
         rank_name = rank_name_cn(rank_name)
     if rank_name and tier:
-        return f"{rank_name}{tier}"
+        return display_rank_label(f"{rank_name}{tier}")
     if rank_name:
-        return rank_name
+        return display_rank_label(rank_name)
     if score > 0:
         rank_text = _score_to_rank_fight(score) if mode == "fight" else _score_to_rank(score)
         if rank_text != "未定义":
@@ -2314,15 +2320,17 @@ def _role_style(role: str) -> tuple[tuple[int, int, int, int], tuple[int, int, i
 
 
 def _rank_label(rank_info: Dict[str, Any], *, mode: str) -> str:
+    if is_unranked_placeholder(rank_info):
+        return rank_name_cn("Unranked")
     score = _safe_int(get_rank_score(rank_info))
     tier = str(get_rank_sub_tier(rank_info) or "").strip()
     rank_name = str(get_rank_name(rank_info) or "").strip()
     if rank_name and mode != "fight":
         rank_name = rank_name_cn(rank_name)
     if rank_name and tier:
-        return f"{rank_name}{tier}"
+        return display_rank_label(f"{rank_name}{tier}")
     if rank_name:
-        return rank_name
+        return display_rank_label(rank_name)
     if score > 0:
         rank_text = _score_to_rank_fight(score) if mode == "fight" else _score_to_rank(score)
         if rank_text != "未定级":

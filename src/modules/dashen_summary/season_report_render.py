@@ -14,7 +14,7 @@ from PIL import Image, ImageChops, ImageOps
 
 from .engine import _load_runtime
 from .season_report import RESOURCE_DIR, fmt, mapping, mode_name, number, rows
-from ...constants.ranks import get_rank_name, get_rank_sub_tier, rank_name_cn, rank_name_to_icon_level
+from ...constants.ranks import is_unranked_placeholder, display_rank_label, get_rank_name, get_rank_sub_tier, rank_name_cn, rank_name_to_icon_level
 from ..dashen_match.render import _perk_guid_candidates, _perk_lookup
 from .season_report_ranks import QUEUE_LABELS, ROLE_LABELS
 from .season_loot import loot_panel_height, render_loot_panel
@@ -53,6 +53,8 @@ def rank_heroes(row):
 
 def rank_label(info):
     name = get_rank_name(info)
+    if is_unranked_placeholder(info) or display_rank_label(name) == rank_name_cn("Unranked"):
+        return rank_name_cn("Unranked")
     if not rank_name_to_icon_level(name):
         return ""
     tier = get_rank_sub_tier(info)
@@ -244,7 +246,7 @@ async def render_report(report, role_id):
     win = number(overview.get("win_rate"))
     metric(975, 65, "赛季胜率", fmt(win * 100 if win is not None else None, 1, "%"), C.WIN, True)
     metric(1170, 65, "在线小时", fmt(season.get("online_time", overview.get("online_time")), 2), C.INFO, True, 175)
-    highest = overview.get("max_rank_level")
+    highest = display_rank_label(overview.get("max_rank_level"))
     if highest:
         badge(highest, 790, 167, 56)
         text(860, 170, highest, 28, C.DRAW, 260)
@@ -268,11 +270,11 @@ async def render_report(report, role_id):
         role_label = ROLE_LABELS.get(role)
         queue_label = QUEUE_LABELS.get(queue_type, QUEUE_LABELS["unknown"])
         label = queue_label + (f" · {role_label}" if role_label else "")
-        current = row.get("final_rank_level") or "—"
-        highest = row.get("max_rank_level") or "—"
+        current = display_rank_label(row.get("final_rank_level")) or "—"
+        highest = display_rank_label(row.get("max_rank_level")) or "—"
         if queue_type == "stadium":
             current, highest = stadium_rank(current)[1], stadium_rank(highest)[1]
-        badge(row.get("final_rank_level"), 75, ry + 8, 78, queue_type)
+        badge(current, 75, ry + 8, 78, queue_type)
         icon_name = {"tank": "tank.png", "dps": "dps.png", "healer": "healer.png"}.get(role)
         if icon_name:
             local_icon(RESOURCE_DIR / icon_name, 175, ry + 3, 19, 19, tint_icon=True)

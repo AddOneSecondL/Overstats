@@ -128,6 +128,13 @@ def canonical_rank_name(value: Any) -> str:
     return _RANK_NAME_ALIASES.get(text.casefold(), text)
 
 
+def display_rank_label(value):
+    text = str(value or "").replace("\u200c", "").strip()
+    if "".join(text.casefold().split()) in {"none0", "none", "unranked0"}:
+        return RANK_LABELS_CN["Unranked"]
+    return text
+
+
 def rank_name_cn(value: Any) -> str:
     canonical = canonical_rank_name(value)
     return RANK_LABELS_CN.get(canonical, str(value or "").strip())
@@ -158,6 +165,13 @@ def get_rank_name(rank_info: Mapping[str, Any] | None, default: Any = "") -> Any
         if key in rank_info and rank_info.get(key) not in (None, ""):
             return rank_info.get(key)
     return default
+
+
+def is_unranked_placeholder(info):
+    name = str(get_rank_name(info) or "").strip().casefold()
+    tier = str(get_rank_sub_tier(info)).strip()
+    return (name in {"", "none", "unranked"} and tier == "0"
+            and not _safe_int(get_rank_score(info)))
 
 
 def rank_name_to_icon_level(value: Any) -> int:

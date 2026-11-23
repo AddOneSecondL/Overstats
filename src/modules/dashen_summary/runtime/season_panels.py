@@ -66,6 +66,7 @@ def build_season_data(matches, period, map_mode, rank_score, canonical=lambda x:
     recent_kda, _ = kda(current)
     metrics.insert(1, ("KDA", full_kda, full_kda-recent_kda if full_kda is not None and recent_kda is not None else None, covered, len(rows)))
     trends = defaultdict(list)
+    rank_results = defaultdict(list)
     for m in sorted(rows, key=lambda m: number(m.get("beginTs")) or 0):
         if not competitive(m):
             continue
@@ -75,10 +76,12 @@ def build_season_data(matches, period, map_mode, rank_score, canonical=lambda x:
             continue
         queue = "开放" if "open" in str(m.get("gameMode")).lower() else {"tank":"重装", "dps":"输出", "damage":"输出", "healer":"支援", "support":"支援"}.get(str(m.get("roleType")), "未分类")
         trends[queue].append((ts, score))
+        rank_results[queue].append(m.get("matchRet"))
     period_ts = [ts for ts in (number(m.get("beginTs")) for m in period) if ts and ts > 0]
     return {"total":len(rows), "modes":modes.most_common(), "map_modes":map_modes.most_common(),
             "maps":maps.most_common(3), "heroes":heroes.most_common(3), "metrics":metrics,
             "show_trend":any(competitive(m) for m in period), "trends":dict(trends),
+            "estimated_trends":{q: estimate_rank_progress(v, rank_results[q]) for q, v in trends.items()},
             "period_start":min(period_ts) if period_ts else None, "period_end":max(period_ts) if period_ts else None}
 
 
@@ -292,6 +295,72 @@ RANK_STEP = 500
 RANK_BASE = 500
 
 
+def estimate_rank_progress(rows, results):
+    """Infer post-match progress on a 5-point grid, anchored to observed divisions.
+
+    Minimize departure from +/-20 per match across the whole history. A hidden
+    negative balance is allowed for one loss before demotion; the next win
+    repays it and the next loss carries it into the lower division. Actual
+    division observations take priority when calibration/omitted games conflict.
+    Unknown results start a new inference segment, never count as losses.
+    """
+    if not rows:
+        return []
+    segments, start = [], 0
+    for i in range(1, len(rows)):
+        if number(results[i]) not in (-1, 0, 1, 2):
+            segments.append((start, i))
+            start = i
+    segments.append((start, len(rows)))
+    output = []
+    for start, stop in segments:
+        states, costs, parents = [], [], []
+        for i in range(start, stop):
+            base = rows[i][1]
+            result = number(results[i])
+            # Preserve supplied fractional/continuous scores exactly.
+            candidates = [base] if base % 100 else [base + n for n in range(0, 100, 5)]
+            if i > start and result in (-1, 0, 2) and base == rows[i-1][1] and base > RANK_BASE:
+                candidates = [base + n for n in range(-20, 0, 5)] + candidates
+            if i == start:
+                states = candidates
+                costs = [((v-base-50)/100)**2 for v in states]
+                parents.append((states, [-1]*len(states)))
+                continue
+            expected = 20 if result == 1 else -20 if result in (-1, 2) else 0
+            next_costs, links = [], []
+            previous_base = rows[i-1][1]
+            for value in candidates:
+                options = []
+                for j, previous in enumerate(states):
+                    if value < base:
+                        # Only a first boundary-crossing loss can use protection.
+                        if result == 0:
+                            if previous >= previous_base or value != previous:
+                                continue
+                        elif previous < previous_base or value != previous - 20:
+                            continue
+                    if previous < previous_base and result in (-1, 2) and base >= previous_base:
+                        continue
+                    error = (value - previous - expected) / 20
+                    # A normal demotion must consume existing protection debt.
+                    # Keep exceptional observed jumps possible, with a correction cost.
+                    correction = 25 if base < previous_base and previous >= previous_base else 0
+                    options.append((costs[j] + error*error + correction, j))
+                cost, parent = min(options, default=(float("inf"), 0))
+                next_costs.append(cost)
+                links.append(parent)
+            states, costs = candidates, next_costs
+            parents.append((states, links))
+        index = min(range(len(costs)), key=costs.__getitem__)
+        values = []
+        for candidates, links in reversed(parents):
+            values.append(candidates[index])
+            index = links[index]
+        output.extend((rows[i][0], value) for i, value in zip(range(start, stop), reversed(values)))
+    return output
+
+
 def rank_panel_height():
     return 236
 
@@ -339,7 +408,8 @@ def draw_rank_panel(draw, data, box, font, colors, rank_label):
         lx += draw.textlength(change_text, font=font(13, bold=True)) + 30
     draw.text((right, y + 8), f"{sum(len(rows) for rows in series.values())} 场有段位记录", font=font(12), fill=colors.FAINT, anchor="rm")
 
-    points = [point for rows in series.values() for point in rows]
+    plotted = {q: data.get("estimated_trends", {}).get(q) or rows for q, rows in series.items()}
+    points = [point for rows in plotted.values() for point in rows]
     t0, t1 = min(p[0] for p in points), max(p[0] for p in points)
     low, high = min(p[1] for p in points), max(p[1] for p in points)
     # Pad to whole divisions and show at least one tier, so small swings are not exaggerated.
@@ -386,7 +456,7 @@ def draw_rank_panel(draw, data, box, font, colors, rank_label):
 
     for queue in queues:
         color = _queue_color(queue, colors)
-        line = [(px(ts), py(score)) for ts, score in series[queue]]
+        line = [(px(ts), py(score)) for ts, score in plotted[queue]]
         if len(line) > 1:
             draw.line(line, fill=with_alpha(colors.SCRIM, 200), width=6, joint="curve")
             draw.line(line, fill=color, width=3, joint="curve")

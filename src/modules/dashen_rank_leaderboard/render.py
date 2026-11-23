@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Sequence
 
+from ...constants.ranks import display_rank_label
 from ...constants.backgrounds import build_random_map_background
 
 try:
@@ -101,7 +102,7 @@ def render_rank_leaderboard(
     y_cursor = padding_y + header_height
     for group in groups:
         entries = list(group.get("entries") or [])
-        rank_label = str(group.get("rank_label") or "未定级")
+        rank_label = display_rank_label(group.get("rank_label") or "未定级")
         rank_icon_level = int(group.get("rank_icon_level") or 0)
         title_x = padding_x
         icon = _load_rank_icon(rank_icon_level, size=(32, 32))

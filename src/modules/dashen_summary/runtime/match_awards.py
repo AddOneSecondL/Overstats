@@ -30,8 +30,23 @@ def rates(player, seconds):
     return result
 
 
-def compare(record, references, minimum):
-    """Smoothed empirical percentile; ties are neutral, missing values excluded."""
+# Minimum comparison scales in per-10-minute units, to damp near-zero gaps.
+LOBBY_SCALES = {"finalHit": 4, "heroDamage": 3000, "death": 4,
+                "cure": 3000, "resistDamage": 3000, "assist": 4}
+
+
+def lobby_metric_score(key, current, values):
+    scores = []
+    for peer in values:
+        scale = max(LOBBY_SCALES[key], (current + peer) / 2)
+        gap = METRICS[key][1] * (current - peer) / scale
+        # Half the maximum adjustment at a gap of 25% of the comparison scale.
+        scores.append(50 + 35 * gap / (.25 + abs(gap)))
+    return sum(scores) / len(scores)
+
+
+def compare(record, references, minimum, *, lobby=False):
+    """Compare lobby margins or rank against a personal reference sample."""
     weighted, mass, evidence = 0., 0., []
     weights = WEIGHTS.get(record["role"], {})
     for key, weight in weights.items():
@@ -42,9 +57,12 @@ def compare(record, references, minimum):
             continue
         current = record["rates"][key]
         direction = METRICS[key][1]
-        wins = sum(direction * (current - v) > 0 for v in values)
-        ties = sum(current == v for v in values)
-        percentile = 100 * (wins + .5 * ties + 2) / (len(values) + 4)
+        if lobby:
+            percentile = lobby_metric_score(key, current, values)
+        else:
+            wins = sum(direction * (current - v) > 0 for v in values)
+            ties = sum(current == v for v in values)
+            percentile = 100 * (wins + .5 * ties + 2) / (len(values) + 4)
         weighted += percentile * weight
         mass += weight
         evidence.append({"key": key, "value": current, "baseline": median(values), "score": percentile})
@@ -57,6 +75,18 @@ def grade(score):
     if score is None:
         return "—"
     return "S" if score >= 65 else "A" if score >= 57 else "B" if score >= 45 else "C" if score >= 35 else "D"
+
+
+def standout_match_keys(evaluated):
+    """Reserve rainbow borders for exceptional scores in this report."""
+    scores = {record_key(entry): entry["score"] for entry in evaluated}
+    if not scores:
+        return set()
+    ordered = sorted(scores.values(), reverse=True)
+    limit = max(1, len(ordered) // 25)
+    cutoff = ordered[limit] if len(ordered) > limit else float("-inf")
+    # A tie across the quota boundary has no unique standout.
+    return {key for key, score in scores.items() if score >= 75 and score > cutoff}
 
 
 def compare_season(record):
@@ -99,7 +129,7 @@ def select_awards(records, history):
     evaluated = []
     for record in records:
         references, source = record["peers"], "lobby"
-        result = compare(record, references, 1)
+        result = compare(record, references, 1, lobby=True)
         if result is None:
             references, source, result = [], "season", compare_season(record)
         if result is None:

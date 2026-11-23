@@ -8,10 +8,10 @@ from ..dashen_summary.runtime.summary_typography import SmoothDraw, smooth_mask
 from ..font_resolver import resolve_resource_dir
 try:
     from overstats.src.constants.backgrounds import build_random_map_background
-    from overstats.src.constants.ranks import RANK_LABELS_CN, rank_name_to_icon_level, raw_rank_score_to_icon_level
+    from overstats.src.constants.ranks import display_rank_label, RANK_LABELS_CN, rank_name_to_icon_level, raw_rank_score_to_icon_level
 except ModuleNotFoundError:
     from src.constants.backgrounds import build_random_map_background
-    from src.constants.ranks import RANK_LABELS_CN, rank_name_to_icon_level, raw_rank_score_to_icon_level
+    from src.constants.ranks import display_rank_label, RANK_LABELS_CN, rank_name_to_icon_level, raw_rank_score_to_icon_level
 
 
 RANK_TIER_TEXT = (24, 38, 58)
@@ -168,7 +168,7 @@ def render_overview(result):
                     text(rx+103,ry+7,rank['tier'],18,RANK_TIER_TEXT,28)
                 else:
                     label_rank=RANK_LABELS_CN.get(rank['rank_name'],rank['rank_name']) if rank['score']>0 else '未定级'
-                    text(rx+38,ry+5,label_rank+str(rank['tier'] if rank['score']>0 else ''),16,limit=100)
+                    text(rx+38,ry+5,display_rank_label(f"{label_rank}{rank['tier'] if rank['score']>0 else ''}"),16,limit=100)
             draw.line((x+16,y+235,x+300,y+235),fill=C.HAIRLINE,width=1)
             text(x+16,y+247,'常用英雄',16,color,bold=True)
             mode='快速' if '快速' in player['hero_source'] else '竞技'
