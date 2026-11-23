@@ -8,20 +8,33 @@ Overstats 是一个基于网易大神上游接口封装的守望先锋本地数�
 ## 功能概览
 
 - Provides a dedicated `ow_shop` module with Battle.net shop JSON and image endpoints.
+
 - Provides a dedicated `ow_guess` module with bot-facing OW quiz replies endpoints.
+
 - Provides a dedicated `patch_notes` module with Blizzard patch-note JSON and image endpoints.
 
 - 提供玩家资料、战绩列表、战绩详情、段位历史、强度分析、总结模块的 HTTP API
+
 - 提供 `dashen_sameplay` 模块，支持双目标同玩列表、详情、全员详细和 AI 锐评
+
 - 提供 `ow_hero_pick_rate` 模块，支持全英雄最新选取率榜单与单英雄历史选取率曲线
+
 - 提供 `dashen_rank_leaderboard` 模块，支持按省/职责查询大神省榜排名
+
 - 提供 `dashen_hero_leaderboard` 模块，支持按省/英雄/队列查询大神英雄榜单排名
+
 - 提供 `auto_route` 模块，LLM 智能路由，支持自然语言自动分发到对应业务模块
+
 - 支持 BattleTag 解析为 `customer_token`
+
 - 支持资料图、战绩图、段位历史图等图片渲染
+
 - 内置本地请求队列，控制上游请求并发
+
 - 内置 SQLite 请求统计记录器
+
 - 支持 query tool 配置加载与静态资源本地缓存
+
 - 兼容当前项目已有的总结渲染运行时与资源文件
 
 ## 项目结构
@@ -73,6 +86,7 @@ DASHEN_MAX_ACCEPTED_REQUESTS = max(len(DASHEN_ACCOUNTS) * 4, 1)
 ```
 
 说明：
+
 - 如何获取这两个值请参考 `Faststart.md`
 - `token` 同时作为业务请求 token 和 `GL-Bigdata-Auth-Token` 请求头使用
 - `DASHEN_DTS` 与 `DASHEN_SERVER` 对所有账号共享
@@ -122,6 +136,7 @@ curl http://127.0.0.1:18080/healthz
 - `POST /api/v2/dashen-match/detail`
 - `POST /api/v2/dashen-match/detail/image`
 - `POST /api/v2/dashen-match/detail/replies`
+- `POST /api/v2/dashen-match/detail/llm`
 - `POST /api/v2/dashen-sameplay`
 - `POST /api/v2/dashen-sameplay/image`
 - `POST /api/v2/dashen-sameplay/replies`
@@ -175,7 +190,6 @@ curl http://127.0.0.1:18080/healthz
 - 检查日志、截图中是否包含敏感标识
 
 `overstats/config/config.py` 是本地运行配置文件，不适合作为公开仓库中的密钥存储位置。
-
 
 ## 扩展包使用方法
 
