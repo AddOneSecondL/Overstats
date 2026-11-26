@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import re
 from dataclasses import dataclass, field
 import datetime as dt
@@ -16,6 +17,7 @@ except ModuleNotFoundError:
 
 from ..query_tool import read_query_tool
 from ..errors import ModuleError
+from ..map_modes import MODE_ICONS
 from ...constants.chara import iter_hero_alias_pairs
 
 
@@ -23,6 +25,30 @@ DASHEN_SEASON_ROLLOVER_AT = get_dashen_season_rollover_at()
 DASHEN_SEASON_AFTER_ROLLOVER = get_dashen_current_season()
 DASHEN_SEASON_BEFORE_ROLLOVER = max(DASHEN_SEASON_AFTER_ROLLOVER - 1, 1)
 DEFAULT_FIGHT_MODES = ("QuickFight", "LeisureFight", "SportFight")
+MATCH_FILTER_KEYS = ("map", "hero", "search", "mode", "map_mode", "sort")
+MATCH_MODES = {
+    "快速": ("leisure",),
+    "竞技": ("sport",),
+    "角斗领域": DEFAULT_FIGHT_MODES,
+    "角斗快速": ("QuickFight", "LeisureFight"),
+    "角斗竞技": ("SportFight",),
+}
+MATCH_MODE_ALIASES = {
+    "quick": "快速", "leisure": "快速", "competitive": "竞技", "sport": "竞技",
+    "stadium": "角斗领域", "角斗": "角斗领域", "stadium_quick": "角斗快速",
+    "quickfight": "角斗快速", "leisurefight": "角斗快速",
+    "stadium_competitive": "角斗竞技", "sportfight": "角斗竞技",
+}
+MAP_MODE_ALIASES = {
+    **{value: label for label, value in MODE_ICONS.items()},
+    "推车": "运载目标", "护送": "运载目标", "占点": "占领要点",
+    "混合": "攻击/护送", "占点推车": "攻击/护送", "推机器人": "机动推进",
+    "闪点": "闪点作战", "阵线": "攻防阵线", "双点": "攻防作战", "2cp": "攻防作战",
+}
+MATCH_SORT_KEYS = {
+    "击杀": "kill", "助攻": "assist", "死亡": "death", "伤害": "heroDamage",
+    "治疗": "cure", "阻挡": "resistDamage", "KDA": "kda",
+}
 
 
 @dataclass(frozen=True)
@@ -142,53 +168,131 @@ def _resource_id(value):
         return value.casefold()
 
 
+def match_stat_number(match: Dict[str, Any], key: str) -> Optional[float]:
+    try:
+        number = float(match.get(key))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) and number >= 0 else None
+
+
+def _match_sort_key(match: Dict[str, Any], key: str) -> float:
+    if key == "kda":
+        kills, assists, deaths = (match_stat_number(match, stat) for stat in ("kill", "assist", "death"))
+        if kills is None or assists is None or deaths is None:
+            return math.inf
+        return -(kills + assists) / max(1.0, deaths)
+    number = match_stat_number(match, key)
+    if number is None:
+        return math.inf
+    return number if key == "death" else -number
+
+
 def resolve_match_filters(filters):
-    result = {key: value for key, value in (filters or {}).items() if key not in {"map", "hero", "search"} or str(value or "").strip()}
-    mode = str(result.pop("mode", "") or "").strip().lower()
+    result = dict(filters or {})
+    mode = str(result.pop("mode", "") or "").strip().casefold()
     if mode:
-        modes = {"快速": "leisure", "quick": "leisure", "leisure": "leisure",
-                 "竞技": "sport", "competitive": "sport", "sport": "sport"}
-        if mode not in modes:
-            raise ModuleError(error="invalid_match_filter", message="对局模式仅支持快速或竞技。", status_code=400)
-        result["gameMode"] = modes[mode]
-    if not any(result.get(key) for key in ("hero", "map", "search")):
+        modes = MATCH_MODES.get(MATCH_MODE_ALIASES.get(mode, mode))
+        if modes is None:
+            raise ModuleError(error="invalid_match_filter", message=f"未识别的比赛模式：{mode}", status_code=400)
+        result["_game_modes"] = modes
+
+    sort = str(result.pop("sort", "") or "").strip().casefold()
+    if sort:
+        sort_keys = {alias.casefold(): key for label, key in MATCH_SORT_KEYS.items() for alias in (label, key)}
+        if sort not in sort_keys:
+            raise ModuleError(error="invalid_match_filter", message=f"未识别的排序指标：{sort}", status_code=400)
+        result["_sort"] = sort_keys[sort]
+
+    terms = {key: str(result.pop(key, "") or "").strip() for key in ("hero", "map", "map_mode", "search")}
+    if not any(terms.values()):
         return result
     config = read_query_tool(default={})
     aliases = {_filter_text(a): name for a, name in iter_hero_alias_pairs()}
-    def resolve(kind, value):
+    maps = config.get("mapList", [])
+    map_mode_names = {_filter_text(row.get("mode")) for row in maps if row.get("mode")}
+    map_mode_aliases = {_filter_text(alias): _filter_text(label) for alias, label in MAP_MODE_ALIASES.items()}
+
+    def row_ids(row, kind):
+        keys = ("heroGuid", "heroId", "id", "guid") if kind == "hero" else ("guid", "id", "mapGuid")
+        return {_resource_id(row[key]) for key in keys if row.get(key)}
+
+    def resolve(kind, value, *, allow_partial=True):
         text = _filter_text(value)
+        if kind == "map_mode":
+            name = map_mode_aliases.get(text, text)
+            if name not in map_mode_names:
+                return set()
+            return {id_ for row in maps if _filter_text(row.get("mode")) == name for id_ in row_ids(row, "map")}
         name = _filter_text(aliases.get(text, value)) if kind == "hero" else text
-        rows = config.get("heroList" if kind == "hero" else "mapList", [])
+        rows = config.get("heroList", []) if kind == "hero" else maps
         ids = set()
+        partial = {}
+        resource_id = _resource_id(value)
         for row in rows:
             row_name = _filter_text(row.get("name"))
-            raw_ids = [row.get(k) for k in (("heroGuid", "heroId", "id", "guid") if kind == "hero" else ("guid", "id", "mapGuid"))]
-            if name == row_name or (kind == "map" and name in row_name and len(name) >= 2) or _resource_id(value) in {_resource_id(v) for v in raw_ids if v}:
-                ids.update(_resource_id(v) for v in raw_ids if v)
-        return ids
-    for kind in ("hero", "map"):
-        value = result.pop(kind, None)
+            resource_ids = row_ids(row, kind)
+            if name == row_name or resource_id in resource_ids:
+                ids.update(resource_ids)
+            elif kind == "map" and allow_partial and len(name) >= 2 and name in row_name:
+                partial.setdefault(row_name, set()).update(resource_ids)
+        if allow_partial and kind == "map" and terms["map"] == value:
+            ids.update(set().union(*partial.values()))
+        if ids or not partial:
+            return ids
+        if len(partial) == 1:
+            return set().union(*partial.values())
+        return set()
+
+    labels = {"hero": "英雄", "map": "地图", "map_mode": "地图玩法"}
+    for kind, label in labels.items():
+        value = terms[kind]
         if value:
             ids = resolve(kind, value)
             if not ids:
-                raise ModuleError(error="invalid_match_filter", message=f"未识别的{'英雄' if kind == 'hero' else '地图'}：{value}", status_code=400)
-            result["_"+kind+"_ids"] = ids
-    search = str(result.pop("search", "") or "").strip()
-    for value in search.split():
-        candidates = [(kind, resolve(kind, value)) for kind in ("hero", "map")]
-        candidates = [(kind, ids) for kind, ids in candidates if ids]
-        if len(candidates) != 1:
-            raise ModuleError(error="invalid_match_filter", message=f"无法识别筛选条件：{value}，请使用 地图:名称 或 英雄:名称。", status_code=400)
-        kind, ids = candidates[0]
-        key = "_"+kind+"_ids"
-        result[key] = result[key] & ids if key in result else ids
+                raise ModuleError(error="invalid_match_filter", message=f"未识别的{label}：{value}", status_code=400)
+            result[f"_{kind}_ids"] = ids
+    def match_word(value):
+        candidates = [(kind, ids) for kind in labels if (ids := resolve(kind, value, allow_partial=False))]
+        if len(candidates) == 1:
+            return candidates
+        # A compact map + hero is accepted only if both full names or aliases match.
+        if not candidates and re.fullmatch(r"[\u3400-\u9fff]{2,24}", value):
+            pairs = []
+            for offset in range(1, len(value)):
+                left, right = value[:offset], value[offset:]
+                for map_word, hero_word in ((left, right), (right, left)):
+                    map_ids = resolve("map", map_word, allow_partial=False)
+                    if map_ids and (hero_ids := resolve("hero", hero_word)):
+                        pairs.append([("map", map_ids), ("hero", hero_ids)])
+            if len(pairs) == 1:
+                return pairs[0]
+        if not candidates and (map_ids := resolve("map", value)):
+            return [("map", map_ids)]
+        if candidates:
+            raise ModuleError(
+                error="invalid_match_filter",
+                message=f"筛选条件有歧义：{value}。请使用 地图:{value}、英雄:{value} 或 地图玩法:{value} 指定类别。",
+                status_code=400,
+            )
+        raise ModuleError(
+            error="invalid_match_filter",
+            message=f"无法识别筛选条件：{value}。请检查名称，多个条件用空格分隔。",
+            status_code=400,
+        )
+
+    for word in re.findall(r'"[^"]+"|\S+', terms["search"]):
+        value = word.strip('"')
+        for kind, ids in match_word(value):
+            key = f"_{kind}_ids"
+            result[key] = result[key] & ids if key in result else ids
     return result
 
 
 def _matches_filters(match: Dict[str, Any], filters: Dict[str, Any]) -> bool:
     for key, expected in (filters or {}).items():
-        if key in {"_hero_ids", "_map_ids"}:
-            if key == "_map_ids":
+        if key in {"_hero_ids", "_map_ids", "_map_mode_ids"}:
+            if key != "_hero_ids":
                 values = [match.get("mapGuid"), match.get("mapId")]
             else:
                 values = [match.get("heroGuid"), match.get("heroId")]
@@ -228,10 +332,12 @@ class DashenMatchRequests:
 
     async def list_recent_matches(self, query: DashenMatchQuery) -> List[Dict[str, Any]]:
         filters = resolve_match_filters(query.filters)
-        if any(key in filters for key in ("_map_ids", "_hero_ids", "gameMode")):
+        sort_key = filters.pop("_sort", "")
+        game_modes = filters.pop("_game_modes", ())
+        if sort_key or game_modes or any(key in filters for key in ("_map_ids", "_hero_ids", "_map_mode_ids", "gameMode")):
             allowed = get_recent_dashen_seasons(include_previous=query.include_previous_season)
             seasons = [season for season in allowed if not query.seasons or season in query.seasons]
-            return await self._search_matches(query, seasons, max(1, min(20, int(query.target_count))), filters)
+            return await self._search_matches(query, seasons, max(1, min(20, int(query.target_count))), filters, game_modes, sort_key)
         seasons = list(query.seasons or get_recent_dashen_seasons(include_previous=query.include_previous_season))
         matches: List[Dict[str, Any]] = []
         for logical_season in seasons:
@@ -257,7 +363,13 @@ class DashenMatchRequests:
             matches = [match for match in matches if _matches_filters(match, filters)]
         return matches
 
-    async def _search_matches(self, query, seasons, limit, filters):
+    async def _search_matches(self, query, seasons, limit, filters, game_modes, sort_key):
+        def rank(entries):
+            # Merging orders matches by newest first, so that ties stay chronological.
+            if sort_key:
+                entries.sort(key=lambda entry: _match_sort_key(entry, sort_key))
+            return entries[:limit]
+
         async def scan_mode(mode, fight, season):
             found = []
             for request_season in iter_dashen_season_request_values(season):
@@ -280,17 +392,19 @@ class DashenMatchRequests:
                         fresh.append(item)
                     if not fresh:
                         break
-                    found = merge_unique_match_entries(found, [m for m in fresh if _matches_filters(m, filters)])
-                    if len(found) >= limit:
+                    found = rank(merge_unique_match_entries(found, [m for m in fresh if _matches_filters(m, filters)]))
+                    if not sort_key and len(found) >= limit:
                         break
                     page += 1
                 if seen:
                     break
-            return found[:limit]
+            return found
 
         matches = []
         modes = [("leisure", False), ("sport", False)]
-        if filters.get("gameMode"):
+        if game_modes:
+            modes = [(mode, mode in DEFAULT_FIGHT_MODES) for mode in game_modes]
+        elif filters.get("gameMode"):
             modes = [(filters["gameMode"], False)]
         elif query.include_fight:
             modes += [(mode, True) for mode in DEFAULT_FIGHT_MODES]
@@ -298,9 +412,10 @@ class DashenMatchRequests:
             batches = await asyncio.gather(*(scan_mode(mode, fight, season) for mode, fight in modes))
             for batch in batches:
                 matches = merge_unique_match_entries(matches, batch)
-            if len(matches) >= limit:
+            matches = rank(matches)
+            if not sort_key and len(matches) >= limit:
                 break
-        return matches[:limit]
+        return matches
 
     async def list_history_matches(
         self,

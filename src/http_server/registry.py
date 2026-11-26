@@ -115,6 +115,21 @@ def _select_field(
     )
 
 
+DASHEN_MATCH_FILTER_FIELDS = (
+    HTTPUIFieldSpec("map", "地图", "map", placeholder="可选，如国王大道、尼泊尔"),
+    HTTPUIFieldSpec("hero", "英雄", "hero", placeholder="可选，支持英雄别名"),
+    _select_field("mode", "比赛模式", "mode", default="", options=tuple(
+        HTTPUIFieldOption(value, value or "全部")
+        for value in ("", "快速", "竞技", "角斗领域", "角斗快速", "角斗竞技")
+    )),
+    HTTPUIFieldSpec("map_mode", "地图玩法", "map_mode", placeholder="可选，如推车、占点、闪点"),
+    _select_field("sort", "排序", "sort", default="", help_text="死亡从少到多，其余指标从高到低。", options=tuple(
+        HTTPUIFieldOption(value, value or "最新优先")
+        for value in ("", "击杀", "助攻", "死亡", "伤害", "治疗", "阻挡", "KDA")
+    )),
+)
+
+
 HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
     HTTPUIModuleSpec(
         id="dashen-profile",
@@ -201,12 +216,11 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
     HTTPUIModuleSpec(
         id="dashen-match",
         title="近期对局",
-        description="普通查询获取近期对局；填写地图或英雄后，检索最近两个赛季最多20场。",
+        description="可组合筛选比赛模式、地图玩法、地图和英雄，筛选结果最多 20 场。",
         json_endpoint="/api/v2/dashen-match",
         image_endpoint="/api/v2/dashen-match/image",
         fields=(
-            HTTPUIFieldSpec("map", "地图", "map", placeholder="可选，如国王大道、尼泊尔"),
-            HTTPUIFieldSpec("hero", "英雄", "hero", placeholder="可选，支持英雄别名"),
+            *DASHEN_MATCH_FILTER_FIELDS,
             _number_field("limit", "数量", "limit", placeholder="默认 20", default="20"),
             _bool_field("include_fight", "包含角斗领域", "include_fight", default=True),
             _bool_field(
@@ -230,8 +244,9 @@ HTTP_UI_MODULE_SPECS: Tuple[HTTPUIModuleSpec, ...] = (
                 "index",
                 placeholder="默认 0",
                 default="0",
-                help_text="从近期对局列表按 0 开始取值。",
+                help_text="按筛选和排序后的对局列表取值，从 0 开始。",
             ),
+            *DASHEN_MATCH_FILTER_FIELDS,
             _number_field(
                 "limit",
                 "回溯数量",

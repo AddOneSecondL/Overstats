@@ -10,11 +10,12 @@ from dataclasses import dataclass
 from io import BytesIO
 import json
 from pathlib import Path
-import math
 import re
 import time
 from typing import Any, Dict, Sequence
 from urllib.parse import urlparse
+
+from .requests import match_stat_number as _match_stat_number
 
 try:
     from overstats.src.modules.query_tool import get_cached_asset_path, load_query_tool
@@ -133,7 +134,7 @@ def render_match_list(
         rendered_footer_lines.append(effective_hint_text)
     baselines = _match_list_baselines(recent_matches)
     if baselines:
-        rendered_footer_lines.insert(0, f"黄色数字为该局全场最高；条形对比近 {len(recent_matches)} 场：竖线为均值，绿色高于均值，红色为阵亡偏多")
+        rendered_footer_lines.insert(0, f"黄色数字为全场最高。条形对比所列 {len(recent_matches)} 场，竖线为均值，绿色高于均值，红色为阵亡偏多")
     footer_h = max(58, 24 + 22 * max(len(rendered_footer_lines), 1))
     img_h = row_h * max(len(recent_matches), 1) + 70 + footer_h
     img = Image.new("RGBA", (900, img_h), (22, 23, 30, 255))
@@ -166,7 +167,7 @@ def render_match_list(
     # Share the title's baseline so the small label and the large rate line up; numbers use the number face.
     wr_baseline = 15 + font_title.getmetrics()[0]
     wr_x = 640
-    for part, part_font in (("近 ", font), (str(total_recent), _font_num_display(18)), (" 场胜率:", font)):
+    for part, part_font in (("所列 ", font), (str(total_recent), _font_num_display(18)), (" 场胜率:", font)):
         draw.text((wr_x, wr_baseline), part, fill=(220, 220, 220), font=part_font, anchor="ls")
         wr_x += _text_width(draw, part, part_font) + (2 if part_font is not font else 0)
     draw.text((wr_x + 10, wr_baseline), f"{win_rate:.1f}%", fill=wr_color, font=_font_num_display(24), anchor="ls")
@@ -783,17 +784,6 @@ LIST_BAR_BAD = (236, 108, 98, 255)
 LIST_BEST = (255, 215, 0)
 # Flags in the match data: the player had the most of this stat in that game.
 MATCH_LIST_MAX_FLAGS = {"kill": "killMax", "heroDamage": "heroDamageMax", "cure": "cureMax", "resistDamage": "resistDamageMax"}
-
-
-def _match_stat_number(match: Dict[str, Any], key: str) -> float | None:
-    value = match.get(key)
-    if value is None or value == "":
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError, OverflowError):
-        return None
-    return number if math.isfinite(number) and number >= 0 else None
 
 
 def _match_list_baselines(matches: Sequence[Dict[str, Any]]) -> Dict[str, Dict[str, float]]:
@@ -1922,6 +1912,8 @@ def _mode_label(match: Dict[str, Any]) -> tuple[str, tuple[int, int, int]]:
         return "角斗竞技", (255, 190, 60)
     if "quickfight" in lower or "leisurefight" in lower or ("fight" in lower and not rank_info):
         return "角斗快速", (180, 255, 70)
+    if "quick" in lower or "leisure" in lower:
+        return "快速", (0, 200, 255)
     if rank_info or "sport" in lower or "rank" in lower:
         return "竞技", (255, 80, 80)
     return "快速", (0, 200, 255)

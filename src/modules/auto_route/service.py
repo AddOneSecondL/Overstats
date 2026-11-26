@@ -10,6 +10,7 @@ except ModuleNotFoundError:
     from src.modules.errors import ModuleError
 
 from .requests import AutoRouteRequests
+from ..dashen_match.requests import MATCH_FILTER_KEYS
 
 
 TOKEN_PREFIXES = (
@@ -361,11 +362,16 @@ class AutoRouteModule:
                 "type": "function",
                 "function": {
                     "name": "dashen_match",
-                    "description": "Query recent matches or one match detail.",
+                    "description": "Query recent matches or one match detail with optional filters and sorting.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "target": {"type": "string"},
+                            "mode": {"type": "string", "description": "比赛模式，如快速、竞技、角斗领域"},
+                            "map_mode": {"type": "string", "description": "地图玩法，如推车、占点、闪点"},
+                            "map": {"type": "string", "description": "地图名称"},
+                            "hero": {"type": "string", "description": "英雄名称或别名"},
+                            "sort": {"type": "string", "enum": ["击杀", "助攻", "死亡", "伤害", "治疗", "阻挡", "KDA"]},
                             "index": {"type": "integer"},
                             "show_all_heroes": {"type": "boolean"},
                             "analyze": {"type": "boolean"},
@@ -663,6 +669,7 @@ class AutoRouteModule:
 
     def _build_dashen_match_selection(self, arguments: Dict[str, Any]) -> AutoRouteSelection:
         payload = _require_target_payload(arguments.get("target"))
+        payload.update({key: value for key in MATCH_FILTER_KEYS if (value := _normalize_tool_text(arguments.get(key)))})
         index = _normalize_positive_int(arguments.get("index"), field_name="index")
         show_all_heroes = _normalize_tool_bool(arguments.get("show_all_heroes"), default=False)
         analyze = _normalize_tool_bool(arguments.get("analyze"), default=False)

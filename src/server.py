@@ -31,6 +31,7 @@ try:
     )
     from overstats.src.modules.query_tool import start_query_tool_asset_warmup, load_query_tool
     from overstats.src.modules.dashen_match import DashenMatchQuery, dashen_match_module
+    from overstats.src.modules.dashen_match.requests import MATCH_FILTER_KEYS
     from overstats.src.modules.dashen_sameplay import DashenSameplayQuery, dashen_sameplay_module
     from overstats.src.modules.dashen_rank_history import DashenRankHistoryQuery, dashen_rank_history_module
     from overstats.src.modules.dashen_team_overview import team_overview_module
@@ -90,6 +91,7 @@ except ModuleNotFoundError:
     )
     from src.modules.query_tool import start_query_tool_asset_warmup, load_query_tool
     from src.modules.dashen_match import DashenMatchQuery, dashen_match_module
+    from src.modules.dashen_match.requests import MATCH_FILTER_KEYS
     from src.modules.dashen_sameplay import DashenSameplayQuery, dashen_sameplay_module
     from src.modules.dashen_rank_history import DashenRankHistoryQuery, dashen_rank_history_module
     from src.modules.dashen_team_overview import team_overview_module
@@ -138,6 +140,10 @@ def _coerce_bool(value: object, default: bool) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return bool(value)
+
+
+def _dashen_match_filters(payload: Dict[str, object]) -> Dict[str, str]:
+    return {key: value for key in MATCH_FILTER_KEYS if (value := str(payload.get(key) or "").strip())}
 
 
 def _coerce_profile_render_mode(payload: Dict[str, object]) -> str:
@@ -1076,7 +1082,7 @@ class OverstatsCoreService:
 
         result = await dashen_match_module.query_match_list(
             DashenMatchQuery(
-                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search", "mode") if str(payload.get(key) or "").strip()},
+                filters=_dashen_match_filters(payload),
                 customer_token=customer_token,
                 bnet_id=bnet_id,
                 target_count=target_count,
@@ -1112,7 +1118,7 @@ class OverstatsCoreService:
 
         result = await dashen_match_module.query_match_list_replies(
             DashenMatchQuery(
-                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search", "mode") if str(payload.get(key) or "").strip()},
+                filters=_dashen_match_filters(payload),
                 customer_token=customer_token,
                 bnet_id=bnet_id,
                 target_count=int(payload.get("target_count") or payload.get("limit") or 20),
@@ -1155,7 +1161,7 @@ class OverstatsCoreService:
 
         result = await dashen_match_module.query_match_list(
             DashenMatchQuery(
-                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search", "mode") if str(payload.get(key) or "").strip()},
+                filters=_dashen_match_filters(payload),
                 customer_token=customer_token,
                 bnet_id=bnet_id,
                 target_count=target_count,
@@ -1434,7 +1440,7 @@ class OverstatsCoreService:
             include_previous_season = _coerce_bool(payload.get("include_previous_season"), True)
             result = await dashen_match_module.query_match_detail_by_index(
                 DashenMatchQuery(
-                    filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search", "mode") if str(payload.get(key) or "").strip()},
+                    filters=_dashen_match_filters(payload),
                     customer_token=customer_token,
                     bnet_id=bnet_id,
                     target_count=target_count,
@@ -1501,7 +1507,7 @@ class OverstatsCoreService:
                     hint='Example: {"bnet_id":"Player#12345","index":0}',
                 )
             query = DashenMatchQuery(
-                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search", "mode") if str(payload.get(key) or "").strip()},
+                filters=_dashen_match_filters(payload),
                 customer_token=customer_token,
                 bnet_id=bnet_id,
                 target_count=int(payload.get("target_count") or payload.get("limit") or 20),
@@ -1565,7 +1571,7 @@ class OverstatsCoreService:
         include_previous_season = _coerce_bool(payload.get("include_previous_season"), True)
         result = await dashen_match_module.query_match_detail_by_index(
             DashenMatchQuery(
-                filters={key: str(payload.get(key) or "").strip() for key in ("map", "hero", "search", "mode") if str(payload.get(key) or "").strip()},
+                filters=_dashen_match_filters(payload),
                 customer_token=customer_token,
                 bnet_id=bnet_id,
                 target_count=target_count,
