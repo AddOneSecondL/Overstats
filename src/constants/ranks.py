@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Mapping, Optional
 
 
@@ -138,6 +139,18 @@ def display_rank_label(value):
 def rank_name_cn(value: Any) -> str:
     canonical = canonical_rank_name(value)
     return RANK_LABELS_CN.get(canonical, str(value or "").strip())
+
+
+def stadium_rank(label: Any) -> tuple[int, str]:
+    """Return the Stadium icon level and localized label for a rank name."""
+    value = str(label or "").replace("\u200c", "").strip()
+    names = ("菜鸟", "新秀", "斗士", "精英", "专家", "全明星", "传奇")
+    english = ("Bronze", "Silver", "Gold", "Platinum", "Diamond", "Master", "Grandmaster")
+    base = re.sub(r"\d+\s*$", "", value).strip()
+    for level, (cn, en) in enumerate(zip(names, english), 1):
+        if base.casefold() in {cn, en.casefold()}:
+            return level, value.replace(base, cn, 1)
+    return 0, value or "—"
 
 
 def get_rank_score(rank_info: Mapping[str, Any] | None, default: Any = 0) -> Any:
@@ -287,6 +300,7 @@ __all__ = [
     "raw_rank_score_parts",
     "raw_rank_score_to_icon_level",
     "raw_rank_score_to_strength",
+    "stadium_rank",
     "strength_score_rank_name",
     "strength_score_to_icon_level",
     "strength_score_to_rank",

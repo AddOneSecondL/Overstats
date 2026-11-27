@@ -35,7 +35,7 @@ def count_value(raw):
 def pile_tier(opened):
     opened = count_value(opened)
     if not opened:
-        return 0, "尚未开箱" if opened == 0 else "数量未知"
+        return 0, "尚未开箱" if opened == 0 else "未返回开箱数"
     return next((depth, label) for threshold, depth, label in reversed(PILE_TIERS) if opened >= threshold)
 
 
@@ -109,7 +109,7 @@ def render_loot_panel(canvas, x, y, width, loot, font_loader=None, draw_factory=
     number = f"{opened:,}" if opened is not None else "—"
     text(36, 113, number, 51, C.INFO, 205 if not wide else 350)
     text(39, 176, "份补给", 17, C.INK)
-    text(39, 204 if not wide else 275, f"箱堆档位 · {tier}", 14, C.MUTED)
+    text(39, 204 if not wide else 275, f"箱堆档位 · {tier}" if depth else tier, 14, C.MUTED)
 
     if depth:
         max_width, max_height = (180, 160) if wide else (270, 130)
@@ -124,8 +124,6 @@ def render_loot_panel(canvas, x, y, width, loot, font_loader=None, draw_factory=
             row_w = size + row * step_x
             for col in range(row + 1):
                 crate(cx - row_w / 2 + col * step_x, bottom - total_h + row * step_y, size)
-    else:
-        text(250 if not wide else 210, 162 if not wide else 225, "等待第一箱" if opened == 0 else "暂无箱数", 18)
 
     start_x, start_y = (438, 73) if wide else (24, 241)
     area_width = width - start_x - 26

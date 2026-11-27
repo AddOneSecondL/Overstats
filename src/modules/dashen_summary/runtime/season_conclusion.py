@@ -3,7 +3,7 @@ from .season_panels import (
     build_season_data, draw_rank_panel, draw_season_panel, rank_panel_height, season_chip, season_glow,
     season_map_wash, season_panel_height,
 )
-from ....constants.ranks import rank_info_score_to_strength
+from ....constants.ranks import rank_info_score_to_strength, stadium_rank
 from ...subroles import draw_subrole_badge, get_subrole
 from ...dashen_promo import append_dashen_promo
 
@@ -3426,20 +3426,28 @@ async def _draw_award_card(canvas, draw, box, title, entry, breakthrough=False):
         draw.text((right-32,bottom-42),"特色提升对比个人赛季同英雄数据",font=_load_font(12),fill=C.FAINT,anchor="ra")
 
 
-def _draw_summary_rank(canvas,draw,rank_info,x,y,size=18,font_size=None,align_right=False):
-    rank_info=rank_info or {}
-    name=get_rank_name(rank_info)
-    tier=get_rank_sub_tier(rank_info)
-    raw_strength=raw_rank_score_to_strength(get_rank_score(rank_info))
-    label=f"{rank_name_cn(name)}{tier}" if name else strength_score_to_rank(raw_strength,chinese=True) if raw_strength is not None else "段位未知"
-    label=rank_name_cn("Unranked") if is_unranked_placeholder(rank_info) else display_rank_label(label)
-    level=rank_info_to_icon_level(rank_info)
+def _draw_summary_rank(canvas, draw, rank_info, x, y, size=18, font_size=None, align_right=False, *, stadium=False):
+    rank_info = rank_info or {}
+    name = get_rank_name(rank_info)
+    tier = get_rank_sub_tier(rank_info)
+    unranked = is_unranked_placeholder(rank_info)
+    if stadium:
+        level, label = stadium_rank(f"{name}{tier}")
+        if not level and not unranked:
+            return
+        icon = f"rank_flat/f{level}_pure.png" if level else None
+    else:
+        raw_strength=raw_rank_score_to_strength(get_rank_score(rank_info))
+        label=f"{rank_name_cn(name)}{tier}" if name else strength_score_to_rank(raw_strength,chinese=True) if raw_strength is not None else "段位未知"
+        level=rank_info_to_icon_level(rank_info)
+        icon = f"rank_flat/{level}_pure.png" if level else None
+    label = rank_name_cn("Unranked") if unranked else display_rank_label(label)
     font=_load_font(font_size or (12 if size<=18 else 14))
     if align_right:
         # ``x`` is the right edge; the icon sits against the measured label.
         x-=_text_size(draw,label,font)[0]+size+C.RANK_SHIFT
-    if level:
-        _paste_summary_asset(canvas,f"rank_flat/{level}_pure.png",(x,y,size,size),trim=True)
+    if icon:
+        _paste_summary_asset(canvas,icon,(x,y,size,size),trim=True)
     draw.text((x+size+3,y+(size-_text_size(draw,label,font)[1])/2-1 if align_right else y+2),label,font=font,fill=C.RANK_TEXT)
 
 
@@ -3742,7 +3750,10 @@ async def _draw_match_timeline(canvas,draw,box,matches,streak_text,awards=None):
         draw.text((tile_right-10,top+102),label,font=draw.numeric_font(24) or _load_font(20,bold=True),fill=border,anchor="ra")
         draw.text((left+10,top+133),f'{dt:%m/%d}',font=_load_font(12),fill=C.MUTED)
         if _is_comp(match):
-            _draw_summary_rank(canvas,draw,record.get("rank_info") or match.get("rankInfo"),tile_right-9,top+123,28,font_size=15,align_right=True)
+            _draw_summary_rank(
+                canvas, draw, record.get("rank_info") or match.get("rankInfo"),
+                tile_right-9, top+123, 28, font_size=15, align_right=True, stadium=_is_fight(match),
+            )
         if key in standouts:
             _draw_rainbow_border(draw, tile_box, radius=RADIUS_TILE, width=3)
         else:

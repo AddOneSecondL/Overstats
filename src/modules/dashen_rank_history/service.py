@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
+from ...constants.rank_queues import RANK_QUEUE_ORDER, rank_card_track, rank_queue_key
+
 try:
     from overstats.src.constants.ranks import get_rank_score, get_rank_sub_tier, raw_rank_score_to_icon_level
     from overstats.src.client.apiclient import DashenAPIClient
@@ -29,9 +31,6 @@ from .requests import (
     payload_data,
     sport_payload_has_content,
 )
-
-
-ROLE_ORDER = ("tank", "dps", "healer", "open")
 
 
 @dataclass(frozen=True)
@@ -231,23 +230,30 @@ class DashenRankHistoryModule:
                 for item in list(data.get("heroUseSummaryList") or [])
                 if isinstance(item, dict) and str(item.get("heroGuid") or "").strip()
             ],
-            "roles": self._serialize_roles(list(data.get("roleTypeCountData") or [])),
+            "roles": self._serialize_roles(list(data.get("roleTypeCountData") or []), scope="stadium"),
         }
 
-    def _serialize_roles(self, rows: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        lookup = {str(row.get("roleType") or ""): row for row in rows if isinstance(row, dict)}
+    def _serialize_roles(self, rows: Sequence[Dict[str, Any]], *, scope: str = "preset") -> List[Dict[str, Any]]:
+        lookup = {}
+        for row in rows:
+            if isinstance(row, dict):
+                queue, role = rank_card_track(row, scope)
+                if key := rank_queue_key(queue, role):
+                    lookup[key] = (row, queue, role)
         serialized: List[Dict[str, Any]] = []
-        for role_type in ROLE_ORDER:
-            row = lookup.get(role_type)
-            if row is None:
+        for key in RANK_QUEUE_ORDER:
+            if key not in lookup:
                 continue
+            row, queue, role = lookup[key]
             last_rank_info = row.get("lastRankInfo") if isinstance(row.get("lastRankInfo"), dict) else {}
             max_rank_info = row.get("maxRankInfo") if isinstance(row.get("maxRankInfo"), dict) else {}
             match_sum = self._safe_int(row.get("matchSum"))
             win_rate = self._safe_float(row.get("winRate"))
             serialized.append(
                 {
-                    "role_type": role_type,
+                    "queue_type": queue,
+                    "role_type": role,
+                    "queue_key": key,
                     "match_sum": match_sum,
                     "win_rate": win_rate,
                     "win_sum": int(match_sum * win_rate / 100) if match_sum > 0 else 0,
